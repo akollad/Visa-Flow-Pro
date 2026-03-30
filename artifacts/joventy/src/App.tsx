@@ -117,27 +117,20 @@ function ClerkNavigationProvider({ children }: { children: ReactNode }) {
   return (
     <ClerkProvider
       publishableKey={clerkPublishableKey}
-      routerPush={(to) => setLocation(to.replace(/^\/?#/, ""))}
-      routerReplace={(to) => setLocation(to.replace(/^\/?#/, ""))}
+      routerPush={(to) => {
+        // Clerk hash-based internal routes (e.g. #/continue) → redirect to login
+        // to prevent infinite loops; all valid post-auth routes are path-based
+        const path = to.startsWith("#") ? "/login" : to;
+        setLocation(path);
+      }}
+      routerReplace={(to) => {
+        const path = to.startsWith("#") ? "/login" : to;
+        setLocation(path);
+      }}
     >
       {children}
     </ClerkProvider>
   );
-}
-
-function HashGuard() {
-  const [, setLocation] = useLocation();
-  useEffect(() => {
-    // Only intercept known Clerk internal hash routes
-    const clerkHashRoutes = ["#/continue", "#/factor-one", "#/factor-two", "#/reset-password"];
-    const hash = window.location.hash;
-    if (hash && clerkHashRoutes.some((r) => hash.startsWith(r))) {
-      const path = hash.slice(1);
-      window.history.replaceState(null, "", window.location.pathname);
-      setLocation(path);
-    }
-  }, []);
-  return null;
 }
 
 function App() {
@@ -145,7 +138,6 @@ function App() {
 
   return (
     <WouterRouter base={base}>
-      <HashGuard />
       <ClerkNavigationProvider>
         <ConvexProviderWithClerk client={convex} useAuth={useClerkAuth}>
           <TooltipProvider>
