@@ -9,8 +9,8 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle2, Upload, Copy, AlertCircle, ArrowRight, Clock } from "lucide-react";
 
-const MPESA_NUMBER = "+243 97 000 0000";
-const AIRTEL_NUMBER = "+243 99 000 0000";
+const MPESA_NUMBER = MOBILE_MONEY_INFO.mpesa.number;
+const AIRTEL_NUMBER = MOBILE_MONEY_INFO.airtel.number;
 
 export default function PaymentGate() {
   const [, params] = useRoute("/dashboard/applications/:id/payment");

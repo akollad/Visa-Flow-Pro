@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import {
   Send, Calendar, Plane, CreditCard, ShieldCheck,
   CheckCircle2, Clock, AlertCircle, Star, Download, ArrowRight,
-  FileText, Search, Lock, XCircle
+  FileText, Search, Lock, XCircle, Upload
 } from "lucide-react";
 
 type Application = Doc<"applications">;
@@ -43,17 +43,18 @@ function Countdown({ targetTs }: { targetTs: number }) {
     return () => clearInterval(id);
   }, [targetTs]);
 
-  const h = Math.floor(remaining / 3600000);
-  const m = Math.floor((remaining % 3600000) / 60000);
-  const s = Math.floor((remaining % 60000) / 1000);
-
   if (remaining === 0) return <span className="text-red-600 font-bold">Créneau expiré</span>;
 
-  return (
-    <span className="font-mono font-bold text-red-700">
-      {String(h).padStart(2, "0")}:{String(m).padStart(2, "0")}:{String(s).padStart(2, "0")}
-    </span>
-  );
+  const days = Math.floor(remaining / 86400000);
+  const hours = Math.floor((remaining % 86400000) / 3600000);
+  const minutes = Math.floor((remaining % 3600000) / 60000);
+
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days}j`);
+  if (hours > 0 || days > 0) parts.push(`${hours}h`);
+  parts.push(`${String(minutes).padStart(2, "0")}min`);
+
+  return <span className="font-mono font-bold text-red-700">{parts.join(" ")}</span>;
 }
 
 function InterviewKit({ app }: { app: Application }) {
@@ -452,16 +453,30 @@ export default function ClientApplicationDetail() {
             <div className="bg-white p-6 sm:p-8 rounded-2xl border border-border shadow-sm">
               <h2 className="text-lg font-bold text-primary mb-4">Journal d'activité</h2>
               <div className="relative border-l-2 border-slate-100 ml-3 space-y-6 pb-2">
-                {[...app.logs].reverse().map((log: LogEntry, idx: number) => (
-                  <div key={idx} className="relative pl-6">
-                    <div className="absolute -left-[7px] top-1 w-3 h-3 rounded-full bg-primary border-2 border-white" />
-                    <p className="text-sm text-slate-700">{log.msg}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {formatDate(log.time)} · {log.author ?? "système"}
-                    </p>
-                  </div>
-                ))}
+                {[...app.logs].reverse().map((log: LogEntry, idx: number) => {
+                  const m = log.msg.toLowerCase();
+                  let Icon = Clock;
+                  let dotColor = "bg-primary";
+                  if (m.includes("créé") || m.includes("nouveau")) { Icon = FileText; dotColor = "bg-blue-500"; }
+                  else if (m.includes("payé") || m.includes("validé") || m.includes("paiement")) { Icon = CheckCircle2; dotColor = "bg-green-500"; }
+                  else if (m.includes("créneau") || m.includes("rendez-vous")) { Icon = Star; dotColor = "bg-secondary"; }
+                  else if (m.includes("refusé") || m.includes("rejeté")) { Icon = XCircle; dotColor = "bg-red-500"; }
+                  else if (m.includes("reçu") || m.includes("uploadé")) { Icon = Upload; dotColor = "bg-violet-500"; }
+                  else if (m.includes("traitement") || m.includes("analyse") || m.includes("revision")) { Icon = Search; dotColor = "bg-indigo-500"; }
+
+                  return (
+                    <div key={idx} className="relative pl-6">
+                      <div className={`absolute -left-[7px] top-1 w-3.5 h-3.5 rounded-full ${dotColor} border-2 border-white flex items-center justify-center`}>
+                        <Icon className="w-2 h-2 text-white" />
+                      </div>
+                      <p className="text-sm text-slate-700">{log.msg}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {formatDate(log.time)} · {log.author ?? "système"}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
