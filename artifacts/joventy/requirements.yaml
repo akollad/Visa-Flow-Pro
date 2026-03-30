@@ -1,0 +1,18 @@
+packages:
+  "framer-motion": "Smooth page transitions and scroll-triggered animations for a premium feel"
+  "react-hook-form": "Robust form state management for complex visa application workflows"
+  "@hookform/resolvers": "Zod validation integration for react-hook-form"
+  "recharts": "Beautiful data visualization for the admin statistics dashboard"
+
+images:
+  - path: "artifacts/joventy/public/images/hero-bg.png"
+    description: "Luxurious abstract background with deep navy blue and soft gold glowing accents, modern corporate, premium banking aesthetic, highly professional"
+    aspect_ratio: "16:9"
+  - path: "artifacts/joventy/public/images/logo.png"
+    description: "Minimalist premium logo icon for a visa agency, gold geometric shield and globe on transparent background, flat design, elegant"
+    aspect_ratio: "1:1"
+
+notes:
+  - "Assuming native Intl.DateTimeFormat for dates instead of date-fns to reduce dependencies."
+  - "Orval API hooks are imported directly from @workspace/api-client-react."
+  - "Auth is session-based and handled via Tanstack Query global cache."
