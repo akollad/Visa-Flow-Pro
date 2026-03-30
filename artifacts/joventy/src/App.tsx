@@ -73,7 +73,21 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       <Route path="/sso-callback">
-        {() => <AuthenticateWithRedirectCallback />}
+        {() => (
+          <AuthenticateWithRedirectCallback
+            afterSignInUrl="/dashboard"
+            afterSignUpUrl="/dashboard"
+          />
+        )}
+      </Route>
+      {/* Clerk hash-routing fallback for multi-step OAuth flows */}
+      <Route path="/continue">
+        {() => (
+          <AuthenticateWithRedirectCallback
+            afterSignInUrl="/dashboard"
+            afterSignUpUrl="/dashboard"
+          />
+        )}
       </Route>
 
       <Route path="/dashboard">
@@ -118,9 +132,12 @@ function ClerkNavigationProvider({ children }: { children: ReactNode }) {
   return (
     <ClerkProvider
       publishableKey={clerkPublishableKey}
-      routerPush={(to) => setLocation(to)}
-      routerReplace={(to) => setLocation(to)}
+      routerPush={(to) => setLocation(to.replace(/^#/, ""))}
+      routerReplace={(to) => setLocation(to.replace(/^#/, ""))}
       signInFallbackRedirectUrl="/dashboard"
+      signUpFallbackRedirectUrl="/dashboard"
+      signInUrl="/login"
+      signUpUrl="/register"
     >
       {children}
     </ClerkProvider>

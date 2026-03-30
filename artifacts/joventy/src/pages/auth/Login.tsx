@@ -71,8 +71,8 @@ export default function Login() {
     try {
       await signIn.authenticateWithRedirect({
         strategy,
-        redirectUrl: "/sso-callback",
-        redirectUrlComplete: "/dashboard",
+        redirectUrl: `${window.location.origin}/sso-callback`,
+        redirectUrlComplete: `${window.location.origin}/dashboard`,
       });
     } catch (err: any) {
       setError(err.errors?.[0]?.message || "Erreur de connexion OAuth");

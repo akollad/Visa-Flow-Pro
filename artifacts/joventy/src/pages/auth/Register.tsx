@@ -73,8 +73,8 @@ export default function Register() {
     try {
       await signUp.authenticateWithRedirect({
         strategy,
-        redirectUrl: "/sso-callback",
-        redirectUrlComplete: "/dashboard",
+        redirectUrl: `${window.location.origin}/sso-callback`,
+        redirectUrlComplete: `${window.location.origin}/dashboard`,
       });
     } catch (err: any) {
       setError(err.errors?.[0]?.message || "Erreur OAuth");
