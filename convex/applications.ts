@@ -34,6 +34,18 @@ export const list = query({
       apps = apps.filter((a) => a.status === args.status);
     }
 
+    // For client users, strip appointment details from paywalled applications
+    if (!isAdmin) {
+      return apps.map((app) => {
+        const successFeePaid = app.priceDetails?.isSuccessFeePaid ?? false;
+        if (app.status === "slot_found_awaiting_success_fee" && !successFeePaid) {
+          const { appointmentDetails: _stripped, ...safeApp } = app;
+          return { ...safeApp, appointmentDetails: undefined };
+        }
+        return app;
+      });
+    }
+
     return apps;
   },
 });
@@ -49,6 +61,31 @@ export const get = query({
 
     const isAdmin = getRole(identity as Record<string, unknown>) === "admin";
     if (!isAdmin && app.userId !== identity.subject) return null;
+
+    // Admins always receive full data.
+    if (isAdmin) return app;
+
+    // For clients: enforce paywall on appointment details before success fee payment.
+    const successFeePaid = app.priceDetails?.isSuccessFeePaid ?? false;
+    const isSlotFound = app.status === "slot_found_awaiting_success_fee";
+
+    if (isSlotFound && !successFeePaid) {
+      // Strip appointment details and redact any log entry that might contain sensitive specifics.
+      const { appointmentDetails: _stripped, ...safeApp } = app;
+      const redactedLogs = (safeApp.logs ?? []).map((log) => {
+        // Redact log messages that contain appointment date/time patterns
+        const containsDate = /\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4}|rendez-vous le \d/i.test(log.msg);
+        const containsTime = /\d{2}:\d{2}/i.test(log.msg);
+        if (containsDate || containsTime) {
+          return {
+            ...log,
+            msg: "🔒 Détails du rendez-vous disponibles après règlement de la prime de succès.",
+          };
+        }
+        return log;
+      });
+      return { ...safeApp, appointmentDetails: undefined, logs: redactedLogs };
+    }
 
     return app;
   },
