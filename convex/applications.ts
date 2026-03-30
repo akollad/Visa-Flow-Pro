@@ -34,13 +34,13 @@ export const list = query({
       apps = apps.filter((a) => a.status === args.status);
     }
 
-    // For client users, strip appointment details from paywalled applications
+    // For client users, strip paywalled data from unresolved applications
     if (!isAdmin) {
       return apps.map((app) => {
         const successFeePaid = app.priceDetails?.isSuccessFeePaid ?? false;
         if (app.status === "slot_found_awaiting_success_fee" && !successFeePaid) {
-          const { appointmentDetails: _stripped, ...safeApp } = app;
-          return { ...safeApp, appointmentDetails: undefined };
+          const { appointmentDetails: _a, visaDocumentStorageId: _v, ...safeApp } = app;
+          return { ...safeApp, appointmentDetails: undefined, visaDocumentStorageId: undefined };
         }
         return app;
       });
@@ -70,21 +70,20 @@ export const get = query({
     const isSlotFound = app.status === "slot_found_awaiting_success_fee";
 
     if (isSlotFound && !successFeePaid) {
-      // Strip appointment details and redact any log entry that might contain sensitive specifics.
-      const { appointmentDetails: _stripped, ...safeApp } = app;
+      // Strip appointment details and visa document, redact any log entry that might contain sensitive specifics.
+      const { appointmentDetails: _a, visaDocumentStorageId: _v, ...safeApp } = app;
       const redactedLogs = (safeApp.logs ?? []).map((log) => {
-        // Redact log messages that contain appointment date/time patterns
         const containsDate = /\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4}|rendez-vous le \d/i.test(log.msg);
         const containsTime = /\d{2}:\d{2}/i.test(log.msg);
         if (containsDate || containsTime) {
           return {
             ...log,
-            msg: "🔒 Détails du rendez-vous disponibles après règlement de la prime de succès.",
+            msg: "🔒 Détails disponibles après règlement de la prime de succès.",
           };
         }
         return log;
       });
-      return { ...safeApp, appointmentDetails: undefined, logs: redactedLogs };
+      return { ...safeApp, appointmentDetails: undefined, visaDocumentStorageId: undefined, logs: redactedLogs };
     }
 
     return app;
@@ -128,6 +127,7 @@ export const create = mutation({
       isPaid: false,
       price: pricing.total,
       priceDetails,
+      successModel: pricing.successModel,
       logs: [
         makeLog(
           `Dossier créé pour ${pricing.label} — ${args.visaType}. Frais d'engagement : ${pricing.engagementFee}$`,

@@ -338,11 +338,16 @@ export default function AdminApplicationDetail() {
   const validateEngagement = useMutation(api.admin.validateEngagementPayment);
   const validateSuccess = useMutation(api.admin.validateSuccessFee);
   const markSlotFound = useMutation(api.admin.markSlotFound);
+  const markVisaObtained = useMutation(api.admin.markVisaObtained);
+  const generateUploadUrl = useMutation(api.documents.generateUploadUrl);
   const rejectApplication = useMutation(api.admin.rejectApplication);
   const setSlotHunting = useMutation(api.admin.setSlotHunting);
   const setInReview = useMutation(api.admin.setInReview);
   const saveAdminNotes = useMutation(api.admin.saveAdminNotes);
   const [noteSaving, setNoteSaving] = useState(false);
+  const [visaUploading, setVisaUploading] = useState(false);
+  const [visaNotes, setVisaNotes] = useState("");
+  const visaFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (appId && messages.length > 0) {
@@ -404,6 +409,25 @@ export default function AdminApplicationDetail() {
     }
   };
 
+  const handleMarkVisaObtained = async (file: File) => {
+    if (!appId) return;
+    setVisaUploading(true);
+    try {
+      const uploadUrl = await generateUploadUrl();
+      const res = await fetch(uploadUrl, { method: "POST", headers: { "Content-Type": file.type }, body: file });
+      if (!res.ok) throw new Error("Échec de l'upload");
+      const { storageId } = await res.json() as { storageId: string };
+      await markVisaObtained({ applicationId: appId, storageId, notes: visaNotes || undefined });
+      toast({ title: "🎉 Visa enregistré", description: "Le client recevra son visa après paiement de la prime." });
+      setVisaNotes("");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erreur lors de l'enregistrement";
+      toast({ variant: "destructive", title: "Erreur", description: msg });
+    } finally {
+      setVisaUploading(false);
+    }
+  };
+
   if (app === undefined)
     return <div className="p-12 text-center text-muted-foreground">Chargement...</div>;
   if (!app)
@@ -418,6 +442,8 @@ export default function AdminApplicationDetail() {
   const isSlotFound = app.status === "slot_found_awaiting_success_fee";
   const isCompleted = app.status === "completed";
   const isRejected = app.status === "rejected";
+  const successModel = (app as { successModel?: string }).successModel ?? pricing?.successModel ?? "appointment";
+  const isEvisaModel = successModel === "evisa";
 
   const docsByKey = Object.fromEntries(docs.filter((d) => !d.isAdminUpload).map((d) => [d.docKey, d]));
 
@@ -758,20 +784,23 @@ export default function AdminApplicationDetail() {
           </div>
         )}
 
-        {/* ===== SLOT MANAGEMENT ===== */}
-        {(isSlotHunting || isSlotFound) && !isCompleted && (
+        {/* ===== RESULT PANEL — Appointment model (USA, Turquie) ===== */}
+        {!isEvisaModel && (isSlotHunting || isSlotFound) && !isCompleted && (
           <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
             <div className="p-5 border-b border-border bg-slate-50 flex items-center gap-2">
               <Calendar className="w-4 h-4 text-secondary" />
               <h2 className="font-bold text-primary text-base">
                 {isSlotFound ? "Créneau Enregistré" : "Enregistrer un Créneau"}
               </h2>
+              <span className="ml-auto text-[11px] text-muted-foreground bg-slate-100 px-2 py-0.5 rounded-full">
+                {pricing?.successCopy?.triggerLabel ?? "Rendez-vous"}
+              </span>
             </div>
             <div className="p-6">
               {isSlotFound && app.appointmentDetails ? (
                 <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-1">
                   <p className="text-sm text-green-800 font-semibold flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4" /> Créneau capturé et client notifié
+                    <CheckCircle2 className="w-4 h-4" /> Créneau capturé — client en attente de paiement
                   </p>
                   <p className="text-sm text-slate-700">Date : <strong>{formatDateOnly(app.appointmentDetails.date)}</strong></p>
                   <p className="text-sm text-slate-700">Heure : <strong>{app.appointmentDetails.time}</strong></p>
@@ -791,39 +820,19 @@ export default function AdminApplicationDetail() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-xs font-medium text-muted-foreground uppercase">Date RDV *</label>
-                      <Input
-                        type="date"
-                        value={slotDate}
-                        onChange={(e) => setSlotDate(e.target.value)}
-                        className="h-10 bg-slate-50"
-                      />
+                      <Input type="date" value={slotDate} onChange={(e) => setSlotDate(e.target.value)} className="h-10 bg-slate-50" />
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-xs font-medium text-muted-foreground uppercase">Heure *</label>
-                      <Input
-                        type="time"
-                        value={slotTime}
-                        onChange={(e) => setSlotTime(e.target.value)}
-                        className="h-10 bg-slate-50"
-                      />
+                      <Input type="time" value={slotTime} onChange={(e) => setSlotTime(e.target.value)} className="h-10 bg-slate-50" />
                     </div>
                     <div className="sm:col-span-2 space-y-1.5">
                       <label className="text-xs font-medium text-muted-foreground uppercase">Lieu / Ambassade *</label>
-                      <Input
-                        value={slotLocation}
-                        onChange={(e) => setSlotLocation(e.target.value)}
-                        placeholder="Adresse consulaire..."
-                        className="h-10 bg-slate-50"
-                      />
+                      <Input value={slotLocation} onChange={(e) => setSlotLocation(e.target.value)} placeholder="Adresse consulaire..." className="h-10 bg-slate-50" />
                     </div>
                     <div className="sm:col-span-2 space-y-1.5">
                       <label className="text-xs font-medium text-muted-foreground uppercase">Code de confirmation (optionnel)</label>
-                      <Input
-                        value={slotCode}
-                        onChange={(e) => setSlotCode(e.target.value)}
-                        placeholder="Ex: CGO-2025-ABCDE"
-                        className="h-10 bg-slate-50 font-mono"
-                      />
+                      <Input value={slotCode} onChange={(e) => setSlotCode(e.target.value)} placeholder="Ex: CGO-2025-ABCDE" className="h-10 bg-slate-50 font-mono" />
                     </div>
                   </div>
                   <Button
@@ -833,6 +842,67 @@ export default function AdminApplicationDetail() {
                   >
                     {slotSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star className="w-4 h-4" />}
                     {slotSaving ? "Enregistrement..." : "Confirmer le créneau (48h hold)"}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ===== RESULT PANEL — E-Visa model (Dubaï, Inde) ===== */}
+        {isEvisaModel && (isSlotHunting || isSlotFound) && !isCompleted && (
+          <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-border bg-slate-50 flex items-center gap-2">
+              <FileText className="w-4 h-4 text-secondary" />
+              <h2 className="font-bold text-primary text-base">
+                {isSlotFound ? "Visa Enregistré" : "Enregistrer le Visa Obtenu"}
+              </h2>
+              <span className="ml-auto text-[11px] text-muted-foreground bg-slate-100 px-2 py-0.5 rounded-full">
+                {pricing?.successCopy?.triggerLabel ?? "E-Visa"}
+              </span>
+            </div>
+            <div className="p-6">
+              {isSlotFound ? (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-2">
+                  <p className="text-sm text-green-800 font-semibold flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4" /> Visa uploadé — client en attente de paiement
+                  </p>
+                  <p className="text-xs text-slate-600">
+                    Le client recevra son document PDF dès validation de la prime de succès.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-sm text-slate-600">
+                    Uploadez le PDF ou l'image du visa accordé par les autorités. Le client ne pourra télécharger
+                    ce document qu'après avoir réglé la prime de succès.
+                  </p>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground uppercase">Notes pour le client (optionnel)</label>
+                    <Input
+                      value={visaNotes}
+                      onChange={(e) => setVisaNotes(e.target.value)}
+                      placeholder="Ex: Visa valable 30j à partir de la date d'entrée..."
+                      className="h-10 bg-slate-50"
+                    />
+                  </div>
+                  <input
+                    ref={visaFileRef}
+                    type="file"
+                    accept="application/pdf,image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleMarkVisaObtained(file);
+                    }}
+                  />
+                  <Button
+                    onClick={() => visaFileRef.current?.click()}
+                    disabled={visaUploading}
+                    className="bg-green-600 hover:bg-green-700 text-white font-bold gap-2 h-11 w-full sm:w-auto"
+                  >
+                    {visaUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                    {visaUploading ? "Upload en cours..." : "Uploader le visa PDF et déclencher la prime"}
                   </Button>
                 </div>
               )}

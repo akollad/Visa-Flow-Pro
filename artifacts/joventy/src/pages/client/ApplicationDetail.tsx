@@ -306,6 +306,10 @@ export default function ClientApplicationDetail() {
   const docs = useQuery(api.documents.listByApplication, appId ? { applicationId: appId } : "skip") ?? [];
   const sendMessage = useMutation(api.messages.send);
   const markAsRead = useMutation(api.messages.markAsRead);
+  const visaDocUrl = useQuery(
+    api.admin.getVisaDocumentUrl,
+    appId ? { applicationId: appId } : "skip"
+  );
 
   useEffect(() => {
     if (appId && messages.length > 0) {
@@ -347,8 +351,12 @@ export default function ClientApplicationDetail() {
   const hasEngagementProofPending = !!app.paymentProofUrl && !isEngagementPaid;
   const hasSuccessProofPending = !!app.successFeeProofUrl && !isSuccessFeePaid;
 
-  // Appointment details are only shown AFTER success fee is paid (completed state)
-  const showAppointmentDetails = isCompleted && isSuccessFeePaid;
+  const successModel = (app as { successModel?: string }).successModel ?? pricing?.successModel ?? "appointment";
+  const isEvisaModel = successModel === "evisa";
+  const successCopy = pricing?.successCopy;
+
+  // Appointment details are only shown AFTER success fee is paid (completed state), for appointment model
+  const showAppointmentDetails = isCompleted && isSuccessFeePaid && !isEvisaModel;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -472,13 +480,17 @@ export default function ClientApplicationDetail() {
           <div className="flex items-start gap-4">
             <div className="text-4xl">🎉</div>
             <div>
-              <h3 className="text-xl font-bold text-green-700 mb-1">Créneau trouvé !</h3>
+              <h3 className="text-xl font-bold text-green-700 mb-1">
+                {successCopy?.clientCtaTitle ?? "Résultat obtenu !"}
+              </h3>
               <p className="text-sm text-slate-600 mb-1">
-                Joventy a capturé un rendez-vous. Réglez la prime de succès de{" "}
-                <strong className="text-primary">{formatCurrency(app.priceDetails?.successFee)}</strong>{" "}
-                pour accéder aux détails du rendez-vous.
+                {successCopy?.clientCtaBody
+                  ? successCopy.clientCtaBody.replace("{{amount}}", formatCurrency(app.priceDetails?.successFee) ?? "")
+                  : <>Joventy a capturé un résultat. Réglez la prime de succès de{" "}
+                      <strong className="text-primary">{formatCurrency(app.priceDetails?.successFee)}</strong>{" "}
+                      pour y accéder.</>}
               </p>
-              {app.slotExpiresAt && (
+              {!isEvisaModel && app.slotExpiresAt && (
                 <p className="text-xs text-red-600 font-medium flex items-center gap-1">
                   <Clock className="w-3 h-3" /> Réservation expire dans :{" "}
                   <Countdown targetTs={app.slotExpiresAt} />
@@ -499,13 +511,44 @@ export default function ClientApplicationDetail() {
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
           <Clock className="w-5 h-5 text-amber-600 flex-shrink-0" />
           <p className="text-sm text-amber-800">
-            <strong>Reçu de prime de succès reçu !</strong> Validation en cours — vos détails de RDV seront débloqués sous 24h.
+            <strong>Reçu de prime de succès reçu !</strong> Validation en cours —{" "}
+            {isEvisaModel
+              ? "votre visa sera débloqué sous 24h."
+              : "vos détails de RDV seront débloqués sous 24h."}
           </p>
         </div>
       )}
 
-      {/* Interview kit — only when completed */}
-      {isCompleted && <InterviewKit app={app} />}
+      {/* Interview kit — only when completed, appointment model */}
+      {isCompleted && !isEvisaModel && <InterviewKit app={app} />}
+
+      {/* Visa PDF delivery — evisa model */}
+      {isCompleted && isEvisaModel && (
+        <div className="bg-green-50 border-2 border-green-400 rounded-2xl p-6">
+          <div className="flex items-start gap-4">
+            <div className="text-4xl">🛂</div>
+            <div className="flex-1">
+              <h3 className="text-xl font-bold text-green-700 mb-1">
+                {successCopy?.completedNote ?? "Votre visa est disponible !"}
+              </h3>
+              <p className="text-sm text-slate-600 mb-4">
+                Félicitations ! Votre visa a été accordé. Téléchargez votre document officiel ci-dessous.
+              </p>
+              {visaDocUrl ? (
+                <Button asChild className="bg-primary hover:bg-primary/90 text-white font-bold gap-2 h-11">
+                  <a href={visaDocUrl} target="_blank" rel="noopener noreferrer" download>
+                    <Download className="w-4 h-4" /> Télécharger mon visa
+                  </a>
+                </Button>
+              ) : (
+                <div className="flex items-center gap-2 text-amber-700 text-sm">
+                  <Clock className="w-4 h-4" /> Document en cours de préparation...
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
         <div className="xl:col-span-3 space-y-6">
@@ -540,38 +583,60 @@ export default function ClientApplicationDetail() {
                   </p>
                 </div>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase mb-1">Rendez-vous Consulaire</p>
-                {showAppointmentDetails ? (
-                  <div>
-                    <p className="font-semibold text-primary flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-secondary" />
-                      {app.appointmentDetails?.date ? formatDateOnly(app.appointmentDetails.date) : "—"}
-                    </p>
-                    {app.appointmentDetails?.time && (
-                      <p className="text-sm text-slate-600">{app.appointmentDetails.time}</p>
-                    )}
-                    {app.appointmentDetails?.location && (
-                      <p className="text-xs text-slate-500 mt-0.5">{app.appointmentDetails.location}</p>
-                    )}
-                    {app.appointmentDetails?.confirmationCode && (
-                      <p className="text-xs font-mono bg-green-50 text-green-700 border border-green-200 rounded px-2 py-0.5 mt-1 inline-block">
-                        Code : {app.appointmentDetails.confirmationCode}
+              {!isEvisaModel && (
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium uppercase mb-1">Rendez-vous Consulaire</p>
+                  {showAppointmentDetails ? (
+                    <div>
+                      <p className="font-semibold text-primary flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-secondary" />
+                        {app.appointmentDetails?.date ? formatDateOnly(app.appointmentDetails.date) : "—"}
                       </p>
-                    )}
-                  </div>
-                ) : isSlotFound ? (
-                  <div className="flex items-center gap-2 text-slate-500">
-                    <Lock className="w-4 h-4 text-amber-500" />
-                    <p className="text-sm italic">Débloqué après règlement de la prime de succès</p>
-                  </div>
-                ) : (
-                  <p className="text-sm text-slate-500 flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-slate-300" />
-                    Pas encore programmé
-                  </p>
-                )}
-              </div>
+                      {app.appointmentDetails?.time && (
+                        <p className="text-sm text-slate-600">{app.appointmentDetails.time}</p>
+                      )}
+                      {app.appointmentDetails?.location && (
+                        <p className="text-xs text-slate-500 mt-0.5">{app.appointmentDetails.location}</p>
+                      )}
+                      {app.appointmentDetails?.confirmationCode && (
+                        <p className="text-xs font-mono bg-green-50 text-green-700 border border-green-200 rounded px-2 py-0.5 mt-1 inline-block">
+                          Code : {app.appointmentDetails.confirmationCode}
+                        </p>
+                      )}
+                    </div>
+                  ) : isSlotFound ? (
+                    <div className="flex items-center gap-2 text-slate-500">
+                      <Lock className="w-4 h-4 text-amber-500" />
+                      <p className="text-sm italic">Débloqué après règlement de la prime de succès</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500 flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-slate-300" />
+                      Pas encore programmé
+                    </p>
+                  )}
+                </div>
+              )}
+              {isEvisaModel && (
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium uppercase mb-1">Statut Visa</p>
+                  {isCompleted && visaDocUrl ? (
+                    <p className="text-sm text-green-700 font-semibold flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4" /> Visa accordé — prêt au téléchargement
+                    </p>
+                  ) : isSlotFound ? (
+                    <div className="flex items-center gap-2 text-slate-500">
+                      <Lock className="w-4 h-4 text-amber-500" />
+                      <p className="text-sm italic">Débloqué après paiement de la prime de succès</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500 flex items-center gap-2">
+                      <Search className="w-4 h-4 text-slate-300" />
+                      En cours d'obtention
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

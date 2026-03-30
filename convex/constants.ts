@@ -5,6 +5,7 @@ export const VISA_PRICING = {
     engagementFee: 150,
     successFee: 450,
     total: 600,
+    successModel: "appointment" as const,
     visaTypes: ["B1/B2 (Tourisme/Affaires)", "F1 (Étudiant)", "K1 (Fiancé(e))", "H1B (Travail)", "J1 (Échange)"],
     requiredDocuments: [
       { key: "passport_scan", label: "Passeport (scan HD)", required: true },
@@ -16,6 +17,12 @@ export const VISA_PRICING = {
     ],
     embassyAddress: "502 Gombe, Kinshasa, Ambassade des États-Unis",
     processingType: "appointment",
+    successCopy: {
+      triggerLabel: "Créneau capturé",
+      clientCtaTitle: "Créneau trouvé !",
+      clientCtaBody: "Joventy a verrouillé un rendez-vous à l'ambassade. Réglez la prime de succès pour recevoir le PDF de confirmation officiel (indispensable pour l'entretien).",
+      completedNote: "Téléchargez votre kit d'entretien complet ci-dessous.",
+    },
     notes: "Les frais consulaires MRV (185$) sont payés séparément par le client directement à la banque.",
   },
   dubai: {
@@ -24,6 +31,7 @@ export const VISA_PRICING = {
     engagementFee: 50,
     successFee: 50,
     total: 100,
+    successModel: "evisa" as const,
     visaTypes: ["Touriste 30j", "Touriste 60j", "Résidence", "Affaires"],
     requiredDocuments: [
       { key: "passport_scan", label: "Passeport (scan HD)", required: true },
@@ -33,6 +41,12 @@ export const VISA_PRICING = {
     ],
     embassyAddress: "Portail GDRFA / ICP — 100% électronique",
     processingType: "evisa",
+    successCopy: {
+      triggerLabel: "Visa obtenu",
+      clientCtaTitle: "Votre visa est prêt !",
+      clientCtaBody: "Les autorités des Émirats ont accordé votre visa électronique. Réglez la prime de succès pour recevoir votre e-Visa PDF prêt à imprimer.",
+      completedNote: "Votre visa électronique est disponible ci-dessous — prêt à imprimer avant le départ.",
+    },
     notes: "E-Visa 100% électronique. Résultat en 48-72h ouvrables.",
   },
   turkey: {
@@ -41,6 +55,7 @@ export const VISA_PRICING = {
     engagementFee: 50,
     successFee: 70,
     total: 120,
+    successModel: "appointment" as const,
     visaTypes: ["E-Visa (si visa USA/Schengen)", "Visa Sticker (VFS Kinshasa)"],
     requiredDocuments: [
       { key: "passport_scan", label: "Passeport (scan HD)", required: true },
@@ -52,6 +67,12 @@ export const VISA_PRICING = {
     ],
     embassyAddress: "VFS Global — Avenue de la Gombe, Kinshasa",
     processingType: "hybrid",
+    successCopy: {
+      triggerLabel: "Créneau VFS capturé",
+      clientCtaTitle: "Créneau VFS trouvé !",
+      clientCtaBody: "Joventy a réservé un créneau au centre de dépôt VFS Global. Réglez la prime de succès pour recevoir votre convocation de dépôt.",
+      completedNote: "Votre convocation VFS et les instructions de dépôt sont disponibles ci-dessous.",
+    },
     notes: "E-Visa uniquement si le client possède déjà un visa USA ou Schengen valide. Sinon : Visa Sticker via VFS.",
   },
   india: {
@@ -60,6 +81,7 @@ export const VISA_PRICING = {
     engagementFee: 100,
     successFee: 150,
     total: 250,
+    successModel: "evisa" as const,
     visaTypes: ["e-Visa Touriste", "Médical (e-Medical)", "Études (Regular Visa)"],
     requiredDocuments: [
       { key: "passport_scan", label: "Passeport (scan HD)", required: true },
@@ -70,11 +92,18 @@ export const VISA_PRICING = {
     ],
     embassyAddress: "Ambassade de l'Inde — Avenue de la Gombe, Kinshasa",
     processingType: "evisa",
+    successCopy: {
+      triggerLabel: "E-Visa obtenu",
+      clientCtaTitle: "Votre e-Visa Inde est prêt !",
+      clientCtaBody: "Le gouvernement indien a accordé votre e-Visa. Réglez la prime de succès pour recevoir votre document officiel à imprimer avant l'embarquement.",
+      completedNote: "Votre e-Visa Inde est disponible ci-dessous — à imprimer et présenter à l'embarquement.",
+    },
     notes: "Pour le Médical : vérification accréditation hôpital incluse. Pour les Études longue durée : entretien physique à l'Ambassade possible.",
   },
 } as const;
 
 export type Destination = keyof typeof VISA_PRICING;
+export type SuccessModel = "appointment" | "evisa";
 
 export const APPLICATION_STATUSES = {
   awaiting_engagement_payment: {
@@ -96,20 +125,20 @@ export const APPLICATION_STATUSES = {
     step: 3,
   },
   slot_hunting: {
-    label: "Recherche de créneau",
-    description: "Notre système surveille les disponibilités de l'ambassade",
+    label: "En cours de traitement",
+    description: "Notre équipe travaille activement sur votre dossier",
     color: "purple",
     step: 3,
   },
   slot_found_awaiting_success_fee: {
-    label: "Créneau trouvé !",
-    description: "Un rendez-vous a été capturé — réglez la prime de succès",
+    label: "Résultat obtenu !",
+    description: "Réglez la prime de succès pour débloquer votre document",
     color: "green",
     step: 4,
   },
   completed: {
     label: "Dossier complété",
-    description: "Rendez-vous confirmé — téléchargez votre kit d'entretien",
+    description: "Votre document est disponible — félicitations !",
     color: "green",
     step: 5,
   },

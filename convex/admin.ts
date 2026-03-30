@@ -183,6 +183,10 @@ export const markSlotFound = mutation({
       throw new Error("Le dossier doit être au statut 'slot_hunting' pour enregistrer un créneau.");
     }
 
+    if (app.successModel === "evisa") {
+      throw new Error("Ce dossier utilise le modèle e-Visa — utilisez 'Visa Obtenu' plutôt que 'Créneau'.");
+    }
+
     const priceDetails = app.priceDetails ?? {
       engagementFee: 0,
       successFee: 0,
@@ -207,7 +211,7 @@ export const markSlotFound = mutation({
       logs: [
         ...(app.logs ?? []),
         makeLog(
-          `🎉 Créneau consulaire capturé avec succès ! Réglez la prime de succès (${priceDetails.successFee}$) pour débloquer les détails du rendez-vous. Ce créneau est réservé pour ${SLOT_HOLD_HOURS}h.`,
+          `🎉 Créneau capturé ! Réglez la prime de succès (${priceDetails.successFee}$) pour débloquer le PDF de confirmation. Ce créneau est réservé pour ${SLOT_HOLD_HOURS}h.`,
           "admin"
         ),
       ],
@@ -215,6 +219,76 @@ export const markSlotFound = mutation({
     });
 
     return args.applicationId;
+  },
+});
+
+export const markVisaObtained = mutation({
+  args: {
+    applicationId: v.id("applications"),
+    storageId: v.string(),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    requireAdmin(identity as Record<string, unknown>);
+
+    const app = await ctx.db.get(args.applicationId);
+    if (!app) throw new Error("Dossier introuvable");
+
+    if (app.status !== "slot_hunting") {
+      throw new Error("Le dossier doit être au statut 'slot_hunting' pour enregistrer un visa obtenu.");
+    }
+
+    if (app.successModel !== "evisa") {
+      throw new Error("Ce dossier utilise le modèle rendez-vous — utilisez 'Créneau' plutôt que 'Visa Obtenu'.");
+    }
+
+    const priceDetails = app.priceDetails ?? {
+      engagementFee: 0,
+      successFee: 0,
+      paidAmount: 0,
+      isEngagementPaid: false,
+      isSuccessFeePaid: false,
+    };
+
+    await ctx.db.patch(args.applicationId, {
+      status: "slot_found_awaiting_success_fee",
+      visaDocumentStorageId: args.storageId,
+      priceDetails,
+      logs: [
+        ...(app.logs ?? []),
+        makeLog(
+          `🎉 Visa obtenu ! Réglez la prime de succès (${priceDetails.successFee}$) pour recevoir votre document officiel.${args.notes ? ` Note : ${args.notes}` : ""}`,
+          "admin"
+        ),
+      ],
+      updatedAt: Date.now(),
+    });
+
+    return args.applicationId;
+  },
+});
+
+export const getVisaDocumentUrl = query({
+  args: { applicationId: v.id("applications") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+
+    const app = await ctx.db.get(args.applicationId);
+    if (!app) return null;
+
+    const isAdmin = (identity.role as string) === "admin";
+
+    if (!isAdmin) {
+      if (app.userId !== identity.subject) return null;
+      const successFeePaid = app.priceDetails?.isSuccessFeePaid ?? false;
+      if (!successFeePaid) return null;
+    }
+
+    if (!app.visaDocumentStorageId) return null;
+
+    return await ctx.storage.getUrl(app.visaDocumentStorageId as import("./_generated/dataModel").Id<"_storage">);
   },
 });
 
