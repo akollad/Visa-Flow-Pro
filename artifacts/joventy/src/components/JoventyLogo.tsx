@@ -13,20 +13,20 @@ interface JoventyLogoProps {
 
 const sizeMap: Record<LogoSize, { img: string; container: string; text: string; gap: string }> = {
   sm: {
+    img: "w-5 h-5 object-contain",
+    container: "w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0",
+    text: "font-sans text-lg font-bold leading-none",
+    gap: "gap-2",
+  },
+  md: {
     img: "w-6 h-6 object-contain",
     container: "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0",
     text: "font-sans text-xl font-bold leading-none",
     gap: "gap-2.5",
   },
-  md: {
-    img: "w-7 h-7 object-contain",
-    container: "w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0",
-    text: "font-sans text-2xl font-bold leading-none",
-    gap: "gap-3",
-  },
   lg: {
-    img: "w-9 h-9 object-contain",
-    container: "w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0",
+    img: "w-8 h-8 object-contain",
+    container: "w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0",
     text: "font-sans text-2xl font-bold leading-none",
     gap: "gap-3",
   },
@@ -34,16 +34,16 @@ const sizeMap: Record<LogoSize, { img: string; container: string; text: string; 
 
 const variantMap: Record<LogoVariant, { container: string; text: string }> = {
   dark: {
-    container: "bg-white/15 border border-white/30 hover:bg-white/25 transition-colors",
+    container: "bg-white/15 border border-white/30",
     text: "text-white",
   },
   light: {
-    container: "bg-transparent",
-    text: "text-[#1E4FA3]",
+    container: "bg-primary/10",
+    text: "text-primary",
   },
   sidebar: {
-    container: "bg-[#1E4FA3]",
-    text: "text-[#1E4FA3]",
+    container: "bg-primary",
+    text: "text-primary",
   },
 };
 

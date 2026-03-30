@@ -183,14 +183,14 @@ export default function Login() {
 
         <div className="relative z-10 space-y-8">
           <div>
-            <p className="text-[#FF7A00] text-sm font-semibold tracking-widest uppercase mb-4">
+            <p className="text-secondary text-sm font-semibold tracking-widest uppercase mb-4">
               Espace Sécurisé
             </p>
             <h1 className="text-4xl xl:text-5xl font-serif font-bold text-white leading-tight">
               Votre visa,<br />
-              <span className="text-[#FF7A00]">notre expertise.</span>
+              <span className="text-secondary">notre expertise.</span>
             </h1>
-            <p className="mt-4 text-slate-400 text-lg leading-relaxed">
+            <p className="mt-4 text-white/70 text-lg leading-relaxed">
               Accédez à votre espace personnel pour suivre vos dossiers en temps réel.
             </p>
           </div>
@@ -203,21 +203,21 @@ export default function Login() {
             ].map(({ icon: Icon, text }) => (
               <div key={text} className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
-                  <Icon className="w-4 h-4 text-[#FF7A00]" />
+                  <Icon className="w-4 h-4 text-secondary" />
                 </div>
-                <span className="text-slate-300 text-sm">{text}</span>
+                <span className="text-white/80 text-sm">{text}</span>
               </div>
             ))}
           </div>
         </div>
 
         <div className="relative z-10">
-          <p className="text-slate-600 text-xs">© 2025 Joventy · Premium Visa Assistance RDC</p>
+          <p className="text-white/40 text-xs">© 2025 Joventy · Premium Visa Assistance RDC</p>
         </div>
       </div>
 
       {/* Right Panel — Form */}
-      <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-16 xl:px-24 py-12 bg-slate-50">
+      <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-16 xl:px-24 py-12 bg-background">
         <div className="w-full max-w-md mx-auto">
 
           {/* Mobile logo */}
@@ -228,7 +228,7 @@ export default function Login() {
           {step === "credentials" ? (
             <>
               <div className="mb-8">
-                <h2 className="text-3xl font-serif font-bold text-[#1E4FA3]">Connexion</h2>
+                <h2 className="text-3xl font-serif font-bold text-primary">Connexion</h2>
                 <p className="mt-2 text-slate-500">Bienvenue ! Accédez à votre espace.</p>
               </div>
 
@@ -264,7 +264,7 @@ export default function Login() {
                   onClick={() => switchMethod("email")}
                   className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-lg text-sm font-medium transition-all ${
                     method === "email"
-                      ? "bg-white text-[#1E4FA3] shadow-sm"
+                      ? "bg-white text-primary shadow-sm"
                       : "text-slate-500 hover:text-slate-700"
                   }`}
                 >
@@ -275,7 +275,7 @@ export default function Login() {
                   onClick={() => switchMethod("phone")}
                   className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-lg text-sm font-medium transition-all ${
                     method === "phone"
-                      ? "bg-white text-[#1E4FA3] shadow-sm"
+                      ? "bg-white text-primary shadow-sm"
                       : "text-slate-500 hover:text-slate-700"
                   }`}
                 >
@@ -287,7 +287,7 @@ export default function Login() {
               {method === "email" && (
                 <form onSubmit={handleEmailSubmit} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-[#1E4FA3] mb-1.5">
+                    <label className="block text-sm font-medium text-primary mb-1.5">
                       Adresse email
                     </label>
                     <input
@@ -296,18 +296,18 @@ export default function Login() {
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="vous@exemple.com"
                       required
-                      className="w-full h-12 px-4 rounded-xl border border-slate-200 bg-white text-[#1E4FA3] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E4FA3]/10 focus:border-[#1E4FA3] transition-all"
+                      className="w-full h-12 px-4 rounded-xl border border-slate-200 bg-white text-primary placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all"
                     />
                   </div>
 
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-sm font-medium text-[#1E4FA3]">
+                      <label className="block text-sm font-medium text-primary">
                         Mot de passe
                       </label>
                       <button
                         type="button"
-                        className="text-xs text-[#FF7A00] hover:text-[#FF7A00]/70 font-medium transition-colors"
+                        className="text-xs text-secondary hover:text-secondary/70 font-medium transition-colors"
                       >
                         Mot de passe oublié ?
                       </button>
@@ -319,7 +319,7 @@ export default function Login() {
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••"
                         required
-                        className="w-full h-12 px-4 pr-12 rounded-xl border border-slate-200 bg-white text-[#1E4FA3] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E4FA3]/10 focus:border-[#1E4FA3] transition-all"
+                        className="w-full h-12 px-4 pr-12 rounded-xl border border-slate-200 bg-white text-primary placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all"
                       />
                       <button
                         type="button"
@@ -340,7 +340,7 @@ export default function Login() {
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="w-full h-12 rounded-xl bg-[#1E4FA3] hover:bg-[#1E4FA3]/85 text-white font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+                    className="w-full h-12 rounded-xl bg-primary hover:bg-primary/85 text-white font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed mt-2"
                   >
                     {isLoading ? (
                       <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -355,7 +355,7 @@ export default function Login() {
               {method === "phone" && (
                 <form onSubmit={handlePhoneSubmit} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-[#1E4FA3] mb-1.5">
+                    <label className="block text-sm font-medium text-primary mb-1.5">
                       Numéro de téléphone
                     </label>
                     <div className="flex gap-2">
@@ -368,7 +368,7 @@ export default function Login() {
                         onChange={(e) => setPhone("+243" + e.target.value.replace(/^\+243/, "").replace(/\D/g, ""))}
                         placeholder="8X XXX XXXX"
                         required
-                        className="flex-1 h-12 px-4 rounded-xl border border-slate-200 bg-white text-[#1E4FA3] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E4FA3]/10 focus:border-[#1E4FA3] transition-all"
+                        className="flex-1 h-12 px-4 rounded-xl border border-slate-200 bg-white text-primary placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all"
                       />
                     </div>
                     <p className="text-xs text-slate-400 mt-1.5">
@@ -385,7 +385,7 @@ export default function Login() {
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="w-full h-12 rounded-xl bg-[#1E4FA3] hover:bg-[#1E4FA3]/85 text-white font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full h-12 rounded-xl bg-primary hover:bg-primary/85 text-white font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {isLoading ? (
                       <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -400,7 +400,7 @@ export default function Login() {
 
               <p className="mt-6 text-center text-sm text-slate-500">
                 Pas encore de compte ?{" "}
-                <Link href="/register" className="font-semibold text-[#1E4FA3] hover:text-[#FF7A00] transition-colors">
+                <Link href="/register" className="font-semibold text-primary hover:text-secondary transition-colors">
                   Créer un dossier
                 </Link>
               </p>
@@ -411,23 +411,23 @@ export default function Login() {
               <div className="mb-8">
                 <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center mb-4">
                   {method === "phone"
-                    ? <Phone className="w-7 h-7 text-[#FF7A00]" />
-                    : <Mail className="w-7 h-7 text-[#FF7A00]" />
+                    ? <Phone className="w-7 h-7 text-secondary" />
+                    : <Mail className="w-7 h-7 text-secondary" />
                   }
                 </div>
-                <h2 className="text-3xl font-serif font-bold text-[#1E4FA3]">Vérification</h2>
+                <h2 className="text-3xl font-serif font-bold text-primary">Vérification</h2>
                 <p className="mt-2 text-slate-500">
                   Un code à 6 chiffres a été envoyé{" "}
                   {method === "phone"
-                    ? <>par SMS au <span className="font-semibold text-[#1E4FA3]">{identifier}</span></>
-                    : <>à <span className="font-semibold text-[#1E4FA3]">{identifier}</span></>
+                    ? <>par SMS au <span className="font-semibold text-primary">{identifier}</span></>
+                    : <>à <span className="font-semibold text-primary">{identifier}</span></>
                   }
                 </p>
               </div>
 
               <form onSubmit={handleOtpVerify} className="space-y-5">
                 <div>
-                  <label className="block text-sm font-medium text-[#1E4FA3] mb-1.5">
+                  <label className="block text-sm font-medium text-primary mb-1.5">
                     Code de vérification
                   </label>
                   <input
@@ -439,7 +439,7 @@ export default function Login() {
                     maxLength={6}
                     required
                     autoFocus
-                    className="w-full h-14 px-4 rounded-xl border border-slate-200 bg-white text-[#1E4FA3] text-center text-2xl font-mono tracking-[0.5em] placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-[#1E4FA3]/10 focus:border-[#1E4FA3] transition-all"
+                    className="w-full h-14 px-4 rounded-xl border border-slate-200 bg-white text-primary text-center text-2xl font-mono tracking-[0.5em] placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all"
                   />
                 </div>
 
@@ -452,7 +452,7 @@ export default function Login() {
                 <button
                   type="submit"
                   disabled={isLoading || otpCode.length < 6}
-                  className="w-full h-12 rounded-xl bg-[#1E4FA3] hover:bg-[#1E4FA3]/85 text-white font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="w-full h-12 rounded-xl bg-primary hover:bg-primary/85 text-white font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {isLoading ? (
                     <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -464,7 +464,7 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => { setStep("credentials"); setOtpCode(""); setError(""); }}
-                  className="w-full text-sm text-slate-500 hover:text-[#1E4FA3] transition-colors"
+                  className="w-full text-sm text-slate-500 hover:text-primary transition-colors"
                 >
                   ← Retour
                 </button>

@@ -1,6 +1,7 @@
 import { Link } from "wouter";
 import { Navbar } from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
+import { JoventyLogo } from "@/components/JoventyLogo";
 import { Plane, ShieldCheck, Clock, FileText, ArrowRight, Star } from "lucide-react";
 
 export default function Landing() {
@@ -126,10 +127,7 @@ export default function Landing() {
       {/* Footer */}
       <footer className="bg-white border-t border-border py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-2">
-            <img src={`${import.meta.env.BASE_URL}images/logo.png`} alt="Joventy Logo" className="w-8 h-8 object-contain" />
-            <span className="font-serif text-xl font-bold text-primary">Joventy</span>
-          </div>
+          <JoventyLogo variant="light" size="md" />
           <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} Joventy RDC. Tous droits réservés.</p>
         </div>
       </footer>
