@@ -1,5 +1,5 @@
 import { useClerk, useAuth } from "@clerk/clerk-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { JoventyLogo } from "@/components/JoventyLogo";
 
@@ -7,30 +7,32 @@ export default function SSOCallback() {
   const { handleRedirectCallback, isLoaded } = useClerk();
   const { isSignedIn } = useAuth();
   const [, setLocation] = useLocation();
+  const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
     if (!isLoaded) return;
 
-    // Already signed in → go to dashboard immediately
+    // Already signed in → dashboard
     if (isSignedIn) {
       setLocation("/dashboard");
       return;
     }
 
-    // No Clerk OAuth params in the URL → nothing to process, redirect to login
-    const hasOAuthParams =
-      window.location.search.includes("__clerk") ||
-      window.location.hash.includes("__clerk") ||
-      document.referrer.includes("clerk.accounts.dev") ||
-      document.referrer.includes("accounts.clerk.dev");
+    // Clerk puts OAuth params in the URL hash (e.g. #__clerk_hash=...)
+    // or in the search string. If neither exists, this page was opened
+    // directly without a real OAuth flow → send to login.
+    const search = window.location.search;
+    const hash = window.location.hash;
+    const hasParams = search.length > 1 || (hash.length > 1 && hash.includes("__clerk"));
 
-    if (!hasOAuthParams) {
+    if (!hasParams) {
       setLocation("/login");
       return;
     }
 
-    // Safety timeout – if Clerk doesn't redirect within 8s, fall back
-    const timer = setTimeout(() => setLocation("/login"), 8000);
+    // Valid OAuth callback — process it
+    setProcessing(true);
+    const timer = setTimeout(() => setLocation("/login"), 10000);
 
     handleRedirectCallback({
       afterSignInUrl: "/dashboard",
@@ -47,6 +49,9 @@ export default function SSOCallback() {
 
     return () => clearTimeout(timer);
   }, [isLoaded, isSignedIn]);
+
+  // Don't render the loading screen until we know there's something to process
+  if (!processing) return null;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-6">
