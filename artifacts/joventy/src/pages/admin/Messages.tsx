@@ -6,8 +6,9 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { formatDate } from "@/lib/format";
 
 export default function AdminMessages() {
-  const conversations = useQuery(api.messages.listConversations) ?? [];
-  const isLoading = conversations === undefined;
+  const rawConversations = useQuery(api.messages.listConversations);
+  const isLoading = rawConversations === undefined;
+  const conversations = rawConversations ?? [];
 
   const withMessages = conversations.filter((c) => c.messageCount > 0);
   const pending = withMessages.filter((c) => c.unreadCount > 0);

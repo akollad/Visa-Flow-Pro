@@ -1,14 +1,14 @@
 import { Link } from "wouter";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { Id } from "@convex/_generated/dataModel";
 import { MessageCircle, ChevronRight, Plane } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatDate } from "@/lib/format";
 
 export default function ClientMessages() {
-  const conversations = useQuery(api.messages.listConversations) ?? [];
-  const isLoading = conversations === undefined;
+  const rawConversations = useQuery(api.messages.listConversations);
+  const isLoading = rawConversations === undefined;
+  const conversations = rawConversations ?? [];
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
