@@ -1,6 +1,6 @@
 import { createContext, useContext, ReactNode, useEffect } from "react";
 import { useLocation } from "wouter";
-import { useUser, useClerk } from "@clerk/clerk-react";
+import { useUser, useClerk } from "@clerk/react";
 
 export interface AuthUser {
   id: string;

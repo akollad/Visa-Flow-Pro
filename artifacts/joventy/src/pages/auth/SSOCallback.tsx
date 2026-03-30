@@ -1,4 +1,4 @@
-import { AuthenticateWithRedirectCallback, useAuth } from "@clerk/clerk-react";
+import { AuthenticateWithRedirectCallback, useAuth } from "@clerk/react";
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { JoventyLogo } from "@/components/JoventyLogo";

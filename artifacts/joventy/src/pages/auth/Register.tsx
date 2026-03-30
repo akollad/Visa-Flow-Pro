@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { useSignUp } from "@clerk/clerk-react";
+import { useSignUp } from "@clerk/react";
 import {
   Eye,
   EyeOff,
@@ -51,7 +51,7 @@ type Method = "email" | "phone";
 type Step = "info" | "otp" | "done";
 
 export default function Register() {
-  const { signUp, setActive, isLoaded } = useSignUp();
+  const { signUp } = useSignUp();
   const [, setLocation] = useLocation();
 
   const [method, setMethod] = useState<Method>("email");
@@ -68,16 +68,17 @@ export default function Register() {
   const [error, setError] = useState("");
 
   const handleOAuth = async (strategy: "oauth_google" | "oauth_apple" | "oauth_facebook") => {
-    if (!isLoaded) return;
+    if (!signUp) return;
     setError("");
     try {
-      await signUp.authenticateWithRedirect({
+      const { error: err } = await signUp.sso({
         strategy,
-        redirectUrl: `${window.location.origin}/sso-callback`,
-        redirectUrlComplete: `${window.location.origin}/dashboard`,
+        redirectCallbackUrl: `${window.location.origin}/sso-callback`,
+        redirectUrl: `${window.location.origin}/dashboard`,
       });
-    } catch (err: any) {
-      setError(err.errors?.[0]?.message || "Erreur OAuth");
+      if (err) setError(err.longMessage || err.message);
+    } catch (e: any) {
+      setError(e?.message || "Erreur OAuth");
     }
   };
 
@@ -91,15 +92,28 @@ export default function Register() {
   /* ---- EMAIL register ---- */
   const handleEmailRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isLoaded) return;
+    if (!signUp) return;
     setIsLoading(true);
     setError("");
     try {
-      await signUp.create({ firstName, lastName, emailAddress: email, password });
-      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+      const { error: err } = await signUp.password({
+        emailAddress: email,
+        password,
+        firstName,
+        lastName,
+      });
+      if (err) {
+        setError(err.longMessage || err.message);
+        return;
+      }
+      const { error: sendErr } = await signUp.verifications.sendEmailCode();
+      if (sendErr) {
+        setError(sendErr.longMessage || sendErr.message);
+        return;
+      }
       setStep("otp");
-    } catch (err: any) {
-      setError(err.errors?.[0]?.longMessage || err.errors?.[0]?.message || "Erreur lors de la création du compte");
+    } catch (e: any) {
+      setError(e?.errors?.[0]?.longMessage || e?.errors?.[0]?.message || "Erreur lors de la création du compte");
     } finally {
       setIsLoading(false);
     }
@@ -108,15 +122,23 @@ export default function Register() {
   /* ---- PHONE register ---- */
   const handlePhoneRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isLoaded) return;
+    if (!signUp) return;
     setIsLoading(true);
     setError("");
     try {
-      await signUp.create({ firstName, lastName, phoneNumber: phone });
-      await signUp.preparePhoneNumberVerification({ strategy: "phone_code" });
+      const { error: err } = await signUp.create({ firstName, lastName, phoneNumber: phone });
+      if (err) {
+        setError(err.longMessage || err.message);
+        return;
+      }
+      const { error: sendErr } = await signUp.verifications.sendPhoneCode();
+      if (sendErr) {
+        setError(sendErr.longMessage || sendErr.message);
+        return;
+      }
       setStep("otp");
-    } catch (err: any) {
-      setError(err.errors?.[0]?.longMessage || err.errors?.[0]?.message || "Numéro de téléphone invalide");
+    } catch (e: any) {
+      setError(e?.errors?.[0]?.longMessage || e?.errors?.[0]?.message || "Numéro de téléphone invalide");
     } finally {
       setIsLoading(false);
     }
@@ -125,35 +147,42 @@ export default function Register() {
   /* ---- OTP verify ---- */
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isLoaded) return;
+    if (!signUp) return;
     setIsLoading(true);
     setError("");
     try {
-      let result = method === "phone"
-        ? await signUp.attemptPhoneNumberVerification({ code: otpCode })
-        : await signUp.attemptEmailAddressVerification({ code: otpCode });
+      const { error: verifyErr } =
+        method === "phone"
+          ? await signUp.verifications.verifyPhoneCode({ code: otpCode })
+          : await signUp.verifications.verifyEmailCode({ code: otpCode });
 
-      // If some required fields are still missing (e.g. username), auto-complete them
-      if (result.status === "missing_requirements") {
-        const missing = result.missingFields ?? [];
+      if (verifyErr) {
+        setError(verifyErr.longMessage || verifyErr.message);
+        return;
+      }
+
+      if (signUp.status === "missing_requirements") {
+        const missing = signUp.missingFields ?? [];
         const updates: Record<string, string> = {};
         if (missing.includes("username")) {
           updates.username = "user_" + Math.random().toString(36).slice(2, 10);
         }
         if (Object.keys(updates).length > 0) {
-          result = await signUp.update(updates);
+          const { error: updateErr } = await signUp.update(updates);
+          if (updateErr) {
+            setError(updateErr.longMessage || updateErr.message);
+            return;
+          }
         }
       }
 
-      if (result.status === "complete") {
-        await setActive({ session: result.createdSessionId });
+      if (signUp.status === "complete") {
         setStep("done");
-        // AuthProvider will redirect from /register → /dashboard automatically
-        // once the session becomes active; adding a direct push as safety net
+        await signUp.finalize();
         setLocation("/dashboard");
       }
-    } catch (err: any) {
-      setError(err.errors?.[0]?.message || "Code invalide ou expiré");
+    } catch (e: any) {
+      setError(e?.errors?.[0]?.message || "Code invalide ou expiré");
     } finally {
       setIsLoading(false);
     }
@@ -509,16 +538,16 @@ export default function Register() {
                     <button
                       type="button"
                       onClick={async () => {
-                        if (!isLoaded) return;
+                        if (!signUp) return;
                         try {
                           if (method === "phone") {
-                            await signUp.preparePhoneNumberVerification({ strategy: "phone_code" });
+                            await signUp.verifications.sendPhoneCode();
                           } else {
-                            await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+                            await signUp.verifications.sendEmailCode();
                           }
                         } catch {}
                       }}
-                      className="text-accent font-semibold hover:text-accent/70 transition-colors"
+                      className="font-semibold text-primary hover:text-accent transition-colors"
                     >
                       Renvoyer
                     </button>
@@ -526,27 +555,26 @@ export default function Register() {
                   <button
                     type="button"
                     onClick={() => { setStep("info"); setOtpCode(""); setError(""); }}
-                    className="text-sm text-slate-400 hover:text-primary transition-colors"
+                    className="text-sm text-slate-400 hover:text-slate-600 transition-colors"
                   >
-                    ← Modifier {method === "phone" ? "le numéro" : "l'adresse email"}
+                    ← Retour
                   </button>
                 </div>
               </form>
             </>
           )}
 
-          {/* STEP 3: Success */}
+          {/* STEP 3: Done */}
           {step === "done" && (
-            <div className="text-center py-8">
-              <div className="w-20 h-20 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-6">
+            <div className="text-center space-y-6">
+              <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto">
                 <CheckCircle2 className="w-10 h-10 text-green-500" />
               </div>
-              <h2 className="text-3xl font-serif font-bold text-primary mb-2">Bienvenue !</h2>
-              <p className="text-slate-500 mb-2">Votre compte a été créé avec succès.</p>
-              <p className="text-slate-400 text-sm">Redirection vers votre tableau de bord...</p>
-              <div className="mt-6 flex justify-center">
-                <span className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+              <div>
+                <h2 className="text-3xl font-serif font-bold text-primary">Compte créé !</h2>
+                <p className="mt-2 text-slate-500">Votre dossier Joventy est prêt. Redirection en cours…</p>
               </div>
+              <div className="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin mx-auto" />
             </div>
           )}
         </div>

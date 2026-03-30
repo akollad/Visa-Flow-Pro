@@ -1,4 +1,4 @@
-import { useSignUp } from "@clerk/clerk-react";
+import { useSignUp } from "@clerk/react";
 import { useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { JoventyLogo } from "@/components/JoventyLogo";
@@ -8,18 +8,17 @@ function randomUsername() {
 }
 
 export default function ContinueSignUp() {
-  const { signUp, isLoaded } = useSignUp();
+  const { signUp } = useSignUp();
   const [, setLocation] = useLocation();
   const attempted = useRef(false);
 
   useEffect(() => {
-    if (!isLoaded || attempted.current) return;
+    if (!signUp || attempted.current) return;
     attempted.current = true;
 
     const run = async () => {
       try {
-        if (!signUp || signUp.status !== "missing_requirements") {
-          // Nothing to complete — let AuthProvider redirect, or go to dashboard
+        if (signUp.status !== "missing_requirements") {
           setLocation("/dashboard");
           return;
         }
@@ -32,11 +31,11 @@ export default function ContinueSignUp() {
         }
 
         if (Object.keys(updates).length > 0) {
-          await signUp.update(updates);
-          // Session is now created by Clerk; AuthProvider will redirect to /dashboard
-          // once isSignedIn becomes true. Nothing else needed.
+          const { error } = await signUp.update(updates);
+          if (error) {
+            setLocation("/login");
+          }
         } else {
-          // Fields missing that we can't auto-fill — send to login
           setLocation("/login");
         }
       } catch {
@@ -45,7 +44,7 @@ export default function ContinueSignUp() {
     };
 
     run();
-  }, [isLoaded]);
+  }, [signUp?.status]);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-6">

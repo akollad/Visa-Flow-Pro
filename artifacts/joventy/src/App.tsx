@@ -3,7 +3,7 @@ import { useEffect, ReactNode } from "react";
 import {
   ClerkProvider,
   useAuth as useClerkAuth,
-} from "@clerk/clerk-react";
+} from "@clerk/react";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ConvexReactClient } from "convex/react";
 import { Toaster } from "@/components/ui/toaster";
@@ -113,32 +113,12 @@ function Router() {
   );
 }
 
-function ClerkNavigationProvider({ children }: { children: ReactNode }) {
-  const [, setLocation] = useLocation();
-  return (
-    <ClerkProvider
-      publishableKey={clerkPublishableKey}
-      routerPush={(to) => {
-        // Clerk hash-based internal routes (e.g. #/continue) → /continue handler
-        const path = to.startsWith("#") ? to.slice(1) : to;
-        setLocation(path);
-      }}
-      routerReplace={(to) => {
-        const path = to.startsWith("#") ? to.slice(1) : to;
-        setLocation(path);
-      }}
-    >
-      {children}
-    </ClerkProvider>
-  );
-}
-
 function App() {
   const base = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
 
   return (
     <WouterRouter base={base}>
-      <ClerkNavigationProvider>
+      <ClerkProvider publishableKey={clerkPublishableKey}>
         <ConvexProviderWithClerk client={convex} useAuth={useClerkAuth}>
           <TooltipProvider>
             <AuthProvider>
@@ -147,7 +127,7 @@ function App() {
             <Toaster />
           </TooltipProvider>
         </ConvexProviderWithClerk>
-      </ClerkNavigationProvider>
+      </ClerkProvider>
     </WouterRouter>
   );
 }

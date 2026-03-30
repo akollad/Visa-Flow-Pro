@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { useSignIn } from "@clerk/clerk-react";
+import { useSignIn } from "@clerk/react";
 import {
   Eye,
   EyeOff,
@@ -51,7 +51,7 @@ type Method = "email" | "phone";
 type Step = "credentials" | "otp";
 
 export default function Login() {
-  const { signIn, setActive, isLoaded } = useSignIn();
+  const { signIn } = useSignIn();
   const [, setLocation] = useLocation();
 
   const [method, setMethod] = useState<Method>("email");
@@ -66,16 +66,17 @@ export default function Login() {
   const [error, setError] = useState("");
 
   const handleOAuth = async (strategy: "oauth_google" | "oauth_apple" | "oauth_facebook") => {
-    if (!isLoaded) return;
+    if (!signIn) return;
     setError("");
     try {
-      await signIn.authenticateWithRedirect({
+      const { error: err } = await signIn.sso({
         strategy,
-        redirectUrl: `${window.location.origin}/sso-callback`,
-        redirectUrlComplete: `${window.location.origin}/dashboard`,
+        redirectCallbackUrl: `${window.location.origin}/sso-callback`,
+        redirectUrl: `${window.location.origin}/dashboard`,
       });
-    } catch (err: any) {
-      setError(err.errors?.[0]?.message || "Erreur de connexion OAuth");
+      if (err) setError(err.longMessage || err.message);
+    } catch (e: any) {
+      setError(e?.message || "Erreur de connexion OAuth");
     }
   };
 
@@ -89,28 +90,28 @@ export default function Login() {
   /* ---- EMAIL + PASSWORD login ---- */
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isLoaded) return;
+    if (!signIn) return;
     setIsLoading(true);
     setError("");
     try {
-      const result = await signIn.create({ identifier: email, password });
-      if (result.status === "complete") {
-        await setActive({ session: result.createdSessionId });
-        setLocation("/dashboard");
-      } else if (result.status === "needs_first_factor") {
-        const factor = result.supportedFirstFactors?.find(
-          (f) => f.strategy === "email_code"
-        );
-        if (factor) {
-          await signIn.prepareFirstFactor({
-            strategy: "email_code",
-            emailAddressId: (factor as any).emailAddressId,
-          });
-          setStep("otp");
-        }
+      const { error: err } = await signIn.password({ identifier: email, password });
+      if (err) {
+        setError(err.longMessage || err.message);
+        return;
       }
-    } catch (err: any) {
-      setError(err.errors?.[0]?.longMessage || err.errors?.[0]?.message || "Identifiants incorrects");
+      if (signIn.status === "complete") {
+        await signIn.finalize();
+        setLocation("/dashboard");
+      } else if (signIn.status === "needs_first_factor") {
+        const { error: sendErr } = await signIn.emailCode.sendCode();
+        if (sendErr) {
+          setError(sendErr.longMessage || sendErr.message);
+          return;
+        }
+        setStep("otp");
+      }
+    } catch (e: any) {
+      setError(e?.errors?.[0]?.longMessage || e?.errors?.[0]?.message || "Identifiants incorrects");
     } finally {
       setIsLoading(false);
     }
@@ -119,25 +120,23 @@ export default function Login() {
   /* ---- PHONE login (SMS OTP) ---- */
   const handlePhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isLoaded) return;
+    if (!signIn) return;
     setIsLoading(true);
     setError("");
     try {
-      const result = await signIn.create({ identifier: phone });
-      const phoneFactor = result.supportedFirstFactors?.find(
-        (f) => f.strategy === "phone_code"
-      );
-      if (phoneFactor) {
-        await signIn.prepareFirstFactor({
-          strategy: "phone_code",
-          phoneNumberId: (phoneFactor as any).phoneNumberId,
-        });
-        setStep("otp");
-      } else {
-        setError("Ce numéro n'est pas enregistré ou ne supporte pas la connexion par SMS.");
+      const { error: err } = await signIn.create({ identifier: phone });
+      if (err) {
+        setError(err.longMessage || err.message);
+        return;
       }
-    } catch (err: any) {
-      setError(err.errors?.[0]?.longMessage || err.errors?.[0]?.message || "Numéro de téléphone invalide");
+      const { error: sendErr } = await signIn.phoneCode.sendCode();
+      if (sendErr) {
+        setError(sendErr.longMessage || sendErr.message || "Ce numéro n'est pas enregistré ou ne supporte pas la connexion par SMS.");
+        return;
+      }
+      setStep("otp");
+    } catch (e: any) {
+      setError(e?.errors?.[0]?.longMessage || e?.errors?.[0]?.message || "Numéro de téléphone invalide");
     } finally {
       setIsLoading(false);
     }
@@ -146,20 +145,25 @@ export default function Login() {
   /* ---- OTP verification (both email and phone) ---- */
   const handleOtpVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isLoaded) return;
+    if (!signIn) return;
     setIsLoading(true);
     setError("");
     try {
-      const result = await signIn.attemptFirstFactor({
-        strategy: method === "phone" ? "phone_code" : "email_code",
-        code: otpCode,
-      });
-      if (result.status === "complete") {
-        await setActive({ session: result.createdSessionId });
+      const { error: err } =
+        method === "phone"
+          ? await signIn.phoneCode.verifyCode({ code: otpCode })
+          : await signIn.emailCode.verifyCode({ code: otpCode });
+
+      if (err) {
+        setError(err.longMessage || err.message);
+        return;
+      }
+      if (signIn.status === "complete") {
+        await signIn.finalize();
         setLocation("/dashboard");
       }
-    } catch (err: any) {
-      setError(err.errors?.[0]?.message || "Code invalide ou expiré");
+    } catch (e: any) {
+      setError(e?.errors?.[0]?.message || "Code invalide ou expiré");
     } finally {
       setIsLoading(false);
     }
