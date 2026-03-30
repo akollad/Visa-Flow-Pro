@@ -158,6 +158,14 @@ export const uploadPaymentProof = mutation({
     const logs = app.logs ?? [];
     const label = args.paymentType === "engagement" ? "frais d'engagement" : "prime de succès";
 
+    // Enforce allowed payment type per current application status
+    if (args.paymentType === "engagement" && app.status !== "awaiting_engagement_payment") {
+      throw new Error("Paiement d'engagement non applicable au statut actuel du dossier.");
+    }
+    if (args.paymentType === "success_fee" && app.status !== "slot_found_awaiting_success_fee") {
+      throw new Error("Prime de succès non applicable au statut actuel du dossier.");
+    }
+
     const patch: Record<string, unknown> = {
       updatedAt: Date.now(),
       logs: [
