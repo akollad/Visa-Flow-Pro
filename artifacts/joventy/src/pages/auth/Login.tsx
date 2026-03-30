@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { flushSync } from "react-dom";
 import { Link, useLocation } from "wouter";
 import { useSignIn } from "@clerk/react";
 import {
@@ -69,8 +70,10 @@ export default function Login() {
 
   const handleOAuth = async (strategy: "oauth_google" | "oauth_apple" | "oauth_facebook") => {
     if (!signIn || loadingOAuth) return;
-    setError("");
-    setLoadingOAuth(strategy);
+    flushSync(() => {
+      setError("");
+      setLoadingOAuth(strategy);
+    });
     try {
       const { error: err } = await signIn.sso({
         strategy,

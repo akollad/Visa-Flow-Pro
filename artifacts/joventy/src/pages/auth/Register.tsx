@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { flushSync } from "react-dom";
 import { Link, useLocation } from "wouter";
 import { useSignUp } from "@clerk/react";
 import {
@@ -71,8 +72,10 @@ export default function Register() {
 
   const handleOAuth = async (strategy: "oauth_google" | "oauth_apple" | "oauth_facebook") => {
     if (!signUp || loadingOAuth) return;
-    setError("");
-    setLoadingOAuth(strategy);
+    flushSync(() => {
+      setError("");
+      setLoadingOAuth(strategy);
+    });
     try {
       const { error: err } = await signUp.sso({
         strategy,
