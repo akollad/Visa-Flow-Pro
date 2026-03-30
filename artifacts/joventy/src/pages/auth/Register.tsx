@@ -66,20 +66,26 @@ export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [otpCode, setOtpCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingOAuth, setLoadingOAuth] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const handleOAuth = async (strategy: "oauth_google" | "oauth_apple" | "oauth_facebook") => {
-    if (!signUp) return;
+    if (!signUp || loadingOAuth) return;
     setError("");
+    setLoadingOAuth(strategy);
     try {
       const { error: err } = await signUp.sso({
         strategy,
         redirectCallbackUrl: `${window.location.origin}/sso-callback`,
         redirectUrl: `${window.location.origin}/dashboard`,
       });
-      if (err) setError(err.longMessage || err.message);
+      if (err) {
+        setError(err.longMessage || err.message);
+        setLoadingOAuth(null);
+      }
     } catch (e: any) {
       setError(e?.message || "Erreur OAuth");
+      setLoadingOAuth(null);
     }
   };
 
@@ -261,16 +267,29 @@ export default function Register() {
 
               {/* OAuth */}
               <div className="grid grid-cols-3 gap-3 mb-6">
-                {OAUTH_STRATEGIES.map(({ strategy, label, icon }) => (
-                  <button
-                    key={strategy}
-                    onClick={() => handleOAuth(strategy)}
-                    className="flex items-center justify-center gap-2 h-12 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 text-sm font-medium transition-all shadow-sm"
-                  >
-                    {icon}
-                    <span>{label}</span>
-                  </button>
-                ))}
+                {OAUTH_STRATEGIES.map(({ strategy, label, icon }) => {
+                  const isThis = loadingOAuth === strategy;
+                  const isDisabled = !!loadingOAuth || isLoading;
+                  return (
+                    <button
+                      key={strategy}
+                      onClick={() => handleOAuth(strategy)}
+                      disabled={isDisabled}
+                      className={`relative flex items-center justify-center gap-2 h-12 rounded-xl border text-sm font-medium transition-all duration-200 shadow-sm
+                        ${isThis
+                          ? "bg-primary/5 border-primary/30 text-primary scale-[0.98]"
+                          : isDisabled
+                          ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed opacity-60"
+                          : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 hover:shadow-md active:scale-[0.97] cursor-pointer"
+                        }`}
+                    >
+                      {isThis ? (
+                        <span className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                      ) : icon}
+                      <span>{label}</span>
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="relative mb-6">
