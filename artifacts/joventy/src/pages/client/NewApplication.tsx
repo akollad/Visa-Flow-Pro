@@ -257,7 +257,11 @@ export default function NewApplication() {
                     <div className="flex justify-between items-center">
                       <div>
                         <p className="font-semibold">Prime de succès</p>
-                        <p className="text-xs text-slate-300">Due uniquement si votre visa est obtenu</p>
+                        <p className="text-xs text-slate-300">
+                          {pricing.successModel === "evisa"
+                            ? "Due uniquement si votre visa est obtenu"
+                            : "Due uniquement si votre créneau de RDV est obtenu"}
+                        </p>
                       </div>
                       <span className="text-xl font-bold text-white">{formatCurrency(pricing.successFee)}</span>
                     </div>

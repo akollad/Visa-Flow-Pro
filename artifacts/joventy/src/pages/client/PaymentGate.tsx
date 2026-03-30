@@ -3,7 +3,7 @@ import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Id } from "@convex/_generated/dataModel";
-import { MOBILE_MONEY_INFO } from "@convex/constants";
+import { MOBILE_MONEY_INFO, VISA_PRICING } from "@convex/constants";
 import { formatCurrency } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -31,6 +31,10 @@ export default function PaymentGate() {
 
   const paymentType: "engagement" | "success_fee" =
     app?.status === "slot_found_awaiting_success_fee" ? "success_fee" : "engagement";
+
+  const pricing = app ? VISA_PRICING[app.destination as keyof typeof VISA_PRICING] : undefined;
+  const effectiveModel = (app as { successModel?: string } | undefined)?.successModel ?? pricing?.successModel ?? "appointment";
+  const isEvisaModel = effectiveModel === "evisa";
 
   const amount =
     paymentType === "engagement"
@@ -112,7 +116,9 @@ export default function PaymentGate() {
         <p className="text-muted-foreground mt-1">
           {paymentType === "engagement"
             ? "Réglez les frais d'engagement pour activer votre dossier."
-            : "Réglez la prime de succès pour confirmer votre rendez-vous consulaire."}
+            : isEvisaModel
+              ? "Réglez la prime de succès pour recevoir votre visa électronique."
+              : "Réglez la prime de succès pour confirmer votre rendez-vous consulaire."}
         </p>
       </div>
 
@@ -138,8 +144,10 @@ export default function PaymentGate() {
           <p>
             Les frais d'engagement (<strong>{formatCurrency(amount)}</strong>) permettent à Joventy de démarrer
             l'analyse de votre dossier. La prime de succès de{" "}
-            <strong>{formatCurrency(app.priceDetails?.successFee ?? 0)}</strong> ne sera due
-            qu'une fois votre créneau de rendez-vous consulaire obtenu.
+            <strong>{formatCurrency(app.priceDetails?.successFee ?? 0)}</strong> ne sera due{" "}
+            {isEvisaModel
+              ? "qu'une fois votre visa électronique obtenu."
+              : "qu'une fois votre créneau de rendez-vous consulaire obtenu."}
           </p>
         </div>
       )}
