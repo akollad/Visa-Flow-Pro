@@ -26,11 +26,21 @@ export const generateUploadUrl = mutation({
 });
 
 export const getDocumentUrl = query({
-  args: { storageId: v.string() },
+  args: { documentId: v.id("documents") },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
-    return await ctx.storage.getUrl(args.storageId as Id<"_storage">);
+
+    const doc = await ctx.db.get(args.documentId);
+    if (!doc) return null;
+
+    const app = await ctx.db.get(doc.applicationId);
+    if (!app) return null;
+
+    const isAdmin = getRole(identity as Record<string, unknown>) === "admin";
+    if (!isAdmin && app.userId !== identity.subject) return null;
+
+    return await ctx.storage.getUrl(doc.storageId as Id<"_storage">);
   },
 });
 
@@ -146,66 +156,27 @@ export const verifyDocument = mutation({
   },
 });
 
-export const add = mutation({
-  args: {
-    applicationId: v.id("applications"),
-    docKey: v.string(),
-    label: v.string(),
-    storageId: v.string(),
-  },
+export const remove = mutation({
+  args: { documentId: v.id("documents") },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     requireAuth(identity as Record<string, unknown>);
 
-    const app = await ctx.db.get(args.applicationId);
+    const doc = await ctx.db.get(args.documentId);
+    if (!doc) throw new Error("Document introuvable");
+
+    const app = await ctx.db.get(doc.applicationId);
     if (!app) throw new Error("Dossier introuvable");
 
     const isAdmin = getRole(identity as Record<string, unknown>) === "admin";
-    if (!isAdmin && app.userId !== identity!.subject) {
+    if (!isAdmin && doc.uploadedBy !== identity!.subject) {
       throw new Error("Accès non autorisé");
     }
 
-    const existing = await ctx.db
-      .query("documents")
-      .withIndex("by_application_key", (q) =>
-        q.eq("applicationId", args.applicationId).eq("docKey", args.docKey)
-      )
-      .filter((q) => q.eq(q.field("isAdminUpload"), isAdmin))
-      .first();
+    await ctx.storage.delete(doc.storageId as Id<"_storage">);
+    await ctx.db.delete(args.documentId);
 
-    if (existing) {
-      await ctx.db.patch(existing._id, {
-        storageId: args.storageId,
-        uploadedAt: Date.now(),
-        verifiedByAdmin: false,
-      });
-      return existing._id;
-    }
-
-    const id = await ctx.db.insert("documents", {
-      applicationId: args.applicationId,
-      docKey: args.docKey,
-      label: args.label,
-      storageId: args.storageId,
-      uploadedBy: identity!.subject,
-      uploadedAt: Date.now(),
-      verifiedByAdmin: false,
-      isAdminUpload: isAdmin,
-    });
-
-    await ctx.db.patch(args.applicationId, {
-      updatedAt: Date.now(),
-      logs: [
-        ...(app.logs ?? []),
-        {
-          msg: `📎 Document uploadé : ${args.label}${isAdmin ? " (par l'admin)" : ""}`,
-          time: Date.now(),
-          author: isAdmin ? "admin" : (identity!.name ?? "client"),
-        },
-      ],
-    });
-
-    return id;
+    return args.documentId;
   },
 });
 
@@ -234,66 +205,6 @@ export const listByApplication = query({
     );
 
     return withUrls;
-  },
-});
-
-export const verify = mutation({
-  args: {
-    documentId: v.id("documents"),
-    adminNote: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    requireAdmin(identity as Record<string, unknown>);
-
-    const doc = await ctx.db.get(args.documentId);
-    if (!doc) throw new Error("Document introuvable");
-
-    await ctx.db.patch(args.documentId, {
-      verifiedByAdmin: true,
-      adminNote: args.adminNote,
-    });
-
-    const app = await ctx.db.get(doc.applicationId);
-    if (app) {
-      await ctx.db.patch(doc.applicationId, {
-        updatedAt: Date.now(),
-        logs: [
-          ...(app.logs ?? []),
-          {
-            msg: `✅ Document vérifié par l'admin : ${doc.label}`,
-            time: Date.now(),
-            author: "admin",
-          },
-        ],
-      });
-    }
-
-    return args.documentId;
-  },
-});
-
-export const remove = mutation({
-  args: { documentId: v.id("documents") },
-  handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    requireAuth(identity as Record<string, unknown>);
-
-    const doc = await ctx.db.get(args.documentId);
-    if (!doc) throw new Error("Document introuvable");
-
-    const app = await ctx.db.get(doc.applicationId);
-    if (!app) throw new Error("Dossier introuvable");
-
-    const isAdmin = getRole(identity as Record<string, unknown>) === "admin";
-    if (!isAdmin && doc.uploadedBy !== identity!.subject) {
-      throw new Error("Accès non autorisé");
-    }
-
-    await ctx.storage.delete(doc.storageId as Id<"_storage">);
-    await ctx.db.delete(args.documentId);
-
-    return args.documentId;
   },
 });
 
