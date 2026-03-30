@@ -1,131 +1,79 @@
 import { Link } from "wouter";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { useAuth } from "@/lib/auth";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Shield, ArrowLeft, Loader2 } from "lucide-react";
+import { SignUp } from "@clerk/clerk-react";
+import { Shield, ArrowLeft } from "lucide-react";
 
-const schema = z.object({
-  firstName: z.string().min(2, "Prénom requis"),
-  lastName: z.string().min(2, "Nom requis"),
-  email: z.string().email("Adresse email invalide"),
-  phone: z.string().min(8, "Numéro de téléphone requis"),
-  password: z.string().min(8, "Le mot de passe doit faire au moins 8 caractères"),
-});
+const clerkAppearance = {
+  variables: {
+    colorPrimary: "#0A192F",
+    colorBackground: "#ffffff",
+    colorText: "#0A192F",
+    colorTextSecondary: "#64748b",
+    colorNeutral: "#64748b",
+    borderRadius: "0.75rem",
+    fontFamily: "inherit",
+  },
+  elements: {
+    rootBox: "w-full",
+    card: "shadow-none border-0 p-0",
+    headerTitle: "font-serif text-3xl font-bold text-[#0A192F]",
+    headerSubtitle: "text-slate-500",
+    socialButtonsBlockButton:
+      "border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 font-medium h-11 rounded-xl",
+    socialButtonsBlockButtonText: "font-medium",
+    dividerLine: "bg-slate-200",
+    dividerText: "text-slate-400 text-xs",
+    formFieldLabel: "text-sm font-medium text-[#0A192F]",
+    formFieldInput:
+      "h-12 bg-slate-50 border-slate-200 rounded-xl focus:ring-2 focus:ring-[#0A192F]/10 focus:border-[#0A192F]",
+    formButtonPrimary:
+      "bg-[#0A192F] hover:bg-[#0A192F]/90 text-white font-bold h-12 rounded-xl",
+    footerActionLink:
+      "text-[#0A192F] font-semibold hover:text-[#D4AF37] transition-colors",
+    formFieldSuccessText: "text-green-600",
+    formFieldErrorText: "text-red-500",
+    alertText: "text-red-600",
+    alert: "bg-red-50 border-red-200 rounded-xl",
+    otpCodeFieldInput:
+      "h-12 w-12 border-slate-200 rounded-xl focus:border-[#0A192F]",
+  },
+};
 
 export default function Register() {
-  const { register, isRegistering } = useAuth();
-  const form = useForm<z.infer<typeof schema>>({
-    resolver: zodResolver(schema),
-    defaultValues: { firstName: "", lastName: "", email: "", phone: "", password: "" },
-  });
-
-  const onSubmit = (data: z.infer<typeof schema>) => {
-    register(data);
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="w-full max-w-xl">
-        <Link href="/" className="inline-flex items-center text-sm font-medium text-muted-foreground hover:text-primary mb-8 transition-colors">
+      <div className="w-full max-w-md">
+        <Link
+          href="/"
+          className="inline-flex items-center text-sm font-medium text-muted-foreground hover:text-primary mb-8 transition-colors"
+        >
           <ArrowLeft className="w-4 h-4 mr-2" /> Retour à l'accueil
         </Link>
-        
+
         <div className="bg-white p-8 rounded-2xl shadow-xl shadow-primary/5 border border-border">
           <div className="flex flex-col items-center mb-8">
             <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center mb-4">
               <Shield className="w-6 h-6 text-secondary" />
             </div>
-            <h2 className="text-3xl font-serif font-bold text-primary text-center">Nouveau Dossier</h2>
-            <p className="mt-2 text-muted-foreground text-center">Créez votre compte pour démarrer</p>
+            <h2 className="text-3xl font-serif font-bold text-primary text-center">
+              Nouveau Dossier
+            </h2>
+            <p className="mt-2 text-muted-foreground text-center">
+              Créez votre compte pour démarrer
+            </p>
           </div>
 
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="firstName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Prénom</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Jean" {...field} className="h-12 bg-slate-50" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="lastName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nom</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Kasongo" {...field} className="h-12 bg-slate-50" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+          <SignUp
+            routing="hash"
+            appearance={clerkAppearance}
+            fallbackRedirectUrl="/dashboard"
+          />
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input type="email" placeholder="jean@exemple.com" {...field} className="h-12 bg-slate-50" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Téléphone</FormLabel>
-                      <FormControl>
-                        <Input placeholder="+243..." {...field} className="h-12 bg-slate-50" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Mot de passe</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} className="h-12 bg-slate-50" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <Button type="submit" className="w-full h-12 text-base font-bold bg-primary hover:bg-primary/90" disabled={isRegistering}>
-                {isRegistering ? <Loader2 className="w-5 h-5 animate-spin" /> : "Créer mon compte"}
-              </Button>
-            </form>
-          </Form>
-
-          <div className="mt-8 text-center text-sm text-muted-foreground">
+          <div className="mt-6 text-center text-sm text-muted-foreground">
             Déjà client ?{" "}
-            <Link href="/login" className="font-semibold text-primary hover:text-secondary transition-colors">
+            <Link
+              href="/login"
+              className="font-semibold text-primary hover:text-secondary transition-colors"
+            >
               Se connecter
             </Link>
           </div>

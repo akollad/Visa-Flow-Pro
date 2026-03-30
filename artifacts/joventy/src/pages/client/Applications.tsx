@@ -1,13 +1,14 @@
 import { Link } from "wouter";
-import { useListApplications } from "@workspace/api-client-react";
+import { useQuery } from "convex/react";
+import { api } from "@convex/_generated/api";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatDate } from "@/lib/format";
 import { Plane, ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function ClientApplications() {
-  const { data, isLoading } = useListApplications();
-  const applications = data?.applications || [];
+  const applications = useQuery(api.applications.list) ?? [];
+  const isLoading = applications === undefined;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -32,7 +33,7 @@ export default function ClientApplications() {
       ) : (
         <div className="grid grid-cols-1 gap-4">
           {applications.map((app) => (
-            <Link key={app.id} href={`/dashboard/applications/${app.id}`}>
+            <Link key={app._id} href={`/dashboard/applications/${app._id}`}>
               <div className="bg-white rounded-2xl border border-border p-6 hover:shadow-md transition-all cursor-pointer flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-xl bg-primary/5 flex items-center justify-center border border-primary/10">
@@ -41,16 +42,13 @@ export default function ClientApplications() {
                   <div>
                     <h3 className="text-lg font-bold text-primary flex items-center gap-2">
                       Destination : {app.destination.toUpperCase()}
-                      {app.unreadCount > 0 && (
-                        <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                      )}
                     </h3>
                     <p className="text-muted-foreground text-sm">
                       {app.visaType} • Demandeur : {app.applicantName}
                     </p>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
                   <div className="text-right sm:pr-4 sm:border-r border-border">
                     <p className="text-xs text-muted-foreground mb-1">Mise à jour</p>

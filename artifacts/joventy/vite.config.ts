@@ -26,6 +26,8 @@ if (!basePath) {
   );
 }
 
+const convexRoot = path.resolve(import.meta.dirname, "../../convex");
+
 export default defineConfig({
   base: basePath,
   plugins: [
@@ -50,6 +52,7 @@ export default defineConfig({
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),
       "@assets": path.resolve(import.meta.dirname, "..", "..", "attached_assets"),
+      "@convex": convexRoot,
     },
     dedupe: ["react", "react-dom"],
   },
@@ -63,8 +66,13 @@ export default defineConfig({
     host: "0.0.0.0",
     allowedHosts: true,
     fs: {
-      strict: true,
+      strict: false,
       deny: ["**/.*"],
+      allow: [
+        path.resolve(import.meta.dirname, "src"),
+        path.resolve(import.meta.dirname, "../../node_modules"),
+        convexRoot,
+      ],
     },
   },
   preview: {

@@ -1,13 +1,18 @@
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
-import { useEffect } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useEffect, ReactNode } from "react";
+import {
+  ClerkProvider,
+  AuthenticateWithRedirectCallback,
+  useAuth as useClerkAuth,
+} from "@clerk/clerk-react";
+import { ConvexProviderWithClerk } from "convex/react-clerk";
+import { ConvexReactClient } from "convex/react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 
-// Pages
 import Landing from "@/pages/Landing";
 import Login from "@/pages/auth/Login";
 import Register from "@/pages/auth/Register";
@@ -23,33 +28,37 @@ import AdminApplications from "@/pages/admin/Applications";
 import AdminApplicationDetail from "@/pages/admin/ApplicationDetail";
 import AdminClients from "@/pages/admin/Clients";
 
-const queryClient = new QueryClient();
+const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
+const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string;
 
-// Custom Redirect Component for Wouter
 const Redirect = ({ to }: { to: string }) => {
   const [, setLocation] = useLocation();
-  useEffect(() => { setLocation(to); }, [to, setLocation]);
+  useEffect(() => {
+    setLocation(to);
+  }, [to, setLocation]);
   return null;
 };
 
-// Protected Route Wrapper
-const ProtectedRoute = ({ component: Component, adminOnly = false, layoutProps = {}, ...rest }: any) => {
+const ProtectedRoute = ({
+  component: Component,
+  adminOnly = false,
+  ...rest
+}: any) => {
   const { user, isLoading } = useAuth();
-  
+
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-slate-50 text-muted-foreground">Chargement...</div>;
-  }
-  
-  if (!user) {
-    return <Redirect to="/login" />;
-  }
-  
-  if (adminOnly && user.role !== "admin") {
-    return <Redirect to="/dashboard" />;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 text-muted-foreground">
+        Chargement...
+      </div>
+    );
   }
 
+  if (!user) return <Redirect to="/login" />;
+  if (adminOnly && user.role !== "admin") return <Redirect to="/dashboard" />;
+
   return (
-    <DashboardLayout isAdmin={adminOnly} {...layoutProps}>
+    <DashboardLayout isAdmin={adminOnly}>
       <Component {...rest} />
     </DashboardLayout>
   );
@@ -58,12 +67,13 @@ const ProtectedRoute = ({ component: Component, adminOnly = false, layoutProps =
 function Router() {
   return (
     <Switch>
-      {/* Public */}
       <Route path="/" component={Landing} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
+      <Route path="/sso-callback">
+        {() => <AuthenticateWithRedirectCallback />}
+      </Route>
 
-      {/* Client Protected Routes */}
       <Route path="/dashboard">
         {() => <ProtectedRoute component={ClientDashboard} />}
       </Route>
@@ -77,7 +87,6 @@ function Router() {
         {() => <ProtectedRoute component={ClientApplicationDetail} />}
       </Route>
 
-      {/* Admin Protected Routes */}
       <Route path="/admin">
         {() => <ProtectedRoute adminOnly component={AdminDashboard} />}
       </Route>
@@ -96,18 +105,36 @@ function Router() {
   );
 }
 
-function App() {
+function ClerkNavigationProvider({ children }: { children: ReactNode }) {
+  const [, setLocation] = useLocation();
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <AuthProvider>
-            <Router />
-          </AuthProvider>
-        </WouterRouter>
-        <Toaster />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ClerkProvider
+      publishableKey={clerkPublishableKey}
+      routerPush={(to) => setLocation(to)}
+      routerReplace={(to) => setLocation(to)}
+      fallbackRedirectUrl="/dashboard"
+    >
+      {children}
+    </ClerkProvider>
+  );
+}
+
+function App() {
+  const base = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
+
+  return (
+    <WouterRouter base={base}>
+      <ClerkNavigationProvider>
+        <ConvexProviderWithClerk client={convex} useAuth={useClerkAuth}>
+          <TooltipProvider>
+            <AuthProvider>
+              <Router />
+            </AuthProvider>
+            <Toaster />
+          </TooltipProvider>
+        </ConvexProviderWithClerk>
+      </ClerkNavigationProvider>
+    </WouterRouter>
   );
 }
 

@@ -1,22 +1,24 @@
-export function formatDate(dateString: string | undefined | null) {
-  if (!dateString) return "Non défini";
+export function formatDate(dateString: string | number | undefined | null) {
+  if (dateString === undefined || dateString === null || dateString === "") return "Non défini";
   try {
+    const d = typeof dateString === "number" ? new Date(dateString) : new Date(dateString);
     return new Intl.DateTimeFormat("fr-FR", {
       dateStyle: "medium",
       timeStyle: "short",
-    }).format(new Date(dateString));
-  } catch (e) {
+    }).format(d);
+  } catch {
     return "Date invalide";
   }
 }
 
-export function formatDateOnly(dateString: string | undefined | null) {
-  if (!dateString) return "Non défini";
+export function formatDateOnly(dateString: string | number | undefined | null) {
+  if (dateString === undefined || dateString === null || dateString === "") return "Non défini";
   try {
+    const d = typeof dateString === "number" ? new Date(dateString) : new Date(dateString);
     return new Intl.DateTimeFormat("fr-FR", {
       dateStyle: "long",
-    }).format(new Date(dateString));
-  } catch (e) {
+    }).format(d);
+  } catch {
     return "Date invalide";
   }
 }

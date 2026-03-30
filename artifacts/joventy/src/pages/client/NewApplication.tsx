@@ -3,8 +3,8 @@ import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useCreateApplication, getListApplicationsQueryKey } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "convex/react";
+import { api } from "@convex/_generated/api";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,7 +44,8 @@ export default function NewApplication() {
   const [step, setStep] = useState(1);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
+
+  const createApplication = useMutation(api.applications.create);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -61,29 +62,34 @@ export default function NewApplication() {
   });
 
   const selectedDest = form.watch("destination");
+  const [isPending, setIsPending] = useState(false);
 
-  const mutation = useCreateApplication({
-    mutation: {
-      onSuccess: (data) => {
-        queryClient.invalidateQueries({ queryKey: getListApplicationsQueryKey() });
-        toast({ title: "Dossier créé", description: "Votre demande a été enregistrée avec succès." });
-        setLocation(`/dashboard/applications/${data.id}`);
-      },
-      onError: () => {
-        toast({ variant: "destructive", title: "Erreur", description: "Impossible de créer le dossier." });
-      }
+  const onSubmit = async (data: FormValues) => {
+    setIsPending(true);
+    try {
+      const id = await createApplication({
+        destination: data.destination,
+        visaType: data.visaType,
+        applicantName: data.applicantName,
+        passportNumber: data.passportNumber,
+        travelDate: data.travelDate,
+        returnDate: data.returnDate || undefined,
+        purpose: data.purpose,
+        notes: data.notes || undefined,
+      });
+      toast({ title: "Dossier créé", description: "Votre demande a été enregistrée avec succès." });
+      setLocation(`/dashboard/applications/${id}`);
+    } catch {
+      toast({ variant: "destructive", title: "Erreur", description: "Impossible de créer le dossier." });
+    } finally {
+      setIsPending(false);
     }
-  });
-
-  const onSubmit = (data: FormValues) => {
-    mutation.mutate({ data: data as any });
   };
 
   const nextStep = async () => {
     let fieldsToValidate: (keyof FormValues)[] = [];
     if (step === 1) fieldsToValidate = ["destination", "visaType"];
     if (step === 2) fieldsToValidate = ["applicantName", "passportNumber", "travelDate", "purpose"];
-    
     const isValid = await form.trigger(fieldsToValidate);
     if (isValid) setStep(step + 1);
   };
@@ -99,20 +105,18 @@ export default function NewApplication() {
 
       <div className="flex gap-2 mb-8">
         {[1, 2, 3].map((i) => (
-          <div key={i} className={`h-2 rounded-full flex-1 transition-colors ${i <= step ? 'bg-secondary' : 'bg-slate-200'}`} />
+          <div key={i} className={`h-2 rounded-full flex-1 transition-colors ${i <= step ? "bg-secondary" : "bg-slate-200"}`} />
         ))}
       </div>
 
       <div className="bg-white rounded-2xl border border-border shadow-sm p-6 sm:p-8">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-            
             {/* STEP 1 */}
             <div className={step === 1 ? "block space-y-6" : "hidden"}>
               <h2 className="text-xl font-bold text-primary mb-4 flex items-center gap-2">
                 <MapPin className="w-5 h-5 text-secondary" /> Choix de la destination
               </h2>
-              
               <FormField
                 control={form.control}
                 name="destination"
@@ -122,17 +126,10 @@ export default function NewApplication() {
                     <FormControl>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
                         {DESTINATIONS.map((dest) => (
-                          <div 
+                          <div
                             key={dest.id}
-                            onClick={() => {
-                              field.onChange(dest.id);
-                              form.setValue("visaType", ""); // reset visa type on dest change
-                            }}
-                            className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                              field.value === dest.id 
-                                ? "border-secondary bg-yellow-50/50" 
-                                : "border-border hover:border-primary/20"
-                            }`}
+                            onClick={() => { field.onChange(dest.id); form.setValue("visaType", ""); }}
+                            className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${field.value === dest.id ? "border-secondary bg-yellow-50/50" : "border-border hover:border-primary/20"}`}
                           >
                             <div className="font-bold text-primary">{dest.name}</div>
                             <div className="text-sm text-muted-foreground mt-1">{dest.desc}</div>
@@ -144,7 +141,6 @@ export default function NewApplication() {
                   </FormItem>
                 )}
               />
-
               {selectedDest && (
                 <FormField
                   control={form.control}
@@ -176,75 +172,45 @@ export default function NewApplication() {
               <h2 className="text-xl font-bold text-primary mb-4 flex items-center gap-2">
                 <Plane className="w-5 h-5 text-secondary" /> Informations du voyageur
               </h2>
-              
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="applicantName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nom complet tel que sur le passeport</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Jean Dupont" {...field} className="h-12" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="passportNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Numéro de passeport</FormLabel>
-                      <FormControl>
-                        <Input placeholder="OBXXXXXX" {...field} className="h-12" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="travelDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Date de départ prévue</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} className="h-12" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="returnDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Date de retour (Optionnel)</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} className="h-12" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={form.control}
-                name="purpose"
-                render={({ field }) => (
+                <FormField control={form.control} name="applicantName" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Motif détaillé du voyage</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Expliquez brièvement pourquoi vous souhaitez voyager..." {...field} rows={4} />
-                    </FormControl>
+                    <FormLabel>Nom complet tel que sur le passeport</FormLabel>
+                    <FormControl><Input placeholder="Jean Dupont" {...field} className="h-12" /></FormControl>
                     <FormMessage />
                   </FormItem>
-                )}
-              />
+                )} />
+                <FormField control={form.control} name="passportNumber" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Numéro de passeport</FormLabel>
+                    <FormControl><Input placeholder="OBXXXXXX" {...field} className="h-12" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="travelDate" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Date de départ prévue</FormLabel>
+                    <FormControl><Input type="date" {...field} className="h-12" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="returnDate" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Date de retour (Optionnel)</FormLabel>
+                    <FormControl><Input type="date" {...field} className="h-12" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+              <FormField control={form.control} name="purpose" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Motif détaillé du voyage</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Expliquez brièvement pourquoi vous souhaitez voyager..." {...field} rows={4} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
             </div>
 
             {/* STEP 3 */}
@@ -252,47 +218,39 @@ export default function NewApplication() {
               <h2 className="text-xl font-bold text-primary mb-4 flex items-center gap-2">
                 <CheckCircle2 className="w-5 h-5 text-secondary" /> Vérification et Notes
               </h2>
-              
               <div className="bg-slate-50 p-6 rounded-xl border border-border mb-6 text-sm">
                 <p className="mb-2"><strong>Destination:</strong> {selectedDest?.toUpperCase()}</p>
                 <p className="mb-2"><strong>Visa:</strong> {form.watch("visaType")}</p>
                 <p className="mb-2"><strong>Demandeur:</strong> {form.watch("applicantName")}</p>
               </div>
-
-              <FormField
-                control={form.control}
-                name="notes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Notes supplémentaires (Optionnel)</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Des détails importants à nous communiquer sur votre dossier ?" {...field} rows={4} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <FormField control={form.control} name="notes" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Notes supplémentaires (Optionnel)</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Des détails importants à nous communiquer sur votre dossier ?" {...field} rows={4} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
             </div>
 
-            {/* Navigation Buttons */}
             <div className="flex items-center justify-between pt-6 border-t border-border">
               {step > 1 ? (
                 <Button type="button" variant="outline" onClick={() => setStep(step - 1)}>
                   <ArrowLeft className="w-4 h-4 mr-2" /> Retour
                 </Button>
-              ) : <div></div>}
+              ) : <div />}
 
               {step < 3 ? (
                 <Button type="button" onClick={nextStep} className="bg-primary px-8">
                   Suivant <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               ) : (
-                <Button type="submit" disabled={mutation.isPending} className="bg-secondary text-primary hover:bg-yellow-500 font-bold px-8">
-                  {mutation.isPending ? "Création..." : "Soumettre le dossier"}
+                <Button type="submit" disabled={isPending} className="bg-secondary text-primary hover:bg-yellow-500 font-bold px-8">
+                  {isPending ? "Création..." : "Soumettre le dossier"}
                 </Button>
               )}
             </div>
-
           </form>
         </Form>
       </div>
