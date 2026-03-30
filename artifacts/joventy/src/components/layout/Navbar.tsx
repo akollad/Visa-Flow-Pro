@@ -13,7 +13,7 @@ export function Navbar() {
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/20 group-hover:scale-105 transition-transform">
             <Shield className="w-5 h-5 text-secondary" />
           </div>
-          <span className="font-serif text-2xl font-bold text-primary tracking-tight">Joventy<span className="text-secondary">.cd</span></span>
+          <span className="font-serif text-2xl font-bold text-primary tracking-tight">Joventy</span>
         </Link>
 
         <nav className="hidden md:flex items-center gap-8">

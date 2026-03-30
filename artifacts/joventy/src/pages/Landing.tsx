@@ -128,7 +128,7 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-2">
             <img src={`${import.meta.env.BASE_URL}images/logo.png`} alt="Joventy Logo" className="w-8 h-8 object-contain" />
-            <span className="font-serif text-xl font-bold text-primary">Joventy<span className="text-secondary">.cd</span></span>
+            <span className="font-serif text-xl font-bold text-primary">Joventy</span>
           </div>
           <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} Joventy RDC. Tous droits réservés.</p>
         </div>
