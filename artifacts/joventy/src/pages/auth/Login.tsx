@@ -11,6 +11,7 @@ import {
   Clock,
   Mail,
   Phone,
+  KeyRound,
 } from "lucide-react";
 import { JoventyLogo } from "@/components/JoventyLogo";
 
@@ -28,33 +29,24 @@ const OAUTH_STRATEGIES = [
     ),
   },
   {
-    strategy: "oauth_apple" as const,
-    label: "Apple",
+    strategy: "oauth_github" as const,
+    label: "GitHub",
     icon: (
       <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor">
-        <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
-      </svg>
-    ),
-  },
-  {
-    strategy: "oauth_facebook" as const,
-    label: "Facebook",
-    icon: (
-      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="#1877F2">
-        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+        <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
       </svg>
     ),
   },
 ];
 
-type Method = "email" | "phone";
+type Method = "email-password" | "email-otp" | "phone";
 type Step = "credentials" | "otp";
 
 export default function Login() {
   const { signIn } = useSignIn();
   const [, setLocation] = useLocation();
 
-  const [method, setMethod] = useState<Method>("email");
+  const [method, setMethod] = useState<Method>("email-password");
   const [step, setStep] = useState<Step>("credentials");
 
   const [email, setEmail] = useState("");
@@ -65,7 +57,7 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleOAuth = async (strategy: "oauth_google" | "oauth_apple" | "oauth_facebook") => {
+  const handleOAuth = async (strategy: "oauth_google" | "oauth_github") => {
     if (!signIn) return;
     setError("");
     try {
@@ -88,26 +80,20 @@ export default function Login() {
   };
 
   /* ---- EMAIL + PASSWORD login ---- */
-  const handleEmailSubmit = async (e: React.FormEvent) => {
+  const handleEmailPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!signIn) return;
     setIsLoading(true);
     setError("");
     try {
       const { error: err } = await signIn.password({ identifier: email, password });
-      if (err) {
-        setError(err.longMessage || err.message);
-        return;
-      }
+      if (err) { setError(err.longMessage || err.message); return; }
       if (signIn.status === "complete") {
         await signIn.finalize();
         setLocation("/dashboard");
       } else if (signIn.status === "needs_first_factor") {
         const { error: sendErr } = await signIn.emailCode.sendCode();
-        if (sendErr) {
-          setError(sendErr.longMessage || sendErr.message);
-          return;
-        }
+        if (sendErr) { setError(sendErr.longMessage || sendErr.message); return; }
         setStep("otp");
       }
     } catch (e: any) {
@@ -117,7 +103,26 @@ export default function Login() {
     }
   };
 
-  /* ---- PHONE login (SMS OTP) ---- */
+  /* ---- EMAIL OTP login ---- */
+  const handleEmailOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!signIn) return;
+    setIsLoading(true);
+    setError("");
+    try {
+      const { error: err } = await signIn.create({ identifier: email });
+      if (err) { setError(err.longMessage || err.message); return; }
+      const { error: sendErr } = await signIn.emailCode.sendCode();
+      if (sendErr) { setError(sendErr.longMessage || sendErr.message); return; }
+      setStep("otp");
+    } catch (e: any) {
+      setError(e?.errors?.[0]?.longMessage || e?.errors?.[0]?.message || "Erreur lors de l'envoi du code");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /* ---- PHONE OTP login ---- */
   const handlePhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!signIn) return;
@@ -125,10 +130,7 @@ export default function Login() {
     setError("");
     try {
       const { error: err } = await signIn.create({ identifier: phone });
-      if (err) {
-        setError(err.longMessage || err.message);
-        return;
-      }
+      if (err) { setError(err.longMessage || err.message); return; }
       const { error: sendErr } = await signIn.phoneCode.sendCode();
       if (sendErr) {
         setError(sendErr.longMessage || sendErr.message || "Ce numéro n'est pas enregistré ou ne supporte pas la connexion par SMS.");
@@ -142,7 +144,7 @@ export default function Login() {
     }
   };
 
-  /* ---- OTP verification (both email and phone) ---- */
+  /* ---- OTP verification ---- */
   const handleOtpVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!signIn) return;
@@ -154,10 +156,7 @@ export default function Login() {
           ? await signIn.phoneCode.verifyCode({ code: otpCode })
           : await signIn.emailCode.verifyCode({ code: otpCode });
 
-      if (err) {
-        setError(err.longMessage || err.message);
-        return;
-      }
+      if (err) { setError(err.longMessage || err.message); return; }
       if (signIn.status === "complete") {
         await signIn.finalize();
         setLocation("/dashboard");
@@ -171,9 +170,15 @@ export default function Login() {
 
   const identifier = method === "phone" ? phone : email;
 
+  const METHOD_TABS: { key: Method; label: string; icon: typeof Mail }[] = [
+    { key: "email-password", label: "Email + mdp", icon: KeyRound },
+    { key: "email-otp", label: "Email OTP", icon: Mail },
+    { key: "phone", label: "Téléphone", icon: Phone },
+  ];
+
   return (
     <div className="min-h-screen flex">
-      {/* Left Panel — Navy Brand */}
+      {/* Left Panel */}
       <div className="hidden lg:flex lg:w-5/12 xl:w-1/2 bg-brand-gradient flex-col justify-between p-12 relative overflow-hidden">
         <div className="absolute inset-0 opacity-5">
           <div className="absolute top-1/4 -left-20 w-96 h-96 rounded-full border border-white/20" />
@@ -220,11 +225,10 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Right Panel — Form */}
+      {/* Right Panel */}
       <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-16 xl:px-24 py-12 bg-background">
         <div className="w-full max-w-md mx-auto">
 
-          {/* Mobile logo */}
           <div className="lg:hidden mb-8">
             <JoventyLogo href="/" variant="sidebar" size="sm" />
           </div>
@@ -236,8 +240,8 @@ export default function Login() {
                 <p className="mt-2 text-slate-500">Bienvenue ! Accédez à votre espace.</p>
               </div>
 
-              {/* OAuth buttons */}
-              <div className="grid grid-cols-3 gap-3 mb-6">
+              {/* OAuth — Google + GitHub */}
+              <div className="grid grid-cols-2 gap-3 mb-6">
                 {OAUTH_STRATEGIES.map(({ strategy, label, icon }) => (
                   <button
                     key={strategy}
@@ -245,7 +249,7 @@ export default function Login() {
                     className="flex items-center justify-center gap-2 h-12 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 text-sm font-medium transition-all duration-150 shadow-sm"
                   >
                     {icon}
-                    <span className="hidden sm:inline">{label}</span>
+                    <span>{label}</span>
                   </button>
                 ))}
               </div>
@@ -261,39 +265,31 @@ export default function Login() {
                 </div>
               </div>
 
-              {/* Email / Phone toggle */}
-              <div className="flex rounded-xl bg-slate-100 p-1 mb-5">
-                <button
-                  type="button"
-                  onClick={() => switchMethod("email")}
-                  className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-lg text-sm font-medium transition-all ${
-                    method === "email"
-                      ? "bg-white text-primary shadow-sm"
-                      : "text-slate-500 hover:text-slate-700"
-                  }`}
-                >
-                  <Mail className="w-4 h-4" /> Email
-                </button>
-                <button
-                  type="button"
-                  onClick={() => switchMethod("phone")}
-                  className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-lg text-sm font-medium transition-all ${
-                    method === "phone"
-                      ? "bg-white text-primary shadow-sm"
-                      : "text-slate-500 hover:text-slate-700"
-                  }`}
-                >
-                  <Phone className="w-4 h-4" /> Téléphone
-                </button>
+              {/* Method tabs: Email+mdp | Email OTP | Phone */}
+              <div className="flex rounded-xl bg-slate-100 p-1 mb-5 gap-1">
+                {METHOD_TABS.map(({ key, label, icon: Icon }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => switchMethod(key)}
+                    className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg text-xs font-medium transition-all ${
+                      method === key
+                        ? "bg-white text-primary shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">{label}</span>
+                    <span className="sm:hidden">{key === "email-password" ? "Email" : key === "email-otp" ? "OTP" : "Tel"}</span>
+                  </button>
+                ))}
               </div>
 
-              {/* EMAIL form */}
-              {method === "email" && (
-                <form onSubmit={handleEmailSubmit} className="space-y-4">
+              {/* EMAIL + PASSWORD */}
+              {method === "email-password" && (
+                <form onSubmit={handleEmailPasswordSubmit} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-primary mb-1.5">
-                      Adresse email
-                    </label>
+                    <label className="block text-sm font-medium text-primary mb-1.5">Adresse email</label>
                     <input
                       type="email"
                       value={email}
@@ -303,16 +299,10 @@ export default function Login() {
                       className="w-full h-12 px-4 rounded-xl border border-slate-200 bg-white text-primary placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all"
                     />
                   </div>
-
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-sm font-medium text-primary">
-                        Mot de passe
-                      </label>
-                      <button
-                        type="button"
-                        className="text-xs text-secondary hover:text-secondary/70 font-medium transition-colors"
-                      >
+                      <label className="block text-sm font-medium text-primary">Mot de passe</label>
+                      <button type="button" className="text-xs text-secondary hover:text-secondary/70 font-medium transition-colors">
                         Mot de passe oublié ?
                       </button>
                     </div>
@@ -334,34 +324,48 @@ export default function Login() {
                       </button>
                     </div>
                   </div>
-
-                  {error && (
-                    <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">
-                      {error}
-                    </div>
-                  )}
-
+                  {error && <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">{error}</div>}
                   <button
                     type="submit"
                     disabled={isLoading}
                     className="w-full h-12 rounded-xl bg-primary hover:bg-primary/85 text-white font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed mt-2"
                   >
-                    {isLoading ? (
-                      <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    ) : (
-                      <>Se connecter <ArrowRight className="w-4 h-4" /></>
-                    )}
+                    {isLoading ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <>Se connecter <ArrowRight className="w-4 h-4" /></>}
                   </button>
                 </form>
               )}
 
-              {/* PHONE form */}
+              {/* EMAIL OTP */}
+              {method === "email-otp" && (
+                <form onSubmit={handleEmailOtpSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-primary mb-1.5">Adresse email</label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="vous@exemple.com"
+                      required
+                      className="w-full h-12 px-4 rounded-xl border border-slate-200 bg-white text-primary placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all"
+                    />
+                    <p className="text-xs text-slate-400 mt-1.5">Un code de connexion vous sera envoyé par email.</p>
+                  </div>
+                  {error && <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">{error}</div>}
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full h-12 rounded-xl bg-primary hover:bg-primary/85 text-white font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {isLoading ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Mail className="w-4 h-4" /> Recevoir le code <ArrowRight className="w-4 h-4" /></>}
+                  </button>
+                </form>
+              )}
+
+              {/* PHONE OTP */}
               {method === "phone" && (
                 <form onSubmit={handlePhoneSubmit} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-primary mb-1.5">
-                      Numéro de téléphone
-                    </label>
+                    <label className="block text-sm font-medium text-primary mb-1.5">Numéro de téléphone</label>
                     <div className="flex gap-2">
                       <div className="flex items-center h-12 px-3 rounded-xl border border-slate-200 bg-white text-slate-500 text-sm font-medium whitespace-nowrap">
                         🇨🇩 +243
@@ -375,29 +379,15 @@ export default function Login() {
                         className="flex-1 h-12 px-4 rounded-xl border border-slate-200 bg-white text-primary placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all"
                       />
                     </div>
-                    <p className="text-xs text-slate-400 mt-1.5">
-                      Un code SMS vous sera envoyé pour confirmer.
-                    </p>
+                    <p className="text-xs text-slate-400 mt-1.5">Un code SMS vous sera envoyé pour confirmer.</p>
                   </div>
-
-                  {error && (
-                    <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">
-                      {error}
-                    </div>
-                  )}
-
+                  {error && <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">{error}</div>}
                   <button
                     type="submit"
                     disabled={isLoading}
                     className="w-full h-12 rounded-xl bg-primary hover:bg-primary/85 text-white font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {isLoading ? (
-                      <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    ) : (
-                      <>
-                        <Phone className="w-4 h-4" /> Recevoir le code SMS <ArrowRight className="w-4 h-4" />
-                      </>
-                    )}
+                    {isLoading ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Phone className="w-4 h-4" /> Recevoir le code SMS <ArrowRight className="w-4 h-4" /></>}
                   </button>
                 </form>
               )}
@@ -431,9 +421,7 @@ export default function Login() {
 
               <form onSubmit={handleOtpVerify} className="space-y-5">
                 <div>
-                  <label className="block text-sm font-medium text-primary mb-1.5">
-                    Code de vérification
-                  </label>
+                  <label className="block text-sm font-medium text-primary mb-1.5">Code de vérification</label>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -447,22 +435,14 @@ export default function Login() {
                   />
                 </div>
 
-                {error && (
-                  <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">
-                    {error}
-                  </div>
-                )}
+                {error && <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">{error}</div>}
 
                 <button
                   type="submit"
                   disabled={isLoading || otpCode.length < 6}
                   className="w-full h-12 rounded-xl bg-primary hover:bg-primary/85 text-white font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {isLoading ? (
-                    <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <><CheckCircle2 className="w-4 h-4" /> Confirmer</>
-                  )}
+                  {isLoading ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><CheckCircle2 className="w-4 h-4" /> Confirmer</>}
                 </button>
 
                 <button

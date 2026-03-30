@@ -11,6 +11,7 @@ import {
   Star,
   Mail,
   Phone,
+  KeyRound,
 } from "lucide-react";
 import { JoventyLogo } from "@/components/JoventyLogo";
 
@@ -28,33 +29,24 @@ const OAUTH_STRATEGIES = [
     ),
   },
   {
-    strategy: "oauth_apple" as const,
-    label: "Apple",
+    strategy: "oauth_github" as const,
+    label: "GitHub",
     icon: (
       <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor">
-        <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
-      </svg>
-    ),
-  },
-  {
-    strategy: "oauth_facebook" as const,
-    label: "Facebook",
-    icon: (
-      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="#1877F2">
-        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+        <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
       </svg>
     ),
   },
 ];
 
-type Method = "email" | "phone";
+type Method = "email-password" | "email-otp" | "phone";
 type Step = "info" | "otp" | "done";
 
 export default function Register() {
   const { signUp } = useSignUp();
   const [, setLocation] = useLocation();
 
-  const [method, setMethod] = useState<Method>("email");
+  const [method, setMethod] = useState<Method>("email-password");
   const [step, setStep] = useState<Step>("info");
 
   const [firstName, setFirstName] = useState("");
@@ -67,7 +59,7 @@ export default function Register() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleOAuth = async (strategy: "oauth_google" | "oauth_apple" | "oauth_facebook") => {
+  const handleOAuth = async (strategy: "oauth_google" | "oauth_github") => {
     if (!signUp) return;
     setError("");
     try {
@@ -89,8 +81,8 @@ export default function Register() {
     setError("");
   };
 
-  /* ---- EMAIL register ---- */
-  const handleEmailRegister = async (e: React.FormEvent) => {
+  /* ---- EMAIL + PASSWORD register ---- */
+  const handleEmailPasswordRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!signUp) return;
     setIsLoading(true);
@@ -102,15 +94,9 @@ export default function Register() {
         firstName,
         lastName,
       });
-      if (err) {
-        setError(err.longMessage || err.message);
-        return;
-      }
+      if (err) { setError(err.longMessage || err.message); return; }
       const { error: sendErr } = await signUp.verifications.sendEmailCode();
-      if (sendErr) {
-        setError(sendErr.longMessage || sendErr.message);
-        return;
-      }
+      if (sendErr) { setError(sendErr.longMessage || sendErr.message); return; }
       setStep("otp");
     } catch (e: any) {
       setError(e?.errors?.[0]?.longMessage || e?.errors?.[0]?.message || "Erreur lors de la création du compte");
@@ -119,7 +105,26 @@ export default function Register() {
     }
   };
 
-  /* ---- PHONE register ---- */
+  /* ---- EMAIL OTP register (no password) ---- */
+  const handleEmailOtpRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!signUp) return;
+    setIsLoading(true);
+    setError("");
+    try {
+      const { error: err } = await signUp.create({ firstName, lastName, emailAddress: email });
+      if (err) { setError(err.longMessage || err.message); return; }
+      const { error: sendErr } = await signUp.verifications.sendEmailCode();
+      if (sendErr) { setError(sendErr.longMessage || sendErr.message); return; }
+      setStep("otp");
+    } catch (e: any) {
+      setError(e?.errors?.[0]?.longMessage || e?.errors?.[0]?.message || "Erreur lors de la création du compte");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /* ---- PHONE OTP register ---- */
   const handlePhoneRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!signUp) return;
@@ -127,15 +132,9 @@ export default function Register() {
     setError("");
     try {
       const { error: err } = await signUp.create({ firstName, lastName, phoneNumber: phone });
-      if (err) {
-        setError(err.longMessage || err.message);
-        return;
-      }
+      if (err) { setError(err.longMessage || err.message); return; }
       const { error: sendErr } = await signUp.verifications.sendPhoneCode();
-      if (sendErr) {
-        setError(sendErr.longMessage || sendErr.message);
-        return;
-      }
+      if (sendErr) { setError(sendErr.longMessage || sendErr.message); return; }
       setStep("otp");
     } catch (e: any) {
       setError(e?.errors?.[0]?.longMessage || e?.errors?.[0]?.message || "Numéro de téléphone invalide");
@@ -156,10 +155,7 @@ export default function Register() {
           ? await signUp.verifications.verifyPhoneCode({ code: otpCode })
           : await signUp.verifications.verifyEmailCode({ code: otpCode });
 
-      if (verifyErr) {
-        setError(verifyErr.longMessage || verifyErr.message);
-        return;
-      }
+      if (verifyErr) { setError(verifyErr.longMessage || verifyErr.message); return; }
 
       if (signUp.status === "missing_requirements") {
         const missing = signUp.missingFields ?? [];
@@ -169,10 +165,7 @@ export default function Register() {
         }
         if (Object.keys(updates).length > 0) {
           const { error: updateErr } = await signUp.update(updates);
-          if (updateErr) {
-            setError(updateErr.longMessage || updateErr.message);
-            return;
-          }
+          if (updateErr) { setError(updateErr.longMessage || updateErr.message); return; }
         }
       }
 
@@ -189,6 +182,12 @@ export default function Register() {
   };
 
   const identifier = method === "phone" ? phone : email;
+
+  const METHOD_TABS: { key: Method; label: string; icon: typeof Mail }[] = [
+    { key: "email-password", label: "Email + mdp", icon: KeyRound },
+    { key: "email-otp", label: "Email OTP", icon: Mail },
+    { key: "phone", label: "Téléphone", icon: Phone },
+  ];
 
   return (
     <div className="min-h-screen flex">
@@ -233,7 +232,6 @@ export default function Register() {
             ))}
           </div>
 
-          {/* Step progress */}
           <div className="space-y-2">
             <p className="text-white/50 text-xs uppercase tracking-wider">Étape</p>
             <div className="flex gap-2">
@@ -260,7 +258,6 @@ export default function Register() {
       <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-16 xl:px-24 py-12 bg-background">
         <div className="w-full max-w-md mx-auto">
 
-          {/* Mobile logo */}
           <div className="lg:hidden mb-8">
             <JoventyLogo href="/" variant="sidebar" size="sm" />
           </div>
@@ -274,7 +271,7 @@ export default function Register() {
               </div>
 
               {/* OAuth */}
-              <div className="grid grid-cols-3 gap-3 mb-6">
+              <div className="grid grid-cols-2 gap-3 mb-6">
                 {OAUTH_STRATEGIES.map(({ strategy, label, icon }) => (
                   <button
                     key={strategy}
@@ -282,7 +279,7 @@ export default function Register() {
                     className="flex items-center justify-center gap-2 h-12 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 text-sm font-medium transition-all shadow-sm"
                   >
                     {icon}
-                    <span className="hidden sm:inline">{label}</span>
+                    <span>{label}</span>
                   </button>
                 ))}
               </div>
@@ -298,30 +295,24 @@ export default function Register() {
                 </div>
               </div>
 
-              {/* Email / Phone toggle */}
-              <div className="flex rounded-xl bg-slate-100 p-1 mb-5">
-                <button
-                  type="button"
-                  onClick={() => switchMethod("email")}
-                  className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-lg text-sm font-medium transition-all ${
-                    method === "email"
-                      ? "bg-white text-primary shadow-sm"
-                      : "text-slate-500 hover:text-slate-700"
-                  }`}
-                >
-                  <Mail className="w-4 h-4" /> Email
-                </button>
-                <button
-                  type="button"
-                  onClick={() => switchMethod("phone")}
-                  className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-lg text-sm font-medium transition-all ${
-                    method === "phone"
-                      ? "bg-white text-primary shadow-sm"
-                      : "text-slate-500 hover:text-slate-700"
-                  }`}
-                >
-                  <Phone className="w-4 h-4" /> Téléphone
-                </button>
+              {/* Method tabs */}
+              <div className="flex rounded-xl bg-slate-100 p-1 mb-5 gap-1">
+                {METHOD_TABS.map(({ key, label, icon: Icon }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => switchMethod(key)}
+                    className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg text-xs font-medium transition-all ${
+                      method === key
+                        ? "bg-white text-primary shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">{label}</span>
+                    <span className="sm:hidden">{key === "email-password" ? "Email" : key === "email-otp" ? "OTP" : "Tel"}</span>
+                  </button>
+                ))}
               </div>
 
               {/* Name fields (shared) */}
@@ -350,9 +341,9 @@ export default function Register() {
                 </div>
               </div>
 
-              {/* EMAIL-specific fields */}
-              {method === "email" && (
-                <form onSubmit={handleEmailRegister} className="space-y-4">
+              {/* EMAIL + PASSWORD */}
+              {method === "email-password" && (
+                <form onSubmit={handleEmailPasswordRegister} className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-primary mb-1.5">Adresse email</label>
                     <input
@@ -397,33 +388,52 @@ export default function Register() {
                       </div>
                     )}
                   </div>
-
-                  {error && (
-                    <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">{error}</div>
-                  )}
-
+                  {error && <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">{error}</div>}
                   <button
                     type="submit"
                     disabled={isLoading}
                     className="w-full h-12 rounded-xl bg-primary hover:bg-primary/90 text-white font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {isLoading ? (
-                      <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    ) : (
-                      <>Créer mon compte <ArrowRight className="w-4 h-4" /></>
-                    )}
+                    {isLoading ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <>Créer mon compte <ArrowRight className="w-4 h-4" /></>}
                   </button>
-
                   <p className="text-xs text-slate-400 text-center">
                     En créant un compte, vous acceptez nos{" "}
-                    <span className="text-primary hover:text-accent cursor-pointer transition-colors">
-                      conditions d'utilisation
-                    </span>
+                    <span className="text-primary hover:text-accent cursor-pointer transition-colors">conditions d'utilisation</span>
                   </p>
                 </form>
               )}
 
-              {/* PHONE-specific fields */}
+              {/* EMAIL OTP */}
+              {method === "email-otp" && (
+                <form onSubmit={handleEmailOtpRegister} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-primary mb-1.5">Adresse email</label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="vous@exemple.com"
+                      required
+                      className="w-full h-12 px-4 rounded-xl border border-slate-200 bg-white text-primary placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all"
+                    />
+                    <p className="text-xs text-slate-400 mt-1.5">Un code de vérification vous sera envoyé par email.</p>
+                  </div>
+                  {error && <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">{error}</div>}
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full h-12 rounded-xl bg-primary hover:bg-primary/90 text-white font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {isLoading ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Mail className="w-4 h-4" /> Recevoir le code <ArrowRight className="w-4 h-4" /></>}
+                  </button>
+                  <p className="text-xs text-slate-400 text-center">
+                    En créant un compte, vous acceptez nos{" "}
+                    <span className="text-primary hover:text-accent cursor-pointer transition-colors">conditions d'utilisation</span>
+                  </p>
+                </form>
+              )}
+
+              {/* PHONE OTP */}
               {method === "phone" && (
                 <form onSubmit={handlePhoneRegister} className="space-y-4">
                   <div>
@@ -441,32 +451,19 @@ export default function Register() {
                         className="flex-1 h-12 px-4 rounded-xl border border-slate-200 bg-white text-primary placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all"
                       />
                     </div>
-                    <p className="text-xs text-slate-400 mt-1.5">
-                      Un code SMS de confirmation vous sera envoyé.
-                    </p>
+                    <p className="text-xs text-slate-400 mt-1.5">Un code SMS de confirmation vous sera envoyé.</p>
                   </div>
-
-                  {error && (
-                    <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">{error}</div>
-                  )}
-
+                  {error && <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">{error}</div>}
                   <button
                     type="submit"
                     disabled={isLoading}
                     className="w-full h-12 rounded-xl bg-primary hover:bg-primary/90 text-white font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {isLoading ? (
-                      <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    ) : (
-                      <><Phone className="w-4 h-4" /> Recevoir le code SMS <ArrowRight className="w-4 h-4" /></>
-                    )}
+                    {isLoading ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Phone className="w-4 h-4" /> Recevoir le code SMS <ArrowRight className="w-4 h-4" /></>}
                   </button>
-
                   <p className="text-xs text-slate-400 text-center">
                     En créant un compte, vous acceptez nos{" "}
-                    <span className="text-primary hover:text-accent cursor-pointer transition-colors">
-                      conditions d'utilisation
-                    </span>
+                    <span className="text-primary hover:text-accent cursor-pointer transition-colors">conditions d'utilisation</span>
                   </p>
                 </form>
               )}
@@ -490,7 +487,9 @@ export default function Register() {
                     : <Mail className="w-7 h-7 text-accent" />
                   }
                 </div>
-                <h2 className="text-3xl font-serif font-bold text-primary">Confirmez votre {method === "phone" ? "numéro" : "email"}</h2>
+                <h2 className="text-3xl font-serif font-bold text-primary">
+                  Confirmez votre {method === "phone" ? "numéro" : "email"}
+                </h2>
                 <p className="mt-2 text-slate-500">
                   Un code à 6 chiffres a été envoyé{" "}
                   {method === "phone"
@@ -516,20 +515,14 @@ export default function Register() {
                   />
                 </div>
 
-                {error && (
-                  <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">{error}</div>
-                )}
+                {error && <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm">{error}</div>}
 
                 <button
                   type="submit"
                   disabled={isLoading || otpCode.length < 6}
                   className="w-full h-12 rounded-xl bg-primary hover:bg-primary/90 text-white font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {isLoading ? (
-                    <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <><CheckCircle2 className="w-4 h-4" /> Vérifier et continuer</>
-                  )}
+                  {isLoading ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><CheckCircle2 className="w-4 h-4" /> Vérifier et continuer</>}
                 </button>
 
                 <div className="text-center space-y-2">
