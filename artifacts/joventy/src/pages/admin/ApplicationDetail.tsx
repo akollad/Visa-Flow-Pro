@@ -3,38 +3,278 @@ import { useRoute } from "wouter";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Id } from "@convex/_generated/dataModel";
-import { StatusBadge, statusOptions } from "@/components/StatusBadge";
-import { formatDate } from "@/lib/format";
+import { VISA_PRICING } from "@convex/constants";
+import { StatusBadge } from "@/components/StatusBadge";
+import { formatDate, formatDateOnly } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Send, User, Calendar, CreditCard, ShieldCheck, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useForm } from "react-hook-form";
+import {
+  Send,
+  User,
+  Calendar,
+  CreditCard,
+  ShieldCheck,
+  CheckCircle2,
+  Clock,
+  Upload,
+  FileText,
+  Search,
+  XCircle,
+  Star,
+  Image,
+  Eye,
+  Loader2,
+  RefreshCw,
+  AlertTriangle,
+} from "lucide-react";
 
-type UpdateFields = {
-  status: string;
-  adminNotes: string;
-  price: string;
-  isPaid: boolean;
-  appointmentDate: string;
-};
+function makeLog(msg: string) {
+  return { msg, time: Date.now(), author: "admin" };
+}
+
+function PaymentReceiptModal({ url, onClose }: { url: string; onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="relative max-w-2xl w-full bg-white rounded-2xl overflow-hidden shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-3 border-b flex justify-between items-center">
+          <span className="text-sm font-semibold text-primary">Reçu de paiement</span>
+          <button
+            onClick={onClose}
+            className="text-muted-foreground hover:text-primary transition-colors text-lg leading-none"
+          >
+            ✕
+          </button>
+        </div>
+        <img
+          src={url}
+          alt="Reçu de paiement"
+          className="w-full max-h-[70vh] object-contain"
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).style.display = "none";
+            (e.currentTarget.nextElementSibling as HTMLElement).style.display = "block";
+          }}
+        />
+        <p className="hidden p-6 text-center text-sm text-muted-foreground">
+          Le fichier ne peut pas être prévisualisé.{" "}
+          <a href={url} target="_blank" rel="noreferrer" className="text-primary underline">
+            Ouvrir dans un nouvel onglet
+          </a>
+        </p>
+        <div className="p-3 border-t flex justify-end">
+          <a
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-primary underline"
+          >
+            Ouvrir dans un nouvel onglet
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DocUploadRow({
+  appId,
+  docKey,
+  label,
+  existingDoc,
+  required,
+  isAdminContext,
+}: {
+  appId: Id<"applications">;
+  docKey: string;
+  label: string;
+  existingDoc?: { _id: Id<"documents">; url: string | null; verifiedByAdmin: boolean; isAdminUpload?: boolean };
+  required: boolean;
+  isAdminContext: boolean;
+}) {
+  const { toast } = useToast();
+  const generateUrl = useMutation(api.documents.generateUploadUrl);
+  const addDocument = useMutation(api.documents.add);
+  const verifyDocument = useMutation(api.documents.verify);
+  const removeDocument = useMutation(api.documents.remove);
+
+  const [uploading, setUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const uploadedByAdmin = existingDoc?.isAdminUpload === true;
+  const uploadedByClient = existingDoc && !uploadedByAdmin;
+
+  const handleUpload = async (file: File) => {
+    setUploading(true);
+    try {
+      const uploadUrl = await generateUrl();
+      const res = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      const { storageId } = await res.json();
+      await addDocument({ applicationId: appId, docKey, label, storageId });
+      toast({ title: "Document ajouté", description: label });
+    } catch {
+      toast({ variant: "destructive", title: "Erreur upload", description: "Veuillez réessayer." });
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const hasDoc = !!existingDoc;
+  const isVerified = existingDoc?.verifiedByAdmin ?? false;
+
+  return (
+    <div className="flex items-center gap-3 py-2.5 border-b border-slate-100 last:border-0">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-slate-700 truncate">{label}</span>
+          {!required && (
+            <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">optionnel</span>
+          )}
+        </div>
+        {hasDoc && (
+          <div className="flex items-center gap-2 mt-0.5">
+            {isVerified ? (
+              <span className="text-[11px] text-green-700 flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3" /> Vérifié ✓
+              </span>
+            ) : (
+              <span className="text-[11px] text-amber-600 flex items-center gap-1">
+                <Clock className="w-3 h-3" /> En attente de vérification
+              </span>
+            )}
+            {uploadedByAdmin && (
+              <span className="text-[10px] text-primary bg-blue-50 px-1.5 py-0.5 rounded">admin</span>
+            )}
+            {uploadedByClient && (
+              <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">client</span>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {hasDoc && existingDoc.url && (
+          <button
+            onClick={() => setPreviewUrl(existingDoc.url!)}
+            className="text-[11px] text-primary underline flex items-center gap-1"
+          >
+            <Eye className="w-3.5 h-3.5" /> Voir
+          </button>
+        )}
+
+        {isAdminContext && hasDoc && !isVerified && !uploadedByAdmin && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-[11px] border-green-300 text-green-700 hover:bg-green-50"
+            onClick={async () => {
+              try {
+                await verifyDocument({ documentId: existingDoc!._id });
+                toast({ title: "Vérifié", description: label });
+              } catch {
+                toast({ variant: "destructive", title: "Erreur" });
+              }
+            }}
+          >
+            <CheckCircle2 className="w-3 h-3 mr-1" /> Valider
+          </Button>
+        )}
+
+        {isAdminContext && (
+          <>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*,application/pdf"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleUpload(file);
+              }}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={uploading}
+              className="h-7 text-[11px]"
+              onClick={() => fileRef.current?.click()}
+            >
+              {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3 mr-1" />}
+              {hasDoc ? "Remplacer" : "Ajouter"}
+            </Button>
+          </>
+        )}
+
+        {hasDoc && (
+          <button
+            className="text-red-400 hover:text-red-600 transition-colors"
+            onClick={async () => {
+              try {
+                await removeDocument({ documentId: existingDoc!._id });
+                toast({ title: "Document supprimé" });
+              } catch {
+                toast({ variant: "destructive", title: "Erreur suppression" });
+              }
+            }}
+          >
+            <XCircle className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      {previewUrl && (
+        <PaymentReceiptModal url={previewUrl} onClose={() => setPreviewUrl(null)} />
+      )}
+    </div>
+  );
+}
 
 export default function AdminApplicationDetail() {
   const [, params] = useRoute("/admin/applications/:id");
   const appId = params?.id as Id<"applications"> | undefined;
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const [msgText, setMsgText] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
+
+  const [rejectReason, setRejectReason] = useState("");
+  const [showRejectForm, setShowRejectForm] = useState(false);
+  const [adminNoteInput, setAdminNoteInput] = useState("");
+
+  const [slotDate, setSlotDate] = useState("");
+  const [slotTime, setSlotTime] = useState("");
+  const [slotLocation, setSlotLocation] = useState("");
+  const [slotCode, setSlotCode] = useState("");
+  const [slotSaving, setSlotSaving] = useState(false);
+
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
 
   const app = useQuery(api.applications.get, appId ? { id: appId } : "skip");
   const messages = useQuery(api.messages.list, appId ? { applicationId: appId } : "skip") ?? [];
+  const proofUrls = useQuery(api.documents.getPaymentProofUrls, appId ? { applicationId: appId } : "skip");
+  const docs = useQuery(api.documents.listByApplication, appId ? { applicationId: appId } : "skip") ?? [];
+
   const sendMessage = useMutation(api.messages.send);
   const markAsRead = useMutation(api.messages.markAsRead);
-  const updateApplication = useMutation(api.applications.update);
+  const validateEngagement = useMutation(api.admin.validateEngagementPayment);
+  const validateSuccess = useMutation(api.admin.validateSuccessFee);
+  const markSlotFound = useMutation(api.admin.markSlotFound);
+  const rejectApplication = useMutation(api.admin.rejectApplication);
+  const setSlotHunting = useMutation(api.admin.setSlotHunting);
+  const setInReview = useMutation(api.admin.setInReview);
 
   useEffect(() => {
     if (appId && messages.length > 0) {
@@ -42,33 +282,19 @@ export default function AdminApplicationDetail() {
     }
   }, [appId, messages.length]);
 
-  const form = useForm<UpdateFields>({
-    defaultValues: {
-      status: "",
-      adminNotes: "",
-      price: "",
-      isPaid: false,
-      appointmentDate: "",
-    },
-  });
-
-  useEffect(() => {
-    if (app) {
-      form.reset({
-        status: app.status,
-        adminNotes: app.adminNotes || "",
-        price: app.price?.toString() || "",
-        isPaid: app.isPaid || false,
-        appointmentDate: app.appointmentDate || "",
-      });
-    }
-  }, [app?._id]);
-
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  useEffect(() => {
+    if (app) {
+      setAdminNoteInput(app.adminNotes ?? "");
+      const pricing = VISA_PRICING[app.destination as keyof typeof VISA_PRICING];
+      if (pricing) setSlotLocation(pricing.embassyAddress ?? "");
+    }
+  }, [app?._id]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,171 +308,519 @@ export default function AdminApplicationDetail() {
     }
   };
 
-  const handleSave = async () => {
-    if (!appId) return;
-    setIsSaving(true);
+  const handleAction = async (action: () => Promise<unknown>, successMsg: string) => {
     try {
-      const values = form.getValues();
-      await updateApplication({
-        id: appId,
-        status: values.status as any,
-        adminNotes: values.adminNotes || undefined,
-        price: values.price ? parseFloat(values.price) : undefined,
-        isPaid: values.isPaid,
-        appointmentDate: values.appointmentDate || undefined,
-      });
-      toast({ title: "Dossier mis à jour", description: "Les modifications ont été enregistrées." });
-    } catch {
-      toast({ variant: "destructive", title: "Erreur", description: "Impossible de mettre à jour le dossier." });
-    } finally {
-      setIsSaving(false);
+      await action();
+      toast({ title: "✅ Succès", description: successMsg });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erreur", description: e.message ?? "Action échouée" });
     }
   };
 
-  if (app === undefined) return <div className="p-12 text-center text-muted-foreground">Chargement...</div>;
-  if (!app) return <div className="p-12 text-center text-red-500">Dossier introuvable</div>;
+  const handleMarkSlot = async () => {
+    if (!appId || !slotDate || !slotTime || !slotLocation) {
+      toast({ variant: "destructive", title: "Champs requis", description: "Date, heure et lieu sont obligatoires." });
+      return;
+    }
+    setSlotSaving(true);
+    try {
+      await markSlotFound({ applicationId: appId, date: slotDate, time: slotTime, location: slotLocation, confirmationCode: slotCode || undefined });
+      toast({ title: "🎉 Créneau enregistré", description: "Le client sera notifié." });
+      setSlotDate(""); setSlotTime(""); setSlotCode("");
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erreur", description: e.message });
+    } finally {
+      setSlotSaving(false);
+    }
+  };
+
+  if (app === undefined)
+    return <div className="p-12 text-center text-muted-foreground">Chargement...</div>;
+  if (!app)
+    return <div className="p-12 text-center text-red-500">Dossier introuvable</div>;
+
+  const pricing = VISA_PRICING[app.destination as keyof typeof VISA_PRICING];
+  const isEngagementPaid = app.priceDetails?.isEngagementPaid ?? false;
+  const isSuccessFeePaid = app.priceDetails?.isSuccessFeePaid ?? false;
+  const hasEngagementProof = !!app.paymentProofUrl;
+  const hasSuccessProof = !!app.successFeeProofUrl;
+  const isSlotHunting = app.status === "slot_hunting" || app.status === "in_review";
+  const isSlotFound = app.status === "slot_found_awaiting_success_fee";
+  const isCompleted = app.status === "completed";
+  const isRejected = app.status === "rejected";
+
+  const docsByKey = Object.fromEntries(docs.filter((d) => !d.isAdminUpload).map((d) => [d.docKey, d]));
+  const adminDocsByKey = Object.fromEntries(docs.filter((d) => d.isAdminUpload).map((d) => [d.docKey, d]));
 
   return (
     <div className="h-full flex flex-col xl:flex-row gap-6">
+      {/* ===== LEFT COLUMN ===== */}
       <div className="w-full xl:w-2/3 space-y-6">
+
+        {/* Header card */}
         <div className="bg-white p-6 sm:p-8 rounded-2xl border border-border shadow-sm">
-          <div className="flex items-start justify-between mb-6 gap-4">
+          <div className="flex items-start justify-between mb-5 gap-4 flex-wrap">
             <div>
               <h1 className="text-2xl font-serif font-bold text-primary">
-                Dossier : {app.applicantName}
+                {app.destination.toUpperCase()} — {app.visaType}
               </h1>
-              <p className="text-muted-foreground">
-                {app.destination.toUpperCase()} — {app.visaType} | Ref: JOV-{app._id.slice(-5).toUpperCase()}
+              <p className="text-muted-foreground text-sm mt-0.5">
+                Ref : JOV-{app._id.slice(-5).toUpperCase()} · {app.applicantName}
               </p>
             </div>
             <StatusBadge status={app.status} />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100 text-sm">
-            <div>
-              <User className="w-4 h-4 text-slate-400 inline mr-2" />
-              <strong>Client :</strong>{" "}
-              {app.userFirstName} {app.userLastName}
-              {app.userEmail && (
-                <span className="block text-xs ml-6 text-muted-foreground">{app.userEmail}</span>
-              )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100 text-sm">
+            <div className="flex items-start gap-2">
+              <User className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-semibold text-primary">{app.userFirstName} {app.userLastName}</p>
+                {app.userEmail && <p className="text-xs text-muted-foreground">{app.userEmail}</p>}
+                {app.userPhone && <p className="text-xs text-muted-foreground">{app.userPhone}</p>}
+              </div>
             </div>
             <div>
-              <strong>Passeport :</strong> {app.passportNumber || "Non renseigné"}
+              <p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Passeport</p>
+              <p className="font-medium">{app.passportNumber || "Non renseigné"}</p>
             </div>
             <div>
-              <Calendar className="w-4 h-4 text-slate-400 inline mr-2" />
-              <strong>Voyage :</strong> {app.travelDate || "Non renseigné"}
+              <p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Voyage</p>
+              <p className="font-medium">{formatDateOnly(app.travelDate)}</p>
+              {app.returnDate && <p className="text-xs text-slate-500">Retour : {formatDateOnly(app.returnDate)}</p>}
             </div>
             <div>
-              <strong>Retour :</strong> {app.returnDate || "Non renseigné"}
-            </div>
-            <div className="sm:col-span-2">
-              <strong>Motif :</strong> {app.purpose}
+              <p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Motif</p>
+              <p>{app.purpose}</p>
             </div>
             {app.notes && (
               <div className="sm:col-span-2">
-                <strong>Notes client :</strong> {app.notes}
+                <p className="text-xs text-muted-foreground uppercase font-medium mb-0.5">Notes client</p>
+                <p className="text-sm text-slate-600 italic">{app.notes}</p>
               </div>
             )}
           </div>
         </div>
 
-        <div className="bg-white p-6 sm:p-8 rounded-2xl border border-border shadow-sm">
-          <h2 className="text-xl font-bold text-primary mb-6">Gestion du Dossier</h2>
+        {/* ===== PAYMENT PANEL ===== */}
+        <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-border bg-slate-50 flex items-center gap-2">
+            <CreditCard className="w-4 h-4 text-secondary" />
+            <h2 className="font-bold text-primary text-base">Validation des Paiements</h2>
+          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-primary">Statut</label>
-              <Select
-                value={form.watch("status")}
-                onValueChange={(v) => form.setValue("status", v)}
-              >
-                <SelectTrigger className="h-12">
-                  <SelectValue placeholder="Choisir un statut" />
-                </SelectTrigger>
-                <SelectContent>
-                  {statusOptions.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-primary flex items-center gap-2">
-                <CreditCard className="w-4 h-4" /> Prix (USD)
-              </label>
-              <Input
-                {...form.register("price")}
-                type="number"
-                placeholder="Ex: 350"
-                className="h-12 bg-slate-50"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-primary flex items-center gap-2">
-                <Calendar className="w-4 h-4" /> Date de RDV consulaire
-              </label>
-              <Input
-                {...form.register("appointmentDate")}
-                type="date"
-                className="h-12 bg-slate-50"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-primary">Paiement</label>
-              <div className="h-12 flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="isPaid"
-                  {...form.register("isPaid")}
-                  className="h-4 w-4 rounded"
-                />
-                <label htmlFor="isPaid" className="text-sm cursor-pointer">
-                  Paiement confirmé
-                </label>
+          <div className="p-6 space-y-6">
+            {/* Engagement fee row */}
+            <div className={`rounded-xl border p-5 ${isEngagementPaid ? "border-green-200 bg-green-50" : hasEngagementProof ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-slate-50"}`}>
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <p className="text-sm font-semibold text-primary flex items-center gap-2">
+                    {isEngagementPaid
+                      ? <CheckCircle2 className="w-4 h-4 text-green-600" />
+                      : hasEngagementProof
+                      ? <Clock className="w-4 h-4 text-amber-500" />
+                      : <Clock className="w-4 h-4 text-slate-400" />}
+                    Frais d'engagement — {app.priceDetails?.engagementFee ?? 0} USD
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {isEngagementPaid ? "Validé ✓" : hasEngagementProof ? "Reçu soumis — en attente de validation" : "Aucun reçu soumis"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {hasEngagementProof && proofUrls?.engagementUrl && !isEngagementPaid && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs gap-1"
+                      onClick={() => setReceiptPreview(proofUrls.engagementUrl!)}
+                    >
+                      <Image className="w-3.5 h-3.5" /> Voir reçu
+                    </Button>
+                  )}
+                  {hasEngagementProof && !isEngagementPaid && appId && (
+                    <Button
+                      size="sm"
+                      className="h-8 text-xs bg-green-600 hover:bg-green-700 text-white gap-1"
+                      onClick={() =>
+                        handleAction(
+                          () => validateEngagement({ applicationId: appId }),
+                          "Paiement d'engagement validé. Dossier activé."
+                        )
+                      }
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Valider paiement
+                    </Button>
+                  )}
+                  {isEngagementPaid && (
+                    <span className="text-xs font-semibold text-green-700 bg-green-100 px-2.5 py-1 rounded-full">Validé</span>
+                  )}
+                  {!hasEngagementProof && (
+                    <span className="text-xs text-slate-400">En attente du reçu</span>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="sm:col-span-2 space-y-2">
-              <label className="text-sm font-medium text-primary">Notes internes (admin)</label>
-              <Textarea
-                {...form.register("adminNotes")}
-                placeholder="Ajouter des notes internes sur ce dossier..."
-                rows={3}
-                className="bg-slate-50"
-              />
+            {/* Success fee row */}
+            <div className={`rounded-xl border p-5 ${isSuccessFeePaid ? "border-green-200 bg-green-50" : hasSuccessProof ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-slate-50"}`}>
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <p className="text-sm font-semibold text-primary flex items-center gap-2">
+                    {isSuccessFeePaid
+                      ? <CheckCircle2 className="w-4 h-4 text-green-600" />
+                      : hasSuccessProof
+                      ? <Clock className="w-4 h-4 text-amber-500" />
+                      : <Star className="w-4 h-4 text-slate-400" />}
+                    Prime de succès — {app.priceDetails?.successFee ?? 0} USD
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {isSuccessFeePaid ? "Validée ✓" : hasSuccessProof ? "Reçu soumis — en attente de validation" : "En attente du créneau"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {hasSuccessProof && proofUrls?.successFeeUrl && !isSuccessFeePaid && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs gap-1"
+                      onClick={() => setReceiptPreview(proofUrls.successFeeUrl!)}
+                    >
+                      <Image className="w-3.5 h-3.5" /> Voir reçu
+                    </Button>
+                  )}
+                  {hasSuccessProof && !isSuccessFeePaid && appId && (
+                    <Button
+                      size="sm"
+                      className="h-8 text-xs bg-green-600 hover:bg-green-700 text-white gap-1"
+                      onClick={() =>
+                        handleAction(
+                          () => validateSuccess({ applicationId: appId }),
+                          "Prime de succès validée. Dossier marqué complété."
+                        )
+                      }
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Valider prime
+                    </Button>
+                  )}
+                  {isSuccessFeePaid && (
+                    <span className="text-xs font-semibold text-green-700 bg-green-100 px-2.5 py-1 rounded-full">Validée</span>
+                  )}
+                  {!hasSuccessProof && (
+                    <span className="text-xs text-slate-400">En attente du reçu</span>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
 
-          <div className="mt-6 flex justify-end">
-            <Button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="bg-secondary text-primary hover:bg-orange-500 font-bold gap-2 h-12 px-8"
-            >
-              <Save className="w-4 h-4" />
-              {isSaving ? "Enregistrement..." : "Sauvegarder les modifications"}
-            </Button>
+            {/* Revenue summary */}
+            {app.priceDetails && (
+              <div className="flex items-center gap-4 text-sm bg-slate-50 rounded-xl p-4 border border-slate-100">
+                <div className="flex-1 text-center">
+                  <p className="text-xs text-muted-foreground mb-0.5">Total attendu</p>
+                  <p className="font-bold text-primary">{(app.priceDetails.engagementFee + app.priceDetails.successFee)} USD</p>
+                </div>
+                <div className="w-px h-8 bg-slate-200" />
+                <div className="flex-1 text-center">
+                  <p className="text-xs text-muted-foreground mb-0.5">Encaissé</p>
+                  <p className="font-bold text-green-700">{app.priceDetails.paidAmount} USD</p>
+                </div>
+                <div className="w-px h-8 bg-slate-200" />
+                <div className="flex-1 text-center">
+                  <p className="text-xs text-muted-foreground mb-0.5">Restant</p>
+                  <p className="font-bold text-amber-600">
+                    {Math.max(0, (app.priceDetails.engagementFee + app.priceDetails.successFee) - app.priceDetails.paidAmount)} USD
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
+
+        {/* ===== QUICK ACTIONS ===== */}
+        {!isCompleted && !isRejected && (
+          <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-border bg-slate-50 flex items-center gap-2">
+              <RefreshCw className="w-4 h-4 text-secondary" />
+              <h2 className="font-bold text-primary text-base">Actions rapides</h2>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="flex flex-wrap gap-3">
+                {app.status !== "in_review" && isEngagementPaid && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 border-primary/30 text-primary hover:bg-primary/5"
+                    onClick={() =>
+                      handleAction(
+                        () => setInReview({ applicationId: appId!, adminNotes: adminNoteInput || undefined }),
+                        "Dossier mis en révision."
+                      )
+                    }
+                  >
+                    <Search className="w-3.5 h-3.5" /> Mettre en révision
+                  </Button>
+                )}
+                {app.status !== "slot_hunting" && isEngagementPaid && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 border-purple-300 text-purple-700 hover:bg-purple-50"
+                    onClick={() =>
+                      handleAction(
+                        () => setSlotHunting({ applicationId: appId! }),
+                        "Recherche de créneau activée."
+                      )
+                    }
+                  >
+                    <Star className="w-3.5 h-3.5" /> Activer recherche créneau
+                  </Button>
+                )}
+
+                {!showRejectForm ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 border-red-300 text-red-600 hover:bg-red-50"
+                    onClick={() => setShowRejectForm(true)}
+                  >
+                    <XCircle className="w-3.5 h-3.5" /> Rejeter le dossier
+                  </Button>
+                ) : (
+                  <div className="w-full space-y-2">
+                    <Textarea
+                      placeholder="Raison du rejet (visible par le client)..."
+                      value={rejectReason}
+                      onChange={(e) => setRejectReason(e.target.value)}
+                      rows={2}
+                      className="bg-red-50 border-red-200 text-sm"
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        className="bg-red-600 hover:bg-red-700 text-white"
+                        onClick={() => {
+                          if (!rejectReason.trim()) {
+                            toast({ variant: "destructive", title: "Raison requise" });
+                            return;
+                          }
+                          handleAction(
+                            () => rejectApplication({ applicationId: appId!, reason: rejectReason }),
+                            "Dossier rejeté."
+                          );
+                          setShowRejectForm(false);
+                          setRejectReason("");
+                        }}
+                      >
+                        Confirmer le rejet
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setShowRejectForm(false)}>
+                        Annuler
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground uppercase">Notes internes admin</label>
+                <Textarea
+                  value={adminNoteInput}
+                  onChange={(e) => setAdminNoteInput(e.target.value)}
+                  placeholder="Notes internes (non visibles par le client)..."
+                  rows={2}
+                  className="bg-slate-50 text-sm"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===== SLOT MANAGEMENT ===== */}
+        {(isSlotHunting || isSlotFound) && !isCompleted && (
+          <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-border bg-slate-50 flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-secondary" />
+              <h2 className="font-bold text-primary text-base">
+                {isSlotFound ? "Créneau Enregistré" : "Enregistrer un Créneau"}
+              </h2>
+            </div>
+            <div className="p-6">
+              {isSlotFound && app.appointmentDetails ? (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-1">
+                  <p className="text-sm text-green-800 font-semibold flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4" /> Créneau capturé et client notifié
+                  </p>
+                  <p className="text-sm text-slate-700">Date : <strong>{formatDateOnly(app.appointmentDetails.date)}</strong></p>
+                  <p className="text-sm text-slate-700">Heure : <strong>{app.appointmentDetails.time}</strong></p>
+                  <p className="text-sm text-slate-700">Lieu : <strong>{app.appointmentDetails.location}</strong></p>
+                  {app.appointmentDetails.confirmationCode && (
+                    <p className="text-sm text-slate-700">Code : <strong className="font-mono">{app.appointmentDetails.confirmationCode}</strong></p>
+                  )}
+                  {app.slotExpiresAt && (
+                    <p className="text-xs text-amber-700 mt-2">
+                      <AlertTriangle className="w-3 h-3 inline mr-1" />
+                      Expire le : {formatDate(app.slotExpiresAt)}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground uppercase">Date RDV *</label>
+                      <Input
+                        type="date"
+                        value={slotDate}
+                        onChange={(e) => setSlotDate(e.target.value)}
+                        className="h-10 bg-slate-50"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground uppercase">Heure *</label>
+                      <Input
+                        type="time"
+                        value={slotTime}
+                        onChange={(e) => setSlotTime(e.target.value)}
+                        className="h-10 bg-slate-50"
+                      />
+                    </div>
+                    <div className="sm:col-span-2 space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground uppercase">Lieu / Ambassade *</label>
+                      <Input
+                        value={slotLocation}
+                        onChange={(e) => setSlotLocation(e.target.value)}
+                        placeholder="Adresse consulaire..."
+                        className="h-10 bg-slate-50"
+                      />
+                    </div>
+                    <div className="sm:col-span-2 space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground uppercase">Code de confirmation (optionnel)</label>
+                      <Input
+                        value={slotCode}
+                        onChange={(e) => setSlotCode(e.target.value)}
+                        placeholder="Ex: CGO-2025-ABCDE"
+                        className="h-10 bg-slate-50 font-mono"
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleMarkSlot}
+                    disabled={slotSaving}
+                    className="bg-green-600 hover:bg-green-700 text-white font-bold gap-2 h-11 w-full sm:w-auto"
+                  >
+                    {slotSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star className="w-4 h-4" />}
+                    {slotSaving ? "Enregistrement..." : "Confirmer le créneau (48h hold)"}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ===== DOCUMENT VAULT ===== */}
+        {pricing && isEngagementPaid && (
+          <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-border bg-slate-50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-secondary" />
+                <h2 className="font-bold text-primary text-base">Coffre-fort Documents</h2>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {docs.filter((d) => !d.isAdminUpload).length}/{pricing.requiredDocuments.length} fourni(s)
+              </span>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Client documents */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase mb-3">Documents du client</p>
+                <div>
+                  {pricing.requiredDocuments.map((doc) => (
+                    <DocUploadRow
+                      key={doc.key}
+                      appId={appId!}
+                      docKey={doc.key}
+                      label={doc.label}
+                      required={doc.required}
+                      existingDoc={docsByKey[doc.key]}
+                      isAdminContext={true}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Admin-uploaded documents */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase mb-3">Documents uploadés par l'admin</p>
+                <div>
+                  {pricing.requiredDocuments.map((doc) => (
+                    adminDocsByKey[doc.key] ? (
+                      <DocUploadRow
+                        key={`admin-${doc.key}`}
+                        appId={appId!}
+                        docKey={doc.key}
+                        label={`${doc.label} (version admin)`}
+                        required={false}
+                        existingDoc={adminDocsByKey[doc.key]}
+                        isAdminContext={true}
+                      />
+                    ) : null
+                  ))}
+                  {Object.keys(adminDocsByKey).length === 0 && (
+                    <p className="text-sm text-slate-400 italic py-2">Aucun document admin ajouté.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===== ACTIVITY LOG ===== */}
+        {app.logs && app.logs.length > 0 && (
+          <div className="bg-white rounded-2xl border border-border shadow-sm p-6">
+            <h2 className="font-bold text-primary mb-4 text-base">Journal d'activité</h2>
+            <div className="relative border-l-2 border-slate-100 ml-3 space-y-5 pb-2">
+              {[...app.logs].reverse().map((log, idx) => {
+                const m = log.msg.toLowerCase();
+                let dotColor = "bg-primary";
+                if (m.includes("créé") || m.includes("nouveau")) dotColor = "bg-blue-500";
+                else if (m.includes("validé") || m.includes("paiement")) dotColor = "bg-green-500";
+                else if (m.includes("créneau") || m.includes("rendez-vous")) dotColor = "bg-secondary";
+                else if (m.includes("refusé") || m.includes("rejeté")) dotColor = "bg-red-500";
+                else if (m.includes("reçu") || m.includes("uploadé")) dotColor = "bg-violet-500";
+                else if (m.includes("révision") || m.includes("traitement")) dotColor = "bg-indigo-500";
+
+                return (
+                  <div key={idx} className="relative pl-6">
+                    <div className={`absolute -left-[7px] top-1.5 w-3 h-3 rounded-full ${dotColor} border-2 border-white`} />
+                    <p className="text-sm text-slate-700">{log.msg}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {formatDate(log.time)} · {log.author ?? "système"}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Chat panel */}
+      {/* ===== RIGHT PANEL — Chat ===== */}
       <div className="w-full xl:w-1/3 bg-white rounded-2xl border border-border shadow-sm flex flex-col h-[600px] xl:h-[calc(100vh-120px)] xl:sticky xl:top-24">
         <div className="p-4 border-b border-border bg-slate-50 rounded-t-2xl flex items-center gap-3">
           <ShieldCheck className="w-5 h-5 text-secondary" />
           <div>
             <h3 className="font-bold text-primary">Messagerie Client</h3>
-            <p className="text-xs text-muted-foreground">Communication sécurisée</p>
+            <p className="text-xs text-muted-foreground">
+              {app.userFirstName} {app.userLastName}
+            </p>
           </div>
         </div>
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
-          <div className="text-center text-xs text-muted-foreground mb-6">Début de la conversation</div>
+          <div className="text-center text-xs text-muted-foreground mb-6">
+            Début de la conversation
+          </div>
           {messages.map((msg) => {
             const isAdmin = msg.isFromAdmin;
             return (
@@ -255,7 +829,13 @@ export default function AdminApplicationDetail() {
                   <span className="text-xs font-medium text-slate-500">{msg.senderName}</span>
                   <span className="text-[10px] text-slate-400">{formatDate(msg._creationTime)}</span>
                 </div>
-                <div className={`px-4 py-2.5 rounded-2xl max-w-[85%] text-sm ${isAdmin ? "bg-primary text-white rounded-br-none" : "bg-slate-100 text-slate-800 rounded-bl-none border border-slate-200"}`}>
+                <div
+                  className={`px-4 py-2.5 rounded-2xl max-w-[85%] text-sm ${
+                    isAdmin
+                      ? "bg-primary text-white rounded-br-none"
+                      : "bg-slate-100 text-slate-800 rounded-bl-none border border-slate-200"
+                  }`}
+                >
                   {msg.content}
                 </div>
               </div>
@@ -287,6 +867,10 @@ export default function AdminApplicationDetail() {
           </div>
         </form>
       </div>
+
+      {receiptPreview && (
+        <PaymentReceiptModal url={receiptPreview} onClose={() => setReceiptPreview(null)} />
+      )}
     </div>
   );
 }

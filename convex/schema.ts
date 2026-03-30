@@ -76,4 +76,18 @@ export default defineSchema({
     isFromAdmin: v.boolean(),
     readBy: v.optional(v.array(v.string())),
   }).index("by_application", ["applicationId"]),
+
+  documents: defineTable({
+    applicationId: v.id("applications"),
+    docKey: v.string(),
+    label: v.string(),
+    storageId: v.string(),
+    uploadedBy: v.string(),
+    uploadedAt: v.number(),
+    verifiedByAdmin: v.boolean(),
+    isAdminUpload: v.optional(v.boolean()),
+    adminNote: v.optional(v.string()),
+  })
+    .index("by_application", ["applicationId"])
+    .index("by_application_key", ["applicationId", "docKey"]),
 });

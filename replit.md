@@ -82,7 +82,13 @@ workspace/
 - **Inde**: e-Visa Touriste, Affaires, Médical
 
 ### Application Status Flow
-`submitted` → `in_review` → `appointment_scheduled` → `approved` / `rejected`
+`awaiting_engagement_payment` → `documents_pending` → `in_review` | `slot_hunting` → `slot_found_awaiting_success_fee` → `completed` | `rejected`
+
+### Pricing & Payments
+- **Engagement fee**: Paid upfront per destination (50–150 USD); receipt uploaded as Mobile Money screenshot
+- **Prime de succès**: Paid after slot is found (50–450 USD); server-side paywall hides appointment details
+- Admin validates both payments via `validateEngagementPayment` / `validateSuccessFee` mutations
+- `markSlotFound` sets 48h countdown timer (`slotExpiresAt`) and appointment details (date, time, location, code)
 
 ## Convex Data Model
 
@@ -91,6 +97,11 @@ workspace/
 - destination, visaType, applicantName, passportNumber
 - travelDate, returnDate, purpose, notes
 - status, appointmentDate, adminNotes, price, isPaid
+- priceDetails: { engagementFee, successFee, paidAmount, isEngagementPaid, isSuccessFeePaid }
+- logs: [{ msg, time, author }]
+- paymentProofUrl, successFeeProofUrl (Convex storageIds)
+- appointmentDetails: { date, time, location, confirmationCode, notes }
+- rejectionReason, slotExpiresAt
 - updatedAt
 
 Indexes: `by_user`, `by_status`, `by_updated`
@@ -99,6 +110,14 @@ Indexes: `by_user`, `by_status`, `by_updated`
 - applicationId (ref), senderId, senderName, content, isFromAdmin
 
 Index: `by_application`
+
+### `documents` table (coffre-fort)
+- applicationId (ref), docKey, label
+- storageId (Convex file storage)
+- uploadedBy (userId), uploadedAt
+- verifiedByAdmin (bool), isAdminUpload (bool), adminNote
+
+Indexes: `by_application`, `by_application_key`
 
 ## Environment Variables Required
 

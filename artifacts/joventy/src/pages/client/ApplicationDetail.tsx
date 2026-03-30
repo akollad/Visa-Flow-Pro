@@ -9,10 +9,11 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { formatDate, formatDateOnly, formatCurrency } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
 import {
   Send, Calendar, Plane, CreditCard, ShieldCheck,
-  CheckCircle2, Clock, AlertCircle, Star, Download, ArrowRight,
-  FileText, Search, Lock, XCircle, Upload
+  CheckCircle2, Clock, Star, Download, ArrowRight,
+  FileText, Search, Lock, XCircle, Upload, Loader2, Eye
 } from "lucide-react";
 
 type Application = Doc<"applications">;
@@ -165,6 +166,133 @@ function RequiredDocsList({ destination }: { destination: string }) {
   );
 }
 
+function ClientDocRow({
+  appId,
+  docKey,
+  label,
+  required,
+  existingDoc,
+}: {
+  appId: Id<"applications">;
+  docKey: string;
+  label: string;
+  required: boolean;
+  existingDoc?: { _id: Id<"documents">; url: string | null; verifiedByAdmin: boolean };
+}) {
+  const { toast } = useToast();
+  const generateUrl = useMutation(api.documents.generateUploadUrl);
+  const addDocument = useMutation(api.documents.add);
+  const [uploading, setUploading] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const isVerified = existingDoc?.verifiedByAdmin ?? false;
+  const hasDoc = !!existingDoc;
+
+  const handleUpload = async (file: File) => {
+    setUploading(true);
+    try {
+      const uploadUrl = await generateUrl();
+      const res = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      const { storageId } = await res.json();
+      await addDocument({ applicationId: appId, docKey, label, storageId });
+      toast({ title: "Document envoyé", description: `${label} a été uploadé avec succès.` });
+    } catch {
+      toast({ variant: "destructive", title: "Erreur upload", description: "Veuillez réessayer." });
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-3 py-3 border-b border-slate-100 last:border-0">
+      <div className="flex-shrink-0">
+        {hasDoc ? (
+          isVerified ? (
+            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+              <CheckCircle2 className="w-4 h-4 text-green-600" />
+            </div>
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center">
+              <Clock className="w-4 h-4 text-amber-600" />
+            </div>
+          )
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
+            <Upload className="w-4 h-4 text-slate-400" />
+          </div>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-slate-700 truncate">
+          {label}
+          {!required && <span className="text-[10px] text-slate-400 ml-1.5 font-normal">(optionnel)</span>}
+        </p>
+        <p className={`text-xs ${isVerified ? "text-green-700 font-medium" : hasDoc ? "text-amber-600" : "text-slate-400"}`}>
+          {isVerified ? "✓ Vérifié par Joventy" : hasDoc ? "En attente de vérification..." : "Non fourni"}
+        </p>
+      </div>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {hasDoc && existingDoc?.url && (
+          <button
+            onClick={() => setPreviewOpen(true)}
+            className="text-[11px] text-primary underline flex items-center gap-1"
+          >
+            <Eye className="w-3 h-3" /> Voir
+          </button>
+        )}
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*,application/pdf"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleUpload(file);
+          }}
+        />
+        <Button
+          size="sm"
+          variant={hasDoc ? "outline" : "default"}
+          disabled={uploading}
+          className={`h-8 text-xs gap-1 ${!hasDoc ? "bg-primary text-white hover:bg-primary/90" : ""}`}
+          onClick={() => fileRef.current?.click()}
+        >
+          {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+          {hasDoc ? "Remplacer" : "Uploader"}
+        </Button>
+      </div>
+      {previewOpen && existingDoc?.url && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+          onClick={() => setPreviewOpen(false)}
+        >
+          <div
+            className="relative max-w-2xl w-full bg-white rounded-2xl overflow-hidden shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-3 border-b flex justify-between items-center">
+              <span className="text-sm font-semibold">{label}</span>
+              <button onClick={() => setPreviewOpen(false)} className="text-muted-foreground text-lg leading-none">✕</button>
+            </div>
+            <img src={existingDoc.url} alt={label} className="w-full max-h-[70vh] object-contain" />
+            <div className="p-3 border-t flex justify-end">
+              <a href={existingDoc.url} target="_blank" rel="noreferrer" className="text-xs text-primary underline">
+                Ouvrir dans un nouvel onglet
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ClientApplicationDetail() {
   const [, params] = useRoute("/dashboard/applications/:id");
   const appId = params?.id as Id<"applications"> | undefined;
@@ -172,9 +300,11 @@ export default function ClientApplicationDetail() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [msgText, setMsgText] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const { toast } = useToast();
 
   const app = useQuery(api.applications.get, appId ? { id: appId } : "skip");
   const messages = useQuery(api.messages.list, appId ? { applicationId: appId } : "skip") ?? [];
+  const docs = useQuery(api.documents.listByApplication, appId ? { applicationId: appId } : "skip") ?? [];
   const sendMessage = useMutation(api.messages.send);
   const markAsRead = useMutation(api.messages.markAsRead);
 
@@ -210,6 +340,7 @@ export default function ClientApplicationDetail() {
   const isCompleted = app.status === "completed";
   const isSlotFound = app.status === "slot_found_awaiting_success_fee";
   const isAwaitingEngagement = app.status === "awaiting_engagement_payment";
+  const pricing = VISA_PRICING[app.destination as keyof typeof VISA_PRICING];
 
   const isEngagementPaid = app.priceDetails?.isEngagementPaid ?? false;
   const isSuccessFeePaid = app.priceDetails?.isSuccessFeePaid ?? false;
@@ -445,8 +576,42 @@ export default function ClientApplicationDetail() {
             </div>
           </div>
 
-          {/* Required documents checklist */}
-          <RequiredDocsList destination={app.destination} />
+          {/* Documents vault */}
+          {pricing && isEngagementPaid && (
+            <div className="bg-white p-6 rounded-2xl border border-border shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-primary flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-secondary" /> Mes Documents
+                </h2>
+                <span className="text-xs text-muted-foreground">
+                  {docs.filter((d) => !d.isAdminUpload).length}/{pricing.requiredDocuments.length} fourni(s)
+                </span>
+              </div>
+              <div>
+                {pricing.requiredDocuments.map((doc) => {
+                  const uploaded = docs.find((d) => d.docKey === doc.key && !d.isAdminUpload);
+                  return (
+                    <ClientDocRow
+                      key={doc.key}
+                      appId={appId!}
+                      docKey={doc.key}
+                      label={doc.label}
+                      required={doc.required}
+                      existingDoc={uploaded}
+                    />
+                  );
+                })}
+              </div>
+              {pricing.notes && (
+                <p className="mt-4 text-xs text-muted-foreground bg-slate-50 p-3 rounded-lg border border-border">
+                  {pricing.notes}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Required documents checklist (when not yet paying or no pricing) */}
+          {(!isEngagementPaid) && <RequiredDocsList destination={app.destination} />}
 
           {/* Activity log */}
           {app.logs && app.logs.length > 0 && (
