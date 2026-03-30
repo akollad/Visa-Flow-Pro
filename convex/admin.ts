@@ -139,9 +139,12 @@ export const validateEngagementPayment = mutation({
       isSuccessFeePaid: false,
     };
 
+    if (priceDetails.isEngagementPaid) {
+      throw new Error("Les frais d'engagement ont déjà été validés pour ce dossier.");
+    }
+
     await ctx.db.patch(args.applicationId, {
       status: "documents_pending",
-      isPaid: true,
       priceDetails: {
         ...priceDetails,
         isEngagementPaid: true,
@@ -223,6 +226,10 @@ export const validateSuccessFee = mutation({
       isEngagementPaid: false,
       isSuccessFeePaid: false,
     };
+
+    if (priceDetails.isSuccessFeePaid) {
+      throw new Error("La prime de succès a déjà été validée pour ce dossier.");
+    }
 
     await ctx.db.patch(args.applicationId, {
       status: "completed",
