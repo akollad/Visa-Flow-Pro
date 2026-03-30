@@ -1,12 +1,12 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: 'Inter', sans-serif;
-  --font-serif: 'Cormorant Garamond', serif;
-  --font-display: 'Cormorant Garamond', serif;
+  --font-sans: 'Poppins', sans-serif;
+  --font-serif: 'Poppins', sans-serif;
+  --font-display: 'Poppins', sans-serif;
 
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
@@ -42,35 +42,41 @@
 }
 
 :root {
-  /* Institutional Navy & Gold Palette */
-  --background: 0 0% 100%;
-  --foreground: 211 68% 11%;
-  
-  --card: 0 0% 100%;
-  --card-foreground: 211 68% 11%;
-  
-  --popover: 0 0% 100%;
-  --popover-foreground: 211 68% 11%;
-  
-  --primary: 211 68% 11%;
-  --primary-foreground: 0 0% 100%;
-  
-  --secondary: 46 65% 52%;
-  --secondary-foreground: 0 0% 100%;
-  
-  --muted: 210 40% 96%;
-  --muted-foreground: 215 16% 47%;
-  
-  --accent: 46 65% 52%;
-  --accent-foreground: 0 0% 100%;
-  
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 210 40% 98%;
+  /* Joventy Brand Palette — Blue & Orange */
 
-  --border: 214 32% 91%;
-  --input: 214 32% 91%;
-  --ring: 46 65% 52%;
-  
+  /* #1E4FA3 — Brand Blue */
+  --primary: 218 69% 38%;
+  --primary-foreground: 0 0% 100%;
+
+  /* #FF7A00 — CTA Orange */
+  --secondary: 29 100% 50%;
+  --secondary-foreground: 0 0% 100%;
+
+  /* #1DA1D2 — Cyan Accent */
+  --accent: 196 76% 47%;
+  --accent-foreground: 0 0% 100%;
+
+  /* #F5F7FA — Page background */
+  --background: 216 20% 97%;
+  --foreground: 220 15% 16%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 220 15% 16%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 220 15% 16%;
+
+  /* #6B7280 — muted text */
+  --muted: 220 14% 94%;
+  --muted-foreground: 220 9% 46%;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 214 20% 88%;
+  --input: 214 20% 88%;
+  --ring: 218 69% 38%;
+
   --radius: 0.75rem;
 }
 
@@ -79,20 +85,26 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground font-sans antialiased selection:bg-secondary/30 selection:text-primary;
+    @apply bg-background text-foreground font-sans antialiased selection:bg-primary/20 selection:text-primary;
   }
   h1, h2, h3, h4, h5, h6 {
-    @apply font-serif tracking-tight text-primary;
+    @apply font-sans font-semibold text-primary;
   }
 }
 
-/* Custom Utilities for Premium Look */
+/* Custom Utilities */
 @layer utilities {
   .glass-panel {
     @apply bg-white/80 backdrop-blur-lg border border-white/20 shadow-xl shadow-primary/5;
   }
-  .text-gradient-gold {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-secondary to-yellow-600;
+  .bg-brand-gradient {
+    background: linear-gradient(135deg, #1E4FA3 0%, #1DA1D2 100%);
+  }
+  .text-gradient-brand {
+    background: linear-gradient(135deg, #1E4FA3, #1DA1D2);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
   .hover-lift {
     @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/10;

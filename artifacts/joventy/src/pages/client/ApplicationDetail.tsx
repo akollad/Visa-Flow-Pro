@@ -92,7 +92,7 @@ export default function ClientApplicationDetail() {
                 <CreditCard className="w-4 h-4 text-slate-400" />
                 {formatCurrency(app.price)}
               </p>
-              <span className={`text-xs px-2 py-0.5 rounded-full mt-1 inline-block ${app.isPaid ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
+              <span className={`text-xs px-2 py-0.5 rounded-full mt-1 inline-block ${app.isPaid ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"}`}>
                 {app.isPaid ? "Payé" : "En attente de paiement"}
               </span>
             </div>
@@ -158,7 +158,7 @@ export default function ClientApplicationDetail() {
         <form onSubmit={handleSend} className="p-4 border-t border-border bg-white rounded-b-2xl">
           <div className="relative">
             <Input value={msgText} onChange={(e) => setMsgText(e.target.value)} placeholder="Écrivez votre message..." className="pr-12 h-12 rounded-xl bg-slate-50" />
-            <Button type="submit" size="icon" disabled={isSending || !msgText.trim()} className="absolute right-1.5 top-1.5 h-9 w-9 bg-secondary hover:bg-yellow-500 text-primary">
+            <Button type="submit" size="icon" disabled={isSending || !msgText.trim()} className="absolute right-1.5 top-1.5 h-9 w-9 bg-secondary hover:bg-orange-500 text-primary">
               <Send className="w-4 h-4" />
             </Button>
           </div>

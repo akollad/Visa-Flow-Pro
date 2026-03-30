@@ -60,7 +60,7 @@ export default function ClientDashboard() {
           </div>
         </div>
         <div className="bg-white p-6 rounded-2xl border border-border shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
+          <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
             <Clock className="w-6 h-6 text-amber-600" />
           </div>
           <div>

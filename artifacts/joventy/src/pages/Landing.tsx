@@ -27,7 +27,7 @@ export default function Landing() {
           
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-serif font-bold text-white tracking-tight leading-tight max-w-4xl mx-auto mb-6">
             Votre passeport pour le monde, <br/>
-            <span className="text-gradient-gold">notre expertise absolue.</span>
+            <span className="text-gradient-brand">notre expertise absolue.</span>
           </h1>
           
           <p className="text-lg md:text-xl text-slate-300 max-w-2xl mx-auto mb-10 font-light">
@@ -36,7 +36,7 @@ export default function Landing() {
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link href="/register">
-              <Button size="lg" className="w-full sm:w-auto h-14 px-8 text-lg bg-secondary hover:bg-yellow-500 text-primary font-bold shadow-xl shadow-secondary/20 rounded-xl transition-all hover:scale-105">
+              <Button size="lg" className="w-full sm:w-auto h-14 px-8 text-lg bg-secondary hover:bg-orange-500 text-primary font-bold shadow-xl shadow-secondary/25 rounded-xl transition-all hover:scale-105">
                 Démarrer mon dossier
                 <ArrowRight className="ml-2 w-5 h-5" />
               </Button>

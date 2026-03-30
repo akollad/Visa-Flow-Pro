@@ -246,7 +246,7 @@ export default function NewApplication() {
                   Suivant <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               ) : (
-                <Button type="submit" disabled={isPending} className="bg-secondary text-primary hover:bg-yellow-500 font-bold px-8">
+                <Button type="submit" disabled={isPending} className="bg-secondary text-primary hover:bg-orange-500 font-bold px-8">
                   {isPending ? "Création..." : "Soumettre le dossier"}
                 </Button>
               )}

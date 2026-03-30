@@ -150,10 +150,10 @@ export default function Register() {
   return (
     <div className="min-h-screen flex">
       {/* Left Panel */}
-      <div className="hidden lg:flex lg:w-5/12 xl:w-1/2 bg-[#0A192F] flex-col justify-between p-12 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-5/12 xl:w-1/2 bg-brand-gradient flex-col justify-between p-12 relative overflow-hidden">
         <div className="absolute inset-0 opacity-5">
-          <div className="absolute top-1/4 -left-20 w-96 h-96 rounded-full border border-[#D4AF37]" />
-          <div className="absolute bottom-1/4 -right-20 w-80 h-80 rounded-full border border-[#D4AF37]" />
+          <div className="absolute top-1/4 -left-20 w-96 h-96 rounded-full border border-white/20" />
+          <div className="absolute bottom-1/4 -right-20 w-80 h-80 rounded-full border border-white/20" />
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full border border-white" />
         </div>
 
@@ -163,12 +163,12 @@ export default function Register() {
 
         <div className="relative z-10 space-y-8">
           <div>
-            <p className="text-[#D4AF37] text-sm font-semibold tracking-widest uppercase mb-4">
+            <p className="text-[#1DA1D2] text-sm font-semibold tracking-widest uppercase mb-4">
               Nouveau Dossier
             </p>
             <h1 className="text-4xl xl:text-5xl font-serif font-bold text-white leading-tight">
               Commencez votre<br />
-              <span className="text-[#D4AF37]">voyage simplement.</span>
+              <span className="text-[#1DA1D2]">voyage simplement.</span>
             </h1>
             <p className="mt-4 text-slate-400 text-lg leading-relaxed">
               Créez votre dossier en quelques minutes et laissez nos experts s'occuper du reste.
@@ -182,8 +182,8 @@ export default function Register() {
               { icon: Star, text: "Experts dédiés à votre réussite" },
             ].map(({ icon: Icon, text }) => (
               <div key={text} className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-[#D4AF37]/10 flex items-center justify-center flex-shrink-0">
-                  <Icon className="w-4 h-4 text-[#D4AF37]" />
+                <div className="w-8 h-8 rounded-lg bg-[#1DA1D2]/10 flex items-center justify-center flex-shrink-0">
+                  <Icon className="w-4 h-4 text-[#1DA1D2]" />
                 </div>
                 <span className="text-slate-300 text-sm">{text}</span>
               </div>
@@ -198,8 +198,8 @@ export default function Register() {
                 <div
                   key={s}
                   className={`h-1 rounded-full transition-all duration-500 ${
-                    s === step ? "w-8 bg-[#D4AF37]" :
-                    (["info", "otp", "done"].indexOf(step) > i) ? "w-4 bg-[#D4AF37]/60" :
+                    s === step ? "w-8 bg-[#1DA1D2]" :
+                    (["info", "otp", "done"].indexOf(step) > i) ? "w-4 bg-[#1DA1D2]/50" :
                     "w-4 bg-white/10"
                   }`}
                 />
@@ -226,7 +226,7 @@ export default function Register() {
           {step === "info" && (
             <>
               <div className="mb-8">
-                <h2 className="text-3xl font-serif font-bold text-[#0A192F]">Créer un compte</h2>
+                <h2 className="text-3xl font-serif font-bold text-[#1E4FA3]">Créer un compte</h2>
                 <p className="mt-2 text-slate-500">Rejoignez Joventy et démarrez votre dossier.</p>
               </div>
 
@@ -262,7 +262,7 @@ export default function Register() {
                   onClick={() => switchMethod("email")}
                   className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-lg text-sm font-medium transition-all ${
                     method === "email"
-                      ? "bg-white text-[#0A192F] shadow-sm"
+                      ? "bg-white text-[#1E4FA3] shadow-sm"
                       : "text-slate-500 hover:text-slate-700"
                   }`}
                 >
@@ -273,7 +273,7 @@ export default function Register() {
                   onClick={() => switchMethod("phone")}
                   className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-lg text-sm font-medium transition-all ${
                     method === "phone"
-                      ? "bg-white text-[#0A192F] shadow-sm"
+                      ? "bg-white text-[#1E4FA3] shadow-sm"
                       : "text-slate-500 hover:text-slate-700"
                   }`}
                 >
@@ -284,25 +284,25 @@ export default function Register() {
               {/* Name fields (shared) */}
               <div className="grid grid-cols-2 gap-3 mb-4">
                 <div>
-                  <label className="block text-sm font-medium text-[#0A192F] mb-1.5">Prénom</label>
+                  <label className="block text-sm font-medium text-[#1E4FA3] mb-1.5">Prénom</label>
                   <input
                     type="text"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
                     placeholder="Jean"
                     required
-                    className="w-full h-12 px-4 rounded-xl border border-slate-200 bg-white text-[#0A192F] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0A192F]/10 focus:border-[#0A192F] transition-all"
+                    className="w-full h-12 px-4 rounded-xl border border-slate-200 bg-white text-[#1E4FA3] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E4FA3]/10 focus:border-[#1E4FA3] transition-all"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#0A192F] mb-1.5">Nom</label>
+                  <label className="block text-sm font-medium text-[#1E4FA3] mb-1.5">Nom</label>
                   <input
                     type="text"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
                     placeholder="Kabila"
                     required
-                    className="w-full h-12 px-4 rounded-xl border border-slate-200 bg-white text-[#0A192F] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0A192F]/10 focus:border-[#0A192F] transition-all"
+                    className="w-full h-12 px-4 rounded-xl border border-slate-200 bg-white text-[#1E4FA3] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E4FA3]/10 focus:border-[#1E4FA3] transition-all"
                   />
                 </div>
               </div>
@@ -311,18 +311,18 @@ export default function Register() {
               {method === "email" && (
                 <form onSubmit={handleEmailRegister} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-[#0A192F] mb-1.5">Adresse email</label>
+                    <label className="block text-sm font-medium text-[#1E4FA3] mb-1.5">Adresse email</label>
                     <input
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="vous@exemple.com"
                       required
-                      className="w-full h-12 px-4 rounded-xl border border-slate-200 bg-white text-[#0A192F] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0A192F]/10 focus:border-[#0A192F] transition-all"
+                      className="w-full h-12 px-4 rounded-xl border border-slate-200 bg-white text-[#1E4FA3] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E4FA3]/10 focus:border-[#1E4FA3] transition-all"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-[#0A192F] mb-1.5">Mot de passe</label>
+                    <label className="block text-sm font-medium text-[#1E4FA3] mb-1.5">Mot de passe</label>
                     <div className="relative">
                       <input
                         type={showPassword ? "text" : "password"}
@@ -331,7 +331,7 @@ export default function Register() {
                         placeholder="Minimum 8 caractères"
                         required
                         minLength={8}
-                        className="w-full h-12 px-4 pr-12 rounded-xl border border-slate-200 bg-white text-[#0A192F] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0A192F]/10 focus:border-[#0A192F] transition-all"
+                        className="w-full h-12 px-4 pr-12 rounded-xl border border-slate-200 bg-white text-[#1E4FA3] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E4FA3]/10 focus:border-[#1E4FA3] transition-all"
                       />
                       <button
                         type="button"
@@ -347,7 +347,7 @@ export default function Register() {
                           <div
                             key={len}
                             className={`h-1 flex-1 rounded-full transition-colors ${
-                              password.length >= len ? "bg-[#D4AF37]" : "bg-slate-200"
+                              password.length >= len ? "bg-[#1DA1D2]" : "bg-slate-200"
                             }`}
                           />
                         ))}
@@ -362,7 +362,7 @@ export default function Register() {
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="w-full h-12 rounded-xl bg-[#0A192F] hover:bg-[#0A192F]/90 text-white font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full h-12 rounded-xl bg-[#1E4FA3] hover:bg-[#1E4FA3]/90 text-white font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {isLoading ? (
                       <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -373,7 +373,7 @@ export default function Register() {
 
                   <p className="text-xs text-slate-400 text-center">
                     En créant un compte, vous acceptez nos{" "}
-                    <span className="text-[#0A192F] hover:text-[#D4AF37] cursor-pointer transition-colors">
+                    <span className="text-[#1E4FA3] hover:text-[#1DA1D2] cursor-pointer transition-colors">
                       conditions d'utilisation
                     </span>
                   </p>
@@ -384,7 +384,7 @@ export default function Register() {
               {method === "phone" && (
                 <form onSubmit={handlePhoneRegister} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-[#0A192F] mb-1.5">Numéro de téléphone</label>
+                    <label className="block text-sm font-medium text-[#1E4FA3] mb-1.5">Numéro de téléphone</label>
                     <div className="flex gap-2">
                       <div className="flex items-center h-12 px-3 rounded-xl border border-slate-200 bg-white text-slate-500 text-sm font-medium whitespace-nowrap">
                         🇨🇩 +243
@@ -395,7 +395,7 @@ export default function Register() {
                         onChange={(e) => setPhone("+243" + e.target.value.replace(/\D/g, ""))}
                         placeholder="8X XXX XXXX"
                         required
-                        className="flex-1 h-12 px-4 rounded-xl border border-slate-200 bg-white text-[#0A192F] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0A192F]/10 focus:border-[#0A192F] transition-all"
+                        className="flex-1 h-12 px-4 rounded-xl border border-slate-200 bg-white text-[#1E4FA3] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1E4FA3]/10 focus:border-[#1E4FA3] transition-all"
                       />
                     </div>
                     <p className="text-xs text-slate-400 mt-1.5">
@@ -410,7 +410,7 @@ export default function Register() {
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="w-full h-12 rounded-xl bg-[#0A192F] hover:bg-[#0A192F]/90 text-white font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full h-12 rounded-xl bg-[#1E4FA3] hover:bg-[#1E4FA3]/90 text-white font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {isLoading ? (
                       <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -421,7 +421,7 @@ export default function Register() {
 
                   <p className="text-xs text-slate-400 text-center">
                     En créant un compte, vous acceptez nos{" "}
-                    <span className="text-[#0A192F] hover:text-[#D4AF37] cursor-pointer transition-colors">
+                    <span className="text-[#1E4FA3] hover:text-[#1DA1D2] cursor-pointer transition-colors">
                       conditions d'utilisation
                     </span>
                   </p>
@@ -430,7 +430,7 @@ export default function Register() {
 
               <p className="mt-6 text-center text-sm text-slate-500">
                 Déjà client ?{" "}
-                <Link href="/login" className="font-semibold text-[#0A192F] hover:text-[#D4AF37] transition-colors">
+                <Link href="/login" className="font-semibold text-[#1E4FA3] hover:text-[#1DA1D2] transition-colors">
                   Se connecter
                 </Link>
               </p>
@@ -441,25 +441,25 @@ export default function Register() {
           {step === "otp" && (
             <>
               <div className="mb-8">
-                <div className="w-14 h-14 rounded-2xl bg-[#D4AF37]/10 flex items-center justify-center mb-4">
+                <div className="w-14 h-14 rounded-2xl bg-[#1DA1D2]/10 flex items-center justify-center mb-4">
                   {method === "phone"
-                    ? <Phone className="w-7 h-7 text-[#D4AF37]" />
-                    : <Mail className="w-7 h-7 text-[#D4AF37]" />
+                    ? <Phone className="w-7 h-7 text-[#1DA1D2]" />
+                    : <Mail className="w-7 h-7 text-[#1DA1D2]" />
                   }
                 </div>
-                <h2 className="text-3xl font-serif font-bold text-[#0A192F]">Confirmez votre {method === "phone" ? "numéro" : "email"}</h2>
+                <h2 className="text-3xl font-serif font-bold text-[#1E4FA3]">Confirmez votre {method === "phone" ? "numéro" : "email"}</h2>
                 <p className="mt-2 text-slate-500">
                   Un code à 6 chiffres a été envoyé{" "}
                   {method === "phone"
-                    ? <>par SMS au <span className="font-semibold text-[#0A192F]">{identifier}</span></>
-                    : <>à <span className="font-semibold text-[#0A192F]">{identifier}</span></>
+                    ? <>par SMS au <span className="font-semibold text-[#1E4FA3]">{identifier}</span></>
+                    : <>à <span className="font-semibold text-[#1E4FA3]">{identifier}</span></>
                   }
                 </p>
               </div>
 
               <form onSubmit={handleVerify} className="space-y-5">
                 <div>
-                  <label className="block text-sm font-medium text-[#0A192F] mb-1.5">Code de vérification</label>
+                  <label className="block text-sm font-medium text-[#1E4FA3] mb-1.5">Code de vérification</label>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -469,7 +469,7 @@ export default function Register() {
                     maxLength={6}
                     required
                     autoFocus
-                    className="w-full h-16 px-4 rounded-xl border border-slate-200 bg-white text-[#0A192F] text-center text-3xl font-mono tracking-[0.6em] placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A192F]/10 focus:border-[#0A192F] transition-all"
+                    className="w-full h-16 px-4 rounded-xl border border-slate-200 bg-white text-[#1E4FA3] text-center text-3xl font-mono tracking-[0.6em] placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-[#1E4FA3]/10 focus:border-[#1E4FA3] transition-all"
                   />
                 </div>
 
@@ -480,7 +480,7 @@ export default function Register() {
                 <button
                   type="submit"
                   disabled={isLoading || otpCode.length < 6}
-                  className="w-full h-12 rounded-xl bg-[#0A192F] hover:bg-[#0A192F]/90 text-white font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="w-full h-12 rounded-xl bg-[#1E4FA3] hover:bg-[#1E4FA3]/90 text-white font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {isLoading ? (
                     <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -504,7 +504,7 @@ export default function Register() {
                           }
                         } catch {}
                       }}
-                      className="text-[#D4AF37] font-semibold hover:text-[#D4AF37]/80 transition-colors"
+                      className="text-[#1DA1D2] font-semibold hover:text-[#1DA1D2]/70 transition-colors"
                     >
                       Renvoyer
                     </button>
@@ -512,7 +512,7 @@ export default function Register() {
                   <button
                     type="button"
                     onClick={() => { setStep("info"); setOtpCode(""); setError(""); }}
-                    className="text-sm text-slate-400 hover:text-[#0A192F] transition-colors"
+                    className="text-sm text-slate-400 hover:text-[#1E4FA3] transition-colors"
                   >
                     ← Modifier {method === "phone" ? "le numéro" : "l'adresse email"}
                   </button>
@@ -527,11 +527,11 @@ export default function Register() {
               <div className="w-20 h-20 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-6">
                 <CheckCircle2 className="w-10 h-10 text-green-500" />
               </div>
-              <h2 className="text-3xl font-serif font-bold text-[#0A192F] mb-2">Bienvenue !</h2>
+              <h2 className="text-3xl font-serif font-bold text-[#1E4FA3] mb-2">Bienvenue !</h2>
               <p className="text-slate-500 mb-2">Votre compte a été créé avec succès.</p>
               <p className="text-slate-400 text-sm">Redirection vers votre tableau de bord...</p>
               <div className="mt-6 flex justify-center">
-                <span className="w-6 h-6 border-2 border-[#0A192F]/20 border-t-[#0A192F] rounded-full animate-spin" />
+                <span className="w-6 h-6 border-2 border-[#1E4FA3]/20 border-t-[#1E4FA3] rounded-full animate-spin" />
               </div>
             </div>
           )}

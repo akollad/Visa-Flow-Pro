@@ -226,7 +226,7 @@ export default function AdminApplicationDetail() {
             <Button
               onClick={handleSave}
               disabled={isSaving}
-              className="bg-secondary text-primary hover:bg-yellow-500 font-bold gap-2 h-12 px-8"
+              className="bg-secondary text-primary hover:bg-orange-500 font-bold gap-2 h-12 px-8"
             >
               <Save className="w-4 h-4" />
               {isSaving ? "Enregistrement..." : "Sauvegarder les modifications"}
@@ -280,7 +280,7 @@ export default function AdminApplicationDetail() {
               type="submit"
               size="icon"
               disabled={isSending || !msgText.trim()}
-              className="absolute right-1.5 top-1.5 h-9 w-9 bg-secondary hover:bg-yellow-500 text-primary"
+              className="absolute right-1.5 top-1.5 h-9 w-9 bg-secondary hover:bg-orange-500 text-primary"
             >
               <Send className="w-4 h-4" />
             </Button>

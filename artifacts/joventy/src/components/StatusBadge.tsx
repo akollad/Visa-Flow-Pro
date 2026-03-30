@@ -4,7 +4,7 @@ export function StatusBadge({ status }: { status: string }) {
   const config: Record<string, { label: string; className: string }> = {
     draft: { label: "Brouillon", className: "bg-slate-100 text-slate-700 border-slate-200" },
     submitted: { label: "Soumis", className: "bg-blue-100 text-blue-800 border-blue-200" },
-    in_review: { label: "En révision", className: "bg-amber-100 text-amber-800 border-amber-200" },
+    in_review: { label: "En révision", className: "bg-blue-50 text-blue-700 border-blue-200" },
     appointment_scheduled: { label: "RDV Programmé", className: "bg-purple-100 text-purple-800 border-purple-200" },
     approved: { label: "Approuvé", className: "bg-green-100 text-green-800 border-green-200" },
     rejected: { label: "Refusé", className: "bg-red-100 text-red-800 border-red-200" },

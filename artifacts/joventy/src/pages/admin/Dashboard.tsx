@@ -78,7 +78,7 @@ export default function AdminDashboard() {
             label: "En Révision",
             value: stats.pendingReview,
             icon: Clock,
-            bg: "bg-amber-50",
+            bg: "bg-sky-50",
             color: "text-amber-600",
           },
           {
@@ -168,7 +168,7 @@ export default function AdminDashboard() {
                   {chartData.map((_, index) => (
                     <Cell
                       key={`cell-${index}`}
-                      fill={index % 2 === 0 ? "#0A192F" : "#D4AF37"}
+                      fill={index % 2 === 0 ? "#1E4FA3" : "#1DA1D2"}
                     />
                   ))}
                 </Bar>
