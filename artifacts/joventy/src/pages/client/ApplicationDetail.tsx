@@ -2,7 +2,9 @@ import { useState, useRef, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
+import { Doc } from "@convex/_generated/dataModel";
 import { Id } from "@convex/_generated/dataModel";
+import { VISA_PRICING } from "@convex/constants";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatDate, formatDateOnly, formatCurrency } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -10,8 +12,11 @@ import { Input } from "@/components/ui/input";
 import {
   Send, Calendar, Plane, CreditCard, ShieldCheck,
   CheckCircle2, Clock, AlertCircle, Star, Download, ArrowRight,
-  FileText, Search
+  FileText, Search, Lock, XCircle
 } from "lucide-react";
+
+type Application = Doc<"applications">;
+type LogEntry = NonNullable<Application["logs"]>[number];
 
 const STEPS = [
   { key: "awaiting_engagement_payment", label: "Paiement d'engagement", icon: CreditCard },
@@ -41,39 +46,38 @@ function Countdown({ targetTs }: { targetTs: number }) {
   const h = Math.floor(remaining / 3600000);
   const m = Math.floor((remaining % 3600000) / 60000);
   const s = Math.floor((remaining % 60000) / 1000);
-  const expired = remaining === 0;
 
-  if (expired) return <span className="text-red-600 font-bold">Créneau expiré</span>;
+  if (remaining === 0) return <span className="text-red-600 font-bold">Créneau expiré</span>;
 
   return (
-    <span className="font-mono font-bold text-primary">
+    <span className="font-mono font-bold text-red-700">
       {String(h).padStart(2, "0")}:{String(m).padStart(2, "0")}:{String(s).padStart(2, "0")}
     </span>
   );
 }
 
-function InterviewKit({ app }: { app: any }) {
-  const handlePrint = () => window.print();
-  const dest = app.destination?.toUpperCase();
-  const pricing = app.priceDetails;
+function InterviewKit({ app }: { app: Application }) {
+  const pricing = VISA_PRICING[app.destination as keyof typeof VISA_PRICING];
+  const details = app.appointmentDetails;
 
   return (
-    <div className="bg-white rounded-2xl border border-border shadow-sm p-6 sm:p-8 space-y-4">
-      <div className="flex justify-between items-center">
+    <div className="bg-white rounded-2xl border-2 border-green-300 shadow-sm p-6 sm:p-8 space-y-4">
+      <div className="flex justify-between items-center flex-wrap gap-3">
         <h2 className="text-xl font-bold text-primary flex items-center gap-2">
-          <Download className="w-5 h-5 text-secondary" /> Kit d'Entretien
+          <Download className="w-5 h-5 text-secondary" /> Kit d'Entretien Consulaire
         </h2>
-        <Button onClick={handlePrint} variant="outline" size="sm" className="print:hidden">
-          <Download className="w-4 h-4 mr-2" /> Télécharger PDF
+        <Button onClick={() => window.print()} variant="outline" size="sm" className="print:hidden gap-2">
+          <Download className="w-4 h-4" /> Télécharger PDF
         </Button>
       </div>
 
-      <div id="interview-kit" className="border border-slate-200 rounded-xl p-6 text-sm space-y-4 print:border-0">
-        <div className="text-center border-b border-slate-200 pb-4 mb-4">
-          <h3 className="text-2xl font-bold text-primary">JOVENTY — Kit d'Entretien Consulaire</h3>
-          <p className="text-muted-foreground text-xs mt-1">Document confidentiel — Ref : JOV-{app._id?.slice(-5).toUpperCase()}</p>
+      <div id="interview-kit" className="border border-slate-200 rounded-xl p-6 text-sm space-y-5 print:border-0">
+        <div className="text-center border-b border-slate-200 pb-4">
+          <h3 className="text-xl font-bold text-primary">JOVENTY — Kit d'Entretien Consulaire</h3>
+          <p className="text-muted-foreground text-xs mt-1">Document confidentiel · Ref : JOV-{app._id.slice(-5).toUpperCase()}</p>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <p className="text-xs text-muted-foreground uppercase font-semibold mb-1">Demandeur</p>
             <p className="font-bold">{app.applicantName}</p>
@@ -81,28 +85,81 @@ function InterviewKit({ app }: { app: any }) {
           </div>
           <div>
             <p className="text-xs text-muted-foreground uppercase font-semibold mb-1">Destination</p>
-            <p className="font-bold">{dest}</p>
+            <p className="font-bold">{app.destination.toUpperCase()}</p>
             <p className="text-xs text-slate-500">{app.visaType}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground uppercase font-semibold mb-1">Rendez-vous</p>
-            <p className="font-bold">{app.appointmentDetails?.date ? formatDateOnly(app.appointmentDetails.date) : formatDateOnly(app.appointmentDate) || "À confirmer"}</p>
-            <p className="text-xs text-slate-500">{app.appointmentDetails?.time ?? ""}</p>
+            <p className="text-xs text-muted-foreground uppercase font-semibold mb-1">Date du rendez-vous</p>
+            <p className="font-bold">{details?.date ? formatDateOnly(details.date) : "—"}</p>
+            <p className="text-xs text-slate-500">{details?.time ?? ""}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground uppercase font-semibold mb-1">Lieu</p>
-            <p className="font-bold text-xs">{app.appointmentDetails?.location ?? "Ambassade / Consulat"}</p>
+            <p className="font-bold text-xs">{details?.location ?? (pricing?.embassyAddress ?? "À confirmer")}</p>
+            {details?.confirmationCode && (
+              <p className="text-xs font-mono text-primary mt-0.5">Code : {details.confirmationCode}</p>
+            )}
           </div>
         </div>
-        {app.appointmentDetails?.notes && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900">
-            <strong>Notes importantes :</strong> {app.appointmentDetails.notes}
+
+        {/* Required documents */}
+        {pricing && (
+          <div>
+            <p className="text-xs text-muted-foreground uppercase font-semibold mb-2">Documents à apporter</p>
+            <ul className="space-y-1">
+              {pricing.requiredDocuments.map((doc) => (
+                <li key={doc.key} className="flex items-center gap-2 text-xs">
+                  <CheckCircle2 className={`w-3.5 h-3.5 flex-shrink-0 ${doc.required ? "text-green-600" : "text-slate-400"}`} />
+                  <span>{doc.label}{!doc.required && " (optionnel)"}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
-        <div className="border-t border-slate-200 pt-4 text-xs text-slate-500 text-center">
+
+        {details?.notes && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900">
+            <strong>Notes importantes :</strong> {details.notes}
+          </div>
+        )}
+
+        {pricing?.notes && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-900">
+            <strong>Informations consulaires :</strong> {pricing.notes}
+          </div>
+        )}
+
+        <div className="border-t border-slate-200 pt-4 text-xs text-slate-400 text-center">
           Généré par Joventy · joventy.cd · Assistance visa premium pour la RDC
         </div>
       </div>
+    </div>
+  );
+}
+
+function RequiredDocsList({ destination }: { destination: string }) {
+  const pricing = VISA_PRICING[destination as keyof typeof VISA_PRICING];
+  if (!pricing) return null;
+
+  return (
+    <div className="bg-white p-6 rounded-2xl border border-border shadow-sm">
+      <h2 className="text-lg font-bold text-primary mb-3 flex items-center gap-2">
+        <FileText className="w-4 h-4 text-secondary" /> Documents requis pour {pricing.label}
+      </h2>
+      <ul className="space-y-2">
+        {pricing.requiredDocuments.map((doc) => (
+          <li key={doc.key} className="flex items-start gap-2 text-sm">
+            <CheckCircle2 className={`w-4 h-4 mt-0.5 flex-shrink-0 ${doc.required ? "text-primary" : "text-slate-400"}`} />
+            <span className={doc.required ? "text-slate-700" : "text-slate-500"}>
+              {doc.label}
+              {!doc.required && <span className="text-xs text-slate-400 ml-1">(optionnel)</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {pricing.notes && (
+        <p className="mt-3 text-xs text-muted-foreground bg-slate-50 p-2 rounded-lg border border-border">{pricing.notes}</p>
+      )}
     </div>
   );
 }
@@ -152,11 +209,19 @@ export default function ClientApplicationDetail() {
   const isCompleted = app.status === "completed";
   const isSlotFound = app.status === "slot_found_awaiting_success_fee";
   const isAwaitingEngagement = app.status === "awaiting_engagement_payment";
-  const hasProofPending = !!app.paymentProofUrl && !app.priceDetails?.isEngagementPaid;
-  const hasSuccessProofPending = !!app.successFeeProofUrl && !app.priceDetails?.isSuccessFeePaid;
+
+  const isEngagementPaid = app.priceDetails?.isEngagementPaid ?? false;
+  const isSuccessFeePaid = app.priceDetails?.isSuccessFeePaid ?? false;
+
+  const hasEngagementProofPending = !!app.paymentProofUrl && !isEngagementPaid;
+  const hasSuccessProofPending = !!app.successFeeProofUrl && !isSuccessFeePaid;
+
+  // Appointment details are only shown AFTER success fee is paid (completed state)
+  const showAppointmentDetails = isCompleted && isSuccessFeePaid;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-serif font-bold text-primary flex items-center gap-3">
@@ -183,9 +248,8 @@ export default function ClientApplicationDetail() {
             <div className="relative flex justify-between">
               {STEPS.map((step, i) => {
                 const Icon = step.icon;
-                const isPast = stepIndex > i;
-                const isCurrent = stepIndex === i && !isCompleted;
-                const isActive = isCompleted || isPast;
+                const isPast = isCompleted || stepIndex > i;
+                const isCurrent = !isCompleted && stepIndex === i;
 
                 return (
                   <div key={step.key} className="flex flex-col items-center gap-2 max-w-[80px] sm:max-w-[120px]">
@@ -195,7 +259,7 @@ export default function ClientApplicationDetail() {
                           ? "border-green-500 bg-green-50"
                           : isCurrent
                           ? "border-secondary bg-orange-50"
-                          : isActive
+                          : isPast
                           ? "border-primary bg-primary"
                           : "border-slate-200 bg-white"
                       }`}
@@ -206,7 +270,7 @@ export default function ClientApplicationDetail() {
                             ? "text-green-600"
                             : isCurrent
                             ? "text-secondary"
-                            : isActive
+                            : isPast
                             ? "text-white"
                             : "text-slate-300"
                         }`}
@@ -214,7 +278,7 @@ export default function ClientApplicationDetail() {
                     </div>
                     <p
                       className={`text-[10px] sm:text-xs text-center font-medium leading-tight ${
-                        isCurrent ? "text-secondary" : isActive ? "text-primary" : "text-slate-400"
+                        isCurrent ? "text-secondary" : isPast ? "text-primary" : "text-slate-400"
                       }`}
                     >
                       {step.label}
@@ -230,18 +294,17 @@ export default function ClientApplicationDetail() {
       {/* Rejected banner */}
       {isRejected && (
         <div className="bg-red-50 border border-red-200 rounded-2xl p-6 flex items-start gap-4">
-          <AlertCircle className="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" />
+          <XCircle className="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" />
           <div>
             <h3 className="text-lg font-bold text-red-700 mb-1">Dossier rejeté</h3>
-            <p className="text-sm text-red-600">
-              Votre dossier n'a pas pu être traité. Contactez notre équipe via le chat pour en savoir plus.
-            </p>
+            {app.rejectionReason && <p className="text-sm text-red-600 mb-1">{app.rejectionReason}</p>}
+            <p className="text-sm text-red-500">Contactez notre équipe via le chat pour plus d'informations.</p>
           </div>
         </div>
       )}
 
-      {/* Action CTA banners */}
-      {isAwaitingEngagement && !hasProofPending && (
+      {/* ---- Action CTA banners ---- */}
+      {isAwaitingEngagement && !hasEngagementProofPending && (
         <div className="bg-orange-50 border-2 border-secondary rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-start gap-4">
             <div className="w-12 h-12 rounded-xl bg-secondary/20 flex items-center justify-center flex-shrink-0">
@@ -250,9 +313,8 @@ export default function ClientApplicationDetail() {
             <div>
               <h3 className="text-lg font-bold text-primary mb-1">Activez votre dossier</h3>
               <p className="text-sm text-slate-600">
-                Réglez les frais d'engagement de{" "}
-                <strong className="text-primary">{formatCurrency(app.priceDetails?.engagementFee)}</strong> pour démarrer
-                le traitement.
+                Frais d'engagement :{" "}
+                <strong className="text-primary">{formatCurrency(app.priceDetails?.engagementFee)}</strong>
               </p>
             </div>
           </div>
@@ -265,11 +327,11 @@ export default function ClientApplicationDetail() {
         </div>
       )}
 
-      {hasProofPending && !app.priceDetails?.isEngagementPaid && (
+      {hasEngagementProofPending && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
           <Clock className="w-5 h-5 text-amber-600 flex-shrink-0" />
           <p className="text-sm text-amber-800">
-            <strong>Reçu reçu !</strong> Notre équipe est en train de valider votre paiement d'engagement. Sous 24h.
+            <strong>Reçu reçu !</strong> Notre équipe valide votre paiement d'engagement. Délai : 24h ouvrables.
           </p>
         </div>
       )}
@@ -281,8 +343,9 @@ export default function ClientApplicationDetail() {
             <div>
               <h3 className="text-xl font-bold text-green-700 mb-1">Créneau trouvé !</h3>
               <p className="text-sm text-slate-600 mb-1">
-                Joventy a capturé un rendez-vous consulaire pour vous. Réglez la prime de succès de{" "}
-                <strong className="text-primary">{formatCurrency(app.priceDetails?.successFee)}</strong> pour le confirmer.
+                Joventy a capturé un rendez-vous. Réglez la prime de succès de{" "}
+                <strong className="text-primary">{formatCurrency(app.priceDetails?.successFee)}</strong>{" "}
+                pour accéder aux détails du rendez-vous.
               </p>
               {app.slotExpiresAt && (
                 <p className="text-xs text-red-600 font-medium flex items-center gap-1">
@@ -305,12 +368,12 @@ export default function ClientApplicationDetail() {
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
           <Clock className="w-5 h-5 text-amber-600 flex-shrink-0" />
           <p className="text-sm text-amber-800">
-            <strong>Reçu de prime de succès reçu !</strong> Notre équipe valide votre paiement et confirmera le rendez-vous.
+            <strong>Reçu de prime de succès reçu !</strong> Validation en cours — vos détails de RDV seront débloqués sous 24h.
           </p>
         </div>
       )}
 
-      {/* Interview kit for completed */}
+      {/* Interview kit — only when completed */}
       {isCompleted && <InterviewKit app={app} />}
 
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
@@ -322,61 +385,80 @@ export default function ClientApplicationDetail() {
               <div>
                 <p className="text-xs text-muted-foreground font-medium uppercase mb-1">Demandeur</p>
                 <p className="font-semibold text-primary">{app.applicantName}</p>
-                <p className="text-sm text-slate-600">Passeport: {app.passportNumber || "Non renseigné"}</p>
+                <p className="text-sm text-slate-600">Passeport : {app.passportNumber || "Non renseigné"}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground font-medium uppercase mb-1">Dates prévues</p>
                 <p className="font-semibold text-primary">{formatDateOnly(app.travelDate)}</p>
-                <p className="text-sm text-slate-600">Retour: {app.returnDate ? formatDateOnly(app.returnDate) : "Non prévu"}</p>
+                <p className="text-sm text-slate-600">Retour : {app.returnDate ? formatDateOnly(app.returnDate) : "Non prévu"}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground font-medium uppercase mb-1">Facturation</p>
                 <div className="space-y-1">
-                  <p className="text-sm">
-                    Engagement :{" "}
-                    <span className={app.priceDetails?.isEngagementPaid ? "text-green-700 font-semibold" : "text-slate-600"}>
-                      {formatCurrency(app.priceDetails?.engagementFee)}{" "}
-                      {app.priceDetails?.isEngagementPaid ? "✓ Payé" : ""}
+                  <p className="text-sm flex items-center gap-1">
+                    {isEngagementPaid ? <CheckCircle2 className="w-3.5 h-3.5 text-green-600" /> : <Clock className="w-3.5 h-3.5 text-amber-500" />}
+                    Engagement : <span className={isEngagementPaid ? "text-green-700 font-semibold" : "text-slate-600"}>
+                      {formatCurrency(app.priceDetails?.engagementFee)}{isEngagementPaid ? " ✓" : ""}
                     </span>
                   </p>
-                  <p className="text-sm">
-                    Prime de succès :{" "}
-                    <span className={app.priceDetails?.isSuccessFeePaid ? "text-green-700 font-semibold" : "text-slate-600"}>
-                      {formatCurrency(app.priceDetails?.successFee)}{" "}
-                      {app.priceDetails?.isSuccessFeePaid ? "✓ Payée" : ""}
+                  <p className="text-sm flex items-center gap-1">
+                    {isSuccessFeePaid ? <CheckCircle2 className="w-3.5 h-3.5 text-green-600" /> : <Lock className="w-3.5 h-3.5 text-slate-400" />}
+                    Prime de succès : <span className={isSuccessFeePaid ? "text-green-700 font-semibold" : "text-slate-500"}>
+                      {formatCurrency(app.priceDetails?.successFee)}{isSuccessFeePaid ? " ✓" : ""}
                     </span>
                   </p>
                 </div>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground font-medium uppercase mb-1">Rendez-vous Consulaire</p>
-                <p className="font-semibold text-primary flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-secondary" />
-                  {app.appointmentDetails?.date
-                    ? formatDateOnly(app.appointmentDetails.date)
-                    : app.appointmentDate
-                    ? formatDate(app.appointmentDate)
-                    : "Pas encore programmé"}
-                </p>
-                {app.appointmentDetails?.location && (
-                  <p className="text-xs text-slate-500 mt-0.5">{app.appointmentDetails.location}</p>
+                {showAppointmentDetails ? (
+                  <div>
+                    <p className="font-semibold text-primary flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-secondary" />
+                      {app.appointmentDetails?.date ? formatDateOnly(app.appointmentDetails.date) : "—"}
+                    </p>
+                    {app.appointmentDetails?.time && (
+                      <p className="text-sm text-slate-600">{app.appointmentDetails.time}</p>
+                    )}
+                    {app.appointmentDetails?.location && (
+                      <p className="text-xs text-slate-500 mt-0.5">{app.appointmentDetails.location}</p>
+                    )}
+                    {app.appointmentDetails?.confirmationCode && (
+                      <p className="text-xs font-mono bg-green-50 text-green-700 border border-green-200 rounded px-2 py-0.5 mt-1 inline-block">
+                        Code : {app.appointmentDetails.confirmationCode}
+                      </p>
+                    )}
+                  </div>
+                ) : isSlotFound ? (
+                  <div className="flex items-center gap-2 text-slate-500">
+                    <Lock className="w-4 h-4 text-amber-500" />
+                    <p className="text-sm italic">Débloqué après règlement de la prime de succès</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500 flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-slate-300" />
+                    Pas encore programmé
+                  </p>
                 )}
               </div>
             </div>
           </div>
+
+          {/* Required documents checklist */}
+          <RequiredDocsList destination={app.destination} />
 
           {/* Activity log */}
           {app.logs && app.logs.length > 0 && (
             <div className="bg-white p-6 sm:p-8 rounded-2xl border border-border shadow-sm">
               <h2 className="text-lg font-bold text-primary mb-4">Journal d'activité</h2>
               <div className="relative border-l-2 border-slate-100 ml-3 space-y-6 pb-2">
-                {[...app.logs].reverse().map((log: any, idx: number) => (
+                {[...app.logs].reverse().map((log: LogEntry, idx: number) => (
                   <div key={idx} className="relative pl-6">
                     <div className="absolute -left-[7px] top-1 w-3 h-3 rounded-full bg-primary border-2 border-white" />
                     <p className="text-sm text-slate-700">{log.msg}</p>
                     <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
                       <Clock className="w-3 h-3" />
-                      {formatDate(log.time)} · {log.author}
+                      {formatDate(log.time)} · {log.author ?? "système"}
                     </p>
                   </div>
                 ))}
