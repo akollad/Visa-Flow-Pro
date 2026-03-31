@@ -22,6 +22,7 @@ export const setHunterConfig = mutation({
     embassyPassword: v.string(),
     isActive: v.boolean(),
     twoCaptchaApiKey: v.optional(v.string()),
+    scheduleUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -30,7 +31,7 @@ export const setHunterConfig = mutation({
     const app = await ctx.db.get(args.applicationId);
     if (!app) throw new Error("Dossier introuvable");
 
-    const existing = (app as { hunterConfig?: { checkCount?: number; lastCheckAt?: number; lastResult?: string; twoCaptchaApiKey?: string } }).hunterConfig;
+    const existing = (app as { hunterConfig?: { checkCount?: number; lastCheckAt?: number; lastResult?: string; twoCaptchaApiKey?: string; scheduleUrl?: string } }).hunterConfig;
 
     await ctx.db.patch(args.applicationId, {
       hunterConfig: {
@@ -38,6 +39,7 @@ export const setHunterConfig = mutation({
         embassyPassword: args.embassyPassword,
         isActive: args.isActive,
         twoCaptchaApiKey: args.twoCaptchaApiKey ?? existing?.twoCaptchaApiKey,
+        scheduleUrl: args.scheduleUrl || existing?.scheduleUrl,
         lastCheckAt: existing?.lastCheckAt,
         checkCount: existing?.checkCount ?? 0,
         lastResult: existing?.lastResult,
@@ -93,6 +95,7 @@ export const getActiveJobs = internalQuery({
           portalName: (pricing as { portalName?: string } | undefined)?.portalName ?? null,
           portalDashboardUrl: (pricing as { portalDashboardUrl?: string } | undefined)?.portalDashboardUrl ?? null,
           portalAppointmentUrl: (pricing as { portalAppointmentUrl?: string } | undefined)?.portalAppointmentUrl ?? null,
+          portalScheduleUrl: (pricing as { portalScheduleUrl?: string } | undefined)?.portalScheduleUrl ?? null,
         };
       });
   },

@@ -357,6 +357,7 @@ export default function AdminApplicationDetail() {
   const [hunterUsername, setHunterUsername] = useState("");
   const [hunterPassword, setHunterPassword] = useState("");
   const [hunterTwoCaptchaKey, setHunterTwoCaptchaKey] = useState("");
+  const [hunterScheduleUrl, setHunterScheduleUrl] = useState("");
   const [hunterActive, setHunterActive] = useState(false);
   const [hunterSaving, setHunterSaving] = useState(false);
   const [showHunterPassword, setShowHunterPassword] = useState(false);
@@ -387,17 +388,21 @@ export default function AdminApplicationDetail() {
       setAdminNoteInput(app.adminNotes ?? "");
       const pricing = VISA_PRICING[app.destination as keyof typeof VISA_PRICING];
       if (pricing) setSlotLocation(pricing.embassyAddress ?? "");
-      const hc = (app as { hunterConfig?: { embassyUsername: string; embassyPassword: string; isActive: boolean; twoCaptchaApiKey?: string } }).hunterConfig;
+      const hc = (app as { hunterConfig?: { embassyUsername: string; embassyPassword: string; isActive: boolean; twoCaptchaApiKey?: string; scheduleUrl?: string } }).hunterConfig;
+      const destPricing = VISA_PRICING[app.destination as keyof typeof VISA_PRICING];
+      const defaultScheduleUrl = (destPricing as { portalScheduleUrl?: string } | undefined)?.portalScheduleUrl ?? "";
       if (hc) {
         setHunterUsername(hc.embassyUsername);
         setHunterPassword(hc.embassyPassword);
         setHunterActive(hc.isActive);
         setHunterTwoCaptchaKey(hc.twoCaptchaApiKey ?? "");
+        setHunterScheduleUrl(hc.scheduleUrl ?? defaultScheduleUrl);
       } else {
         setHunterUsername("");
         setHunterPassword("");
         setHunterActive(false);
         setHunterTwoCaptchaKey("");
+        setHunterScheduleUrl(defaultScheduleUrl);
       }
     }
   }, [app?._id]);
@@ -1054,7 +1059,7 @@ export default function AdminApplicationDetail() {
             }
             setHunterSaving(true);
             try {
-              await setHunterConfig({ applicationId: appId, embassyUsername: hunterUsername, embassyPassword: hunterPassword, isActive: hunterActive, twoCaptchaApiKey: hunterTwoCaptchaKey || undefined });
+              await setHunterConfig({ applicationId: appId, embassyUsername: hunterUsername, embassyPassword: hunterPassword, isActive: hunterActive, twoCaptchaApiKey: hunterTwoCaptchaKey || undefined, scheduleUrl: hunterScheduleUrl || undefined });
               toast({ title: "Joventy Hunter mis à jour", description: hunterActive ? "Le robot est maintenant actif." : "Robot en pause." });
             } catch (err: unknown) {
               const msg = err instanceof Error ? err.message : "Erreur";
@@ -1068,7 +1073,7 @@ export default function AdminApplicationDetail() {
             setHunterSaving(true);
             try {
               await resetHunterConfig({ applicationId: appId });
-              setHunterUsername(""); setHunterPassword(""); setHunterTwoCaptchaKey(""); setHunterActive(false);
+              setHunterUsername(""); setHunterPassword(""); setHunterTwoCaptchaKey(""); setHunterActive(false); setHunterScheduleUrl("");
               toast({ title: "Config Hunter supprimée", description: "Les identifiants ont été effacés." });
             } catch (err: unknown) {
               const msg = err instanceof Error ? err.message : "Erreur";
@@ -1180,6 +1185,21 @@ export default function AdminApplicationDetail() {
                     </div>
                     <p className="text-[11px] text-slate-400">
                       Si fournie, le robot soumettra automatiquement les CAPTCHAs à 2captcha.com pour les résoudre. Sans clé, le robot s'arrête et signale "captcha" à chaque blocage.
+                    </p>
+                  </div>
+                  <div className="sm:col-span-2 space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground uppercase flex items-center gap-1.5">
+                      URL page créneaux
+                      <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-normal normal-case">Modifiable si changée par le portail</span>
+                    </label>
+                    <Input
+                      value={hunterScheduleUrl}
+                      onChange={(e) => setHunterScheduleUrl(e.target.value)}
+                      placeholder="https://..."
+                      className="h-10 bg-slate-50 font-mono text-xs"
+                    />
+                    <p className="text-[11px] text-slate-400">
+                      URL que le robot visite pour chercher les créneaux disponibles. Pré-remplie automatiquement selon la destination — modifier uniquement si le portail change d'adresse.
                     </p>
                   </div>
                 </div>

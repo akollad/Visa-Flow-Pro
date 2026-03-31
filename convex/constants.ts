@@ -20,6 +20,7 @@ export const VISA_PRICING = {
     portalName: "AVITS / VISAPP (usvisaappt.com)",
     portalDashboardUrl: "https://www.usvisaappt.com/visaapplicantui/home/dashboard/requests",
     portalAppointmentUrl: "https://www.usvisaappt.com/visaapplicantui/home/appointment/myappointment",
+    portalScheduleUrl: "https://www.usvisaappt.com/visaapplicantui/home/dashboard/Appointment-scheduled",
     processingType: "appointment",
     successCopy: {
       triggerLabel: "Créneau capturé",
