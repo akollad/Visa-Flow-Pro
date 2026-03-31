@@ -21,6 +21,9 @@ export const VISA_PRICING = {
     portalDashboardUrl: "https://www.usvisaappt.com/visaapplicantui/home/dashboard/requests",
     portalAppointmentUrl: "https://www.usvisaappt.com/visaapplicantui/home/appointment/myappointment",
     portalScheduleUrl: "https://www.usvisaappt.com/visaapplicantui/home/dashboard/Appointment-scheduled",
+    apiBaseUrl: "https://www.usvisaappt.com/visauserapi",
+    apiAuthProvider: "aws-cognito",
+    apiUserProfileEndpoint: "/portal/getuser",
     processingType: "appointment",
     successCopy: {
       triggerLabel: "Créneau capturé",
