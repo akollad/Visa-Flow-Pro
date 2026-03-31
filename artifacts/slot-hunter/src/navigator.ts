@@ -118,17 +118,8 @@ async function scanForAvailableSlots(
     job.portalAppointmentUrl ??
     "";
 
-  if (scheduleUrl) {
-    console.log(`[navigator] Navigating to schedule page: ${scheduleUrl}`);
-    await page.goto(scheduleUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
-    await randomDelay(2000, 4000);
-  }
-
-  await humanScroll(page);
-  await randomDelay(1000, 2000);
-
   const responseCapture: { url: string; body: unknown }[] = [];
-  page.on("response", async (response) => {
+  const responseHandler = async (response: import("playwright").Response) => {
     const url = response.url();
     if (
       (url.includes("slot") ||
@@ -143,9 +134,20 @@ async function scanForAvailableSlots(
         responseCapture.push({ url, body });
       } catch { /* ignore */ }
     }
-  });
+  };
 
-  await randomDelay(2000, 3000);
+  page.on("response", responseHandler);
+
+  if (scheduleUrl) {
+    console.log(`[navigator] Navigating to schedule page: ${scheduleUrl}`);
+    await page.goto(scheduleUrl, { waitUntil: "networkidle", timeout: 30000 });
+    await randomDelay(2000, 4000);
+  }
+
+  await humanScroll(page);
+  await randomDelay(1000, 2000);
+
+  await randomDelay(1500, 2500);
 
   for (const capture of responseCapture) {
     console.log(`[navigator] Intercepted API: ${capture.url}`);
