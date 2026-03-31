@@ -1,0 +1,411 @@
+import { launchBrowser, randomDelay } from "./browser.js";
+import { solveCaptchaForSite } from "./captcha.js";
+import { reportSlotFound, sendHeartbeat, type HunterJob } from "./convexClient.js";
+
+type SessionResult = "slot_found" | "not_found" | "captcha" | "error" | "login_failed" | "payment_required";
+
+const USA_BASE = "https://www.usvisaappt.com";
+const USA_LOGIN_URL = `${USA_BASE}/identity/user/login`;
+const USA_PAYMENT_URL = `${USA_BASE}/visaworkflowprocessor/workflow/getUserHistoryApplicantPaymentStatus`;
+const USA_APPT_REQUESTS_URL = `${USA_BASE}/visauserapi/appointmentrequest/getallbyuser`;
+const USA_SITE_KEY = "6LdVVDAqAAAAAK4DS06UwosT8o1SA_3WhzUDAWAp";
+const USA_LOGIN_PAGE = "https://www.usvisaappt.com/visaapplicantui/login";
+const USA_MISSION_ID = 323;
+
+interface UsaLoginResponse {
+  userName: string;
+  userID: number;
+  fullName: string;
+  isActive: string;
+  uuid: string;
+  accessToken: string | null;
+  refreshToken: string | null;
+  idToken: string | null;
+  msg: string | null;
+}
+
+interface UsaAppointmentRequest {
+  applicationId: string;
+  missionId: number;
+  pendingAppoStatus: number;
+  primaryApplicant: string;
+  cancellable: boolean;
+  messagetext: string | null;
+}
+
+interface UsaPaymentStatus {
+  applicationId: string;
+  missionId: number;
+  pendingAppoStatus: number;
+  primaryApplicant: string;
+  cancellable: boolean;
+  messagetext: string | null;
+}
+
+export interface UsaSession {
+  accessToken: string;
+  refreshToken: string;
+  userID: number;
+  fullName: string;
+  applicationId: string | null;
+  pendingAppoStatus: number | null;
+}
+
+const BROWSER_HEADERS = {
+  "Accept": "application/json, text/plain, */*",
+  "Accept-Language": "fr-CD,fr;q=0.9,en-US;q=0.6,en;q=0.5",
+  "Cache-Control": "no-cache",
+  "Content-Type": "application/json",
+  "Pragma": "no-cache",
+  "Access-Control-Allow-Credentials": "true",
+  "Access-Control-Allow-Headers": "Origin, Content-Type, X-Auth-Token, content-type,-CSRF-Token, Authorization",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Max-Age": "1000",
+  "Origin": "https://www.usvisaappt.com",
+  "Referer": "https://www.usvisaappt.com/visaapplicantui/login",
+  "Sec-Fetch-Dest": "empty",
+  "Sec-Fetch-Mode": "cors",
+  "Sec-Fetch-Site": "same-origin",
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+};
+
+export async function solveCaptchaForUsa(captchaApiKey: string): Promise<string | null> {
+  console.log("[usa] Résolution reCAPTCHA via 2captcha (site key USA)...");
+  const token = await solveCaptchaForSite(captchaApiKey, USA_SITE_KEY, USA_LOGIN_PAGE);
+  if (token) {
+    console.log("[usa] reCAPTCHA résolu avec succès");
+  } else {
+    console.error("[usa] Échec résolution reCAPTCHA");
+  }
+  return token;
+}
+
+export async function loginUsaPortal(
+  username: string,
+  password: string,
+  captchaToken: string | null
+): Promise<UsaSession | null> {
+  console.log(`[usa] Connexion API pour ${username}...`);
+
+  const body: Record<string, unknown> = {
+    userName: username,
+    password,
+    missionId: USA_MISSION_ID,
+  };
+
+  if (captchaToken) {
+    body.captchaToken = captchaToken;
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(USA_LOGIN_URL, {
+      method: "POST",
+      headers: BROWSER_HEADERS,
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    console.error("[usa] Erreur réseau lors du login:", err);
+    return null;
+  }
+
+  if (!response.ok) {
+    console.error(`[usa] Login HTTP ${response.status}`);
+    return null;
+  }
+
+  const accessToken = response.headers.get("authorization");
+  const refreshToken = response.headers.get("refreshtoken");
+
+  let data: UsaLoginResponse;
+  try {
+    data = (await response.json()) as UsaLoginResponse;
+  } catch {
+    console.error("[usa] Réponse login invalide (JSON parse échoué)");
+    return null;
+  }
+
+  if (data.msg && data.msg.toLowerCase().includes("invalid")) {
+    console.error(`[usa] Login refusé par le portail: ${data.msg}`);
+    return null;
+  }
+
+  if (data.isActive !== "ACTIVE") {
+    console.warn(`[usa] Compte inactif: isActive=${data.isActive}`);
+    return null;
+  }
+
+  if (!accessToken) {
+    console.error("[usa] JWT absent du header 'authorization'");
+    return null;
+  }
+
+  console.log(`[usa] Connecté en tant que ${data.fullName} (userID: ${data.userID})`);
+
+  return {
+    accessToken,
+    refreshToken: refreshToken ?? "",
+    userID: data.userID,
+    fullName: data.fullName,
+    applicationId: null,
+    pendingAppoStatus: null,
+  };
+}
+
+export async function checkUsaPaymentStatus(session: UsaSession): Promise<{
+  status: "payment_required" | "pending_slot" | "scheduled" | "error";
+  applicationId: string | null;
+  pendingAppoStatus: number | null;
+  message: string;
+}> {
+  const headers = {
+    ...BROWSER_HEADERS,
+    "Authorization": `Bearer ${session.accessToken}`,
+    "Referer": "https://www.usvisaappt.com/visaapplicantui/home/dashboard/requests",
+  };
+
+  let data: UsaPaymentStatus | null = null;
+
+  try {
+    const res = await fetch(USA_PAYMENT_URL, { method: "GET", headers });
+    if (!res.ok) {
+      console.error(`[usa] Payment status HTTP ${res.status}`);
+      return { status: "error", applicationId: null, pendingAppoStatus: null, message: `HTTP ${res.status}` };
+    }
+    data = (await res.json()) as UsaPaymentStatus;
+  } catch (err) {
+    console.error("[usa] Erreur appel payment status:", err);
+    return { status: "error", applicationId: null, pendingAppoStatus: null, message: String(err) };
+  }
+
+  const appId = data.applicationId ?? null;
+  const appoStatus = data.pendingAppoStatus ?? null;
+
+  console.log(`[usa] pendingAppoStatus=${appoStatus} applicationId=${appId} applicant=${data.primaryApplicant}`);
+
+  if (appoStatus === 2) {
+    return {
+      status: "pending_slot",
+      applicationId: appId,
+      pendingAppoStatus: 2,
+      message: `MRV payé — demande de RDV active (applicationId: ${appId})`,
+    };
+  } else if (appoStatus === 1) {
+    return {
+      status: "scheduled",
+      applicationId: appId,
+      pendingAppoStatus: 1,
+      message: `RDV déjà planifié (applicationId: ${appId})`,
+    };
+  } else {
+    return {
+      status: "payment_required",
+      applicationId: appId,
+      pendingAppoStatus: appoStatus,
+      message: `Frais MRV non confirmés par le portail (pendingAppoStatus: ${appoStatus})`,
+    };
+  }
+}
+
+export async function getUsaAppointmentRequests(session: UsaSession): Promise<UsaAppointmentRequest[]> {
+  const headers = {
+    ...BROWSER_HEADERS,
+    "Authorization": `Bearer ${session.accessToken}`,
+    "Referer": "https://www.usvisaappt.com/visaapplicantui/home/dashboard/requests",
+  };
+
+  try {
+    const res = await fetch(USA_APPT_REQUESTS_URL, { method: "GET", headers });
+    if (!res.ok) {
+      console.error(`[usa] Appointment requests HTTP ${res.status}`);
+      return [];
+    }
+    const raw = await res.json();
+    const list = Array.isArray(raw) ? raw : [raw];
+    return list as UsaAppointmentRequest[];
+  } catch (err) {
+    console.error("[usa] Erreur appel appointment requests:", err);
+    return [];
+  }
+}
+
+export async function runUsaApiSession(job: HunterJob): Promise<SessionResult> {
+  const { embassyUsername: username, embassyPassword: password, twoCaptchaApiKey } = job.hunterConfig;
+
+  if (!username || !password) {
+    console.error("[usa] Identifiants portail manquants dans hunterConfig");
+    return "error";
+  }
+
+  let captchaToken: string | null = null;
+  if (twoCaptchaApiKey) {
+    captchaToken = await solveCaptchaForUsa(twoCaptchaApiKey);
+    if (!captchaToken) {
+      console.warn("[usa] reCAPTCHA non résolu — tentative de login sans token");
+    }
+  } else {
+    console.warn("[usa] Clé 2captcha absente — login sans captchaToken");
+  }
+
+  const session = await loginUsaPortal(username, password, captchaToken);
+  if (!session) {
+    await sendHeartbeat({
+      applicationId: job.id,
+      result: "error",
+      errorMessage: "Login API USA échoué — identifiants incorrects ou portail indisponible",
+    });
+    return "login_failed";
+  }
+
+  const paymentCheck = await checkUsaPaymentStatus(session);
+  session.applicationId = paymentCheck.applicationId;
+  session.pendingAppoStatus = paymentCheck.pendingAppoStatus;
+
+  if (paymentCheck.status === "payment_required") {
+    console.warn(`[usa] 💳 Paiement MRV requis : ${paymentCheck.message}`);
+    await sendHeartbeat({
+      applicationId: job.id,
+      result: "payment_required",
+      errorMessage: paymentCheck.message,
+    });
+    return "payment_required";
+  }
+
+  if (paymentCheck.status === "scheduled") {
+    console.log(`[usa] ✅ RDV déjà planifié : ${paymentCheck.message}`);
+    try {
+      await reportSlotFound({
+        applicationId: job.id,
+        date: "Déjà planifié",
+        time: "",
+        location: `Ambassade USA Kinshasa (Mission ${USA_MISSION_ID})`,
+      });
+    } catch { /* ignore */ }
+    return "slot_found";
+  }
+
+  console.log(`[usa] ✅ Paiement MRV confirmé — recherche de créneaux via navigateur...`);
+
+  const slotResult = await scanUsaSlotsWithBrowser(job, session);
+  return slotResult;
+}
+
+async function scanUsaSlotsWithBrowser(job: HunterJob, session: UsaSession): Promise<SessionResult> {
+  const { browser, page } = await launchBrowser();
+
+  try {
+    const bearerToken = `Bearer ${session.accessToken}`;
+
+    await page.setExtraHTTPHeaders({
+      "Authorization": bearerToken,
+    });
+
+    const slotRef: { value: { date: string; location: string } | null } = { value: null };
+
+    page.on("response", async (response) => {
+      const url = response.url();
+      if (
+        url.includes("appointment") ||
+        url.includes("schedule") ||
+        url.includes("slot") ||
+        url.includes("available") ||
+        url.includes("dates") ||
+        url.includes("calendar")
+      ) {
+        try {
+          const body = await response.text();
+          if (body && body.length < 50000) {
+            const parsed = JSON.parse(body);
+            const hasSlot = detectUsaSlotInResponse(parsed);
+            if (hasSlot && !slotRef.value) {
+              slotRef.value = hasSlot;
+              console.log(`[usa] 🎯 CRÉNEAU DÉTECTÉ via API interception: ${JSON.stringify(hasSlot)}`);
+            }
+          }
+        } catch { /* ignore parse errors */ }
+      }
+    });
+
+    const dashboardUrl = "https://www.usvisaappt.com/visaapplicantui/home/dashboard/requests";
+    await page.goto(dashboardUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+    await randomDelay(2000, 4000);
+
+    const scheduleUrl = "https://www.usvisaappt.com/visaapplicantui/home/dashboard/Appointment-scheduled";
+    await page.goto(scheduleUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+    await randomDelay(3000, 6000);
+
+    if (slotRef.value) {
+      await reportSlotFound({
+        applicationId: job.id,
+        date: slotRef.value.date,
+        time: "",
+        location: slotRef.value.location || `Ambassade USA Kinshasa (Mission ${USA_MISSION_ID})`,
+      });
+      return "slot_found";
+    }
+
+    console.log("[usa] Aucun créneau disponible détecté");
+    await sendHeartbeat({ applicationId: job.id, result: "not_found" });
+    return "not_found";
+  } catch (err) {
+    console.error("[usa] Erreur scan créneaux:", err);
+    await sendHeartbeat({
+      applicationId: job.id,
+      result: "error",
+      errorMessage: `Erreur scan USA: ${String(err).slice(0, 200)}`,
+    });
+    return "error";
+  } finally {
+    try { await browser.close(); } catch { /* ignore */ }
+  }
+}
+
+function detectUsaSlotInResponse(data: unknown): { date: string; location: string } | null {
+  if (!data || typeof data !== "object") return null;
+
+  const obj = data as Record<string, unknown>;
+
+  if (obj.appointmentDate && obj.appointmentTime) {
+    return {
+      date: `${String(obj.appointmentDate)} ${String(obj.appointmentTime)}`,
+      location: String(obj.location ?? obj.facilityName ?? `Mission ${USA_MISSION_ID}`),
+    };
+  }
+
+  if (Array.isArray(data)) {
+    for (const item of data) {
+      const found = detectUsaSlotInResponse(item);
+      if (found) return found;
+    }
+  }
+
+  if (obj.availableDates && Array.isArray(obj.availableDates) && obj.availableDates.length > 0) {
+    return {
+      date: String(obj.availableDates[0]),
+      location: `Ambassade USA Kinshasa (Mission ${USA_MISSION_ID})`,
+    };
+  }
+
+  if (obj.slots && Array.isArray(obj.slots) && obj.slots.length > 0) {
+    const slot = obj.slots[0] as Record<string, unknown>;
+    return {
+      date: String(slot.date ?? slot.appointmentDate ?? ""),
+      location: `Ambassade USA Kinshasa (Mission ${USA_MISSION_ID})`,
+    };
+  }
+
+  for (const key of Object.keys(obj)) {
+    if (
+      key.toLowerCase().includes("available") &&
+      Array.isArray(obj[key]) &&
+      (obj[key] as unknown[]).length > 0
+    ) {
+      return {
+        date: `Créneau disponible (${key})`,
+        location: `Ambassade USA Kinshasa (Mission ${USA_MISSION_ID})`,
+      };
+    }
+  }
+
+  return null;
+}

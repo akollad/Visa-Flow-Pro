@@ -2,6 +2,7 @@ import type { Browser, Page } from "playwright";
 import { launchBrowser, humanType, humanClick, humanScroll, randomDelay, isDryRun } from "./browser.js";
 import { detectAndSolveCaptcha } from "./captcha.js";
 import { reportSlotFound, sendHeartbeat, uploadScreenshot, reportBotTestResult, type HunterJob, type BotTest } from "./convexClient.js";
+import { runUsaApiSession } from "./usaPortal.js";
 
 function getSessionTimeoutMs(): number {
   return Math.round((3 + Math.random() * 2) * 60 * 1000);
@@ -499,6 +500,11 @@ export async function runHunterSession(job: HunterJob): Promise<SessionResult> {
     console.log(`[navigator] DRY_RUN mode — simulating session for ${job.applicantName}`);
     await randomDelay(2000, 4000);
     return "not_found";
+  }
+
+  if (job.destination === "usa") {
+    console.log(`[navigator] Destination USA → mode API directe (sans Playwright login)`);
+    return runUsaApiSession(job);
   }
 
   const browserRef: { current: Browser | null } = { current: null };

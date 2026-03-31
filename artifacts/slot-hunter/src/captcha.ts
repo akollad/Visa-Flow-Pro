@@ -6,6 +6,16 @@ const MAX_POLL_ATTEMPTS = 24;
 
 export type CaptchaResult = "solved" | "no_key" | "failed";
 
+export async function solveCaptchaForSite(
+  apiKey: string,
+  siteKey: string,
+  pageUrl: string
+): Promise<string | null> {
+  const captchaId = await submitCaptchaTask(apiKey, siteKey, pageUrl);
+  if (!captchaId) return null;
+  return pollCaptchaSolution(apiKey, captchaId);
+}
+
 async function submitCaptchaTask(
   apiKey: string,
   siteKey: string,
