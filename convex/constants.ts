@@ -47,6 +47,9 @@ export const VISA_PRICING = {
     embassyAddress: "Portail GDRFA / ICP — 100% électronique",
     portalUrl: "https://smartservices.ica.gov.ae/echannels/web/client/default.html",
     portalName: "ICA UAE Smart Services (e-Visa EAU)",
+    portalDashboardUrl: "https://smartservices.ica.gov.ae/echannels/web/client/default.html#/user/login",
+    portalAppointmentUrl: "https://smartservices.ica.gov.ae/echannels/web/client/default.html#/eVisa/apply",
+    portalScheduleUrl: "https://smartservices.ica.gov.ae/echannels/web/client/default.html#/eVisa/apply",
     processingType: "evisa",
     successCopy: {
       triggerLabel: "Visa obtenu",
@@ -75,6 +78,9 @@ export const VISA_PRICING = {
     embassyAddress: "VFS Global — Avenue de la Gombe, Kinshasa",
     portalUrl: "https://visa.vfsglobal.com/cod/fr/tur",
     portalName: "VFS Global Turquie (COD → TUR)",
+    portalDashboardUrl: "https://visa.vfsglobal.com/cod/fr/tur/application-detail",
+    portalAppointmentUrl: "https://visa.vfsglobal.com/cod/fr/tur/book-an-appointment",
+    portalScheduleUrl: "https://visa.vfsglobal.com/cod/fr/tur/book-an-appointment",
     processingType: "hybrid",
     successCopy: {
       triggerLabel: "Créneau VFS capturé",
@@ -102,6 +108,9 @@ export const VISA_PRICING = {
     embassyAddress: "Ambassade de l'Inde — Avenue de la Gombe, Kinshasa",
     portalUrl: "https://indianvisaonline.gov.in/evisa/tvoa.html",
     portalName: "Indian Visa Online (e-Visa Inde)",
+    portalDashboardUrl: "https://indianvisaonline.gov.in/evisa/tvoa.html",
+    portalAppointmentUrl: "https://indianvisaonline.gov.in/evisa/tvoa.html",
+    portalScheduleUrl: "https://indianvisaonline.gov.in/evisa/StatusEnquiry.html",
     processingType: "evisa",
     successCopy: {
       triggerLabel: "E-Visa obtenu",
