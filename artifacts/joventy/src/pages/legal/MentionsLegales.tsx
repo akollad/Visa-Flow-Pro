@@ -6,6 +6,8 @@ export default function MentionsLegales() {
       title="Mentions légales"
       subtitle="Informations légales relatives au site joventy.cd"
       lastUpdated="Mars 2025"
+      description="Informations légales du site Joventy.cd édité par Akollad Groupe, holding technologique dont le siège est à Kinshasa, République Démocratique du Congo."
+      slug="mentions-legales"
     >
       <h2>1. Éditeur du site</h2>
       <p>

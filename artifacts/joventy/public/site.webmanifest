@@ -1,6 +1,13 @@
 {
-  "name": "Joventy — Visa Premium RDC",
+  "name": "Joventy — Assistance Visa Premium RDC",
   "short_name": "Joventy",
+  "description": "Assistance visa premium pour les voyageurs congolais. USA, Dubaï, Turquie, Inde.",
+  "lang": "fr",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#1E4FA3",
+  "background_color": "#1E4FA3",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",
@@ -14,8 +21,5 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ],
-  "theme_color": "#1E4FA3",
-  "background_color": "#1E4FA3",
-  "display": "standalone"
+  ]
 }

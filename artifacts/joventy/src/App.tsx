@@ -6,6 +6,7 @@ import {
 } from "@clerk/react";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ConvexReactClient } from "convex/react";
+import { HelmetProvider } from "react-helmet-async";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -134,18 +135,20 @@ function App() {
   const base = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
 
   return (
-    <WouterRouter base={base}>
-      <ClerkProvider publishableKey={clerkPublishableKey}>
-        <ConvexProviderWithClerk client={convex} useAuth={useClerkAuth}>
-          <TooltipProvider>
-            <AuthProvider>
-              <Router />
-            </AuthProvider>
-            <Toaster />
-          </TooltipProvider>
-        </ConvexProviderWithClerk>
-      </ClerkProvider>
-    </WouterRouter>
+    <HelmetProvider>
+      <WouterRouter base={base}>
+        <ClerkProvider publishableKey={clerkPublishableKey}>
+          <ConvexProviderWithClerk client={convex} useAuth={useClerkAuth}>
+            <TooltipProvider>
+              <AuthProvider>
+                <Router />
+              </AuthProvider>
+              <Toaster />
+            </TooltipProvider>
+          </ConvexProviderWithClerk>
+        </ClerkProvider>
+      </WouterRouter>
+    </HelmetProvider>
   );
 }
 

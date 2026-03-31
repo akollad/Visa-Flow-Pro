@@ -1,6 +1,7 @@
 import { Link } from "wouter";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
+import { Helmet } from "react-helmet-async";
 import { Navbar } from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
 import { JoventyLogo } from "@/components/JoventyLogo";
@@ -187,6 +188,16 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-background">
+      <Helmet>
+        <title>Joventy — Visa USA, Dubaï, Turquie, Inde depuis Kinshasa (RDC)</title>
+        <meta name="description" content="Joventy prépare vos formulaires de visa, réserve vos créneaux consulaires et soumet vos e-Visas pour l'USA, Dubaï, la Turquie et l'Inde. Paiement M-Pesa, Airtel, Orange Money. Résultat garanti." />
+        <link rel="canonical" href="https://joventy.cd/" />
+        <meta property="og:title" content="Joventy — Visa USA, Dubaï, Turquie, Inde depuis Kinshasa (RDC)" />
+        <meta property="og:description" content="Joventy prépare vos formulaires de visa, réserve vos créneaux consulaires et soumet vos e-Visas pour l'USA, Dubaï, la Turquie et l'Inde. Paiement M-Pesa, Airtel, Orange Money." />
+        <meta property="og:url" content="https://joventy.cd/" />
+        <meta property="og:type" content="website" />
+      </Helmet>
+
       <Navbar />
 
       {/* ═══ HERO ═══ */}
@@ -194,7 +205,7 @@ export default function Landing() {
         <div className="absolute inset-0 z-0">
           <img
             src={`${import.meta.env.BASE_URL}images/hero-bg.png`}
-            alt="Hero background"
+            alt="Skyline de Kinshasa, République Démocratique du Congo — Assistance visa premium Joventy"
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-b from-primary/60 via-primary/75 to-background" />

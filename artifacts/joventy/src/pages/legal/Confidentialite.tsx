@@ -6,6 +6,8 @@ export default function Confidentialite() {
       title="Politique de confidentialité"
       subtitle="Comment Joventy collecte, utilise et protège vos données personnelles"
       lastUpdated="Mars 2025"
+      description="Comment Joventy collecte, protège et traite vos données personnelles dans le cadre de nos services d'assistance visa. Vos droits, durées de conservation et sécurité."
+      slug="confidentialite"
     >
       <p>
         La protection de vos données personnelles est une priorité pour Joventy. La présente

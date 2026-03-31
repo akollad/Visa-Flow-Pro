@@ -7,6 +7,8 @@ export default function Remboursement() {
       title="Politique de remboursement"
       subtitle="Conditions dans lesquelles un remboursement peut être accordé"
       lastUpdated="Mars 2025"
+      description="Découvrez quand et comment Joventy rembourse les frais d'engagement et la prime de succès. Politique claire et transparente pour les clients de la RDC."
+      slug="remboursement"
     >
       <p>
         Chez Joventy, nous croyons en la transparence totale sur notre modèle de tarification.

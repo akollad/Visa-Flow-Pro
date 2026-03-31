@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+# Pages protégées — ne pas indexer
+Disallow: /dashboard
+Disallow: /admin
+Disallow: /sso-callback
+Disallow: /continue
+
+Sitemap: https://joventy.cd/sitemap.xml
