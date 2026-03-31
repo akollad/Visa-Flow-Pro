@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { VISA_PRICING } from "./constants";
+import { coreMarkSlotFound, getEffectiveSuccessModel as getSuccessModel } from "./slotFoundHelper";
 
 function getRole(identity: { [key: string]: unknown } | null): string {
   if (!identity) return "client";
@@ -18,9 +19,7 @@ function makeLog(msg: string, author?: string) {
 }
 
 function getEffectiveSuccessModel(app: { successModel?: string; destination?: string }): string {
-  if (app.successModel) return app.successModel;
-  const pricing = app.destination ? VISA_PRICING[app.destination as keyof typeof VISA_PRICING] : undefined;
-  return pricing?.successModel ?? "appointment";
+  return getSuccessModel(app);
 }
 
 export const getStats = query({
@@ -182,55 +181,7 @@ export const markSlotFound = mutation({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     requireAdmin(identity as Record<string, unknown>);
-
-    const app = await ctx.db.get(args.applicationId);
-    if (!app) throw new Error("Dossier introuvable");
-
-    if (app.status !== "slot_hunting") {
-      throw new Error("Le dossier doit être au statut 'slot_hunting' pour enregistrer un créneau.");
-    }
-
-    if (app.servicePackage === "dossier_only") {
-      throw new Error("Ce dossier est en mode 'Constitution uniquement' — il n'a pas de créneau.");
-    }
-
-    const effectiveModel = getEffectiveSuccessModel(app);
-    if (effectiveModel === "evisa") {
-      throw new Error("Ce dossier utilise le modèle e-Visa — utilisez 'Visa Obtenu' plutôt que 'Créneau'.");
-    }
-
-    const priceDetails = app.priceDetails ?? {
-      engagementFee: 0,
-      successFee: 0,
-      paidAmount: 0,
-      isEngagementPaid: false,
-      isSuccessFeePaid: false,
-    };
-
-    const SLOT_HOLD_HOURS = 48;
-    const slotExpiresAt = Date.now() + SLOT_HOLD_HOURS * 3600 * 1000;
-
-    await ctx.db.patch(args.applicationId, {
-      status: "slot_found_awaiting_success_fee",
-      slotExpiresAt,
-      appointmentDetails: {
-        date: args.date,
-        time: args.time,
-        location: args.location,
-        confirmationCode: args.confirmationCode,
-      },
-      priceDetails,
-      logs: [
-        ...(app.logs ?? []),
-        makeLog(
-          `🎉 Créneau capturé ! Réglez la prime de succès (${priceDetails.successFee}$) pour débloquer le PDF de confirmation. Ce créneau est réservé pour ${SLOT_HOLD_HOURS}h.`,
-          "admin"
-        ),
-      ],
-      updatedAt: Date.now(),
-    });
-
-    return args.applicationId;
+    return await coreMarkSlotFound(ctx, { ...args, logAuthor: "admin" });
   },
 });
 

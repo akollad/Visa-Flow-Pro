@@ -393,6 +393,11 @@ export default function AdminApplicationDetail() {
         setHunterPassword(hc.embassyPassword);
         setHunterActive(hc.isActive);
         setHunterTwoCaptchaKey(hc.twoCaptchaApiKey ?? "");
+      } else {
+        setHunterUsername("");
+        setHunterPassword("");
+        setHunterActive(false);
+        setHunterTwoCaptchaKey("");
       }
     }
   }, [app?._id]);

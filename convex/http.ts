@@ -1,6 +1,7 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { Id } from "./_generated/dataModel";
 import { Webhook } from "svix";
 
 const http = httpRouter();
@@ -123,7 +124,7 @@ http.route({
 
     try {
       await ctx.runMutation(internal.hunter.markSlotFoundByHunter, {
-        applicationId: body.applicationId as never,
+        applicationId: body.applicationId as Id<"applications">,
         date: body.date,
         time: body.time,
         location: body.location,
@@ -174,7 +175,7 @@ http.route({
     }
 
     await ctx.runMutation(internal.hunter.recordHeartbeat, {
-      applicationId: body.applicationId as never,
+      applicationId: body.applicationId as Id<"applications">,
       result: body.result,
       errorMessage: body.errorMessage,
     });

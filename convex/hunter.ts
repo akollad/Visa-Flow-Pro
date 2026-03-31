@@ -1,12 +1,6 @@
 import { internalMutation, mutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
-import { VISA_PRICING } from "./constants";
-
-function getEffectiveSuccessModel(app: { successModel?: string; destination?: string }): string {
-  if (app.successModel) return app.successModel;
-  const pricing = app.destination ? VISA_PRICING[app.destination as keyof typeof VISA_PRICING] : undefined;
-  return pricing?.successModel ?? "appointment";
-}
+import { coreMarkSlotFound } from "./slotFoundHelper";
 
 function getRole(identity: { [key: string]: unknown } | null): string {
   if (!identity) return "client";
@@ -19,9 +13,6 @@ function requireAdmin(identity: { [key: string]: unknown } | null) {
   }
 }
 
-function makeLog(msg: string, author?: string) {
-  return { msg, time: Date.now(), author: author ?? "hunter" };
-}
 
 export const setHunterConfig = mutation({
   args: {
@@ -109,62 +100,22 @@ export const markSlotFoundByHunter = internalMutation({
     screenshotStorageId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await coreMarkSlotFound(ctx, { ...args, logAuthor: "Joventy Hunter" });
+
     const app = await ctx.db.get(args.applicationId);
-    if (!app) throw new Error("Dossier introuvable");
-
-    if (app.status !== "slot_hunting") {
-      throw new Error("Le dossier n'est plus en recherche de créneau");
+    const existing = (app as { hunterConfig?: { embassyUsername: string; embassyPassword: string; isActive: boolean; checkCount?: number; lastCheckAt?: number; lastResult?: string; twoCaptchaApiKey?: string } } | null)?.hunterConfig;
+    if (existing) {
+      await ctx.db.patch(args.applicationId, {
+        hunterConfig: {
+          ...existing,
+          isActive: false,
+          lastResult: "slot_captured",
+          lastCheckAt: Date.now(),
+          checkCount: (existing.checkCount ?? 0) + 1,
+        },
+        updatedAt: Date.now(),
+      });
     }
-
-    if (app.servicePackage === "dossier_only") {
-      throw new Error("Ce dossier est en mode 'Constitution uniquement' — il n'a pas de créneau.");
-    }
-
-    const effectiveModel = getEffectiveSuccessModel(app);
-    if (effectiveModel === "evisa") {
-      throw new Error("Ce dossier utilise le modèle e-Visa — utilisez 'Visa Obtenu' plutôt que 'Créneau'.");
-    }
-
-    const priceDetails = app.priceDetails ?? {
-      engagementFee: 0,
-      successFee: 0,
-      paidAmount: 0,
-      isEngagementPaid: false,
-      isSuccessFeePaid: false,
-    };
-
-    const SLOT_HOLD_HOURS = 48;
-    const slotExpiresAt = Date.now() + SLOT_HOLD_HOURS * 3600 * 1000;
-
-    const existing = (app as { hunterConfig?: { embassyUsername: string; embassyPassword: string; isActive: boolean; checkCount?: number; lastCheckAt?: number; lastResult?: string } }).hunterConfig;
-
-    await ctx.db.patch(args.applicationId, {
-      status: "slot_found_awaiting_success_fee",
-      slotExpiresAt,
-      appointmentDetails: {
-        date: args.date,
-        time: args.time,
-        location: args.location,
-        confirmationCode: args.confirmationCode,
-        screenshotStorageId: args.screenshotStorageId,
-      },
-      priceDetails,
-      hunterConfig: existing ? {
-        ...existing,
-        isActive: false,
-        lastResult: "slot_captured",
-        lastCheckAt: Date.now(),
-        checkCount: (existing.checkCount ?? 0) + 1,
-      } : undefined,
-      logs: [
-        ...(app.logs ?? []),
-        makeLog(
-          `Créneau capturé par le robot Joventy Hunter ! Date : ${args.date} à ${args.time} (${args.location}). Prime de succès (${priceDetails.successFee}$) à régler pour débloquer la confirmation. Réservé pour ${SLOT_HOLD_HOURS}h.`,
-          "Joventy Hunter"
-        ),
-      ],
-      updatedAt: Date.now(),
-    });
 
     return args.applicationId;
   },
