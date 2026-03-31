@@ -130,8 +130,8 @@ export const SLOT_URGENCY_TIERS = {
   urgent: {
     key: "urgent" as const,
     label: "Urgent",
-    tagline: "15 à 30 jours",
-    desc: "Date souhaitée dans 15 à 30 jours",
+    tagline: "3 à 6 semaines",
+    desc: "Date souhaitée dans 3 à 6 semaines",
     depositAmount: 100,
     successAmount: 250,
     total: 350,
@@ -140,8 +140,8 @@ export const SLOT_URGENCY_TIERS = {
   tres_urgent: {
     key: "tres_urgent" as const,
     label: "Très Urgent",
-    tagline: "< 15 jours / ASAP",
-    desc: "Date souhaitée dans moins de 15 jours ou dès que possible",
+    tagline: "< 3 semaines / ASAP",
+    desc: "Date souhaitée dans moins de 3 semaines ou dès que possible",
     depositAmount: 150,
     successAmount: 300,
     total: 450,
