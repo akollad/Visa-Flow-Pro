@@ -317,7 +317,7 @@ export default function Landing() {
                 {[
                   { text: "Joventy n'est pas un consulat et ne délivre pas de visas", note: "La décision d'accord ou de refus appartient exclusivement à l'ambassade ou au gouvernement étranger." },
                   { text: "Joventy ne garantit pas l'approbation finale du visa", note: "Nous garantissons uniquement le service : si nous ne trouvons pas de créneau ou si l'e-Visa est refusé, vous ne payez pas la prime de succès." },
-                  { text: "Les frais consulaires ne sont pas inclus dans nos tarifs", note: "MRV USA (185$), frais VFS Turquie (100-300$), e-Visa EAU (~90$), e-Visa Inde (~25-80$) sont payés directement par le client au gouvernement concerné." },
+                  { text: "Les frais consulaires et annexes ne sont pas inclus dans nos tarifs", note: "MRV USA (185$), frais VFS Turquie (100-300$), e-Visa EAU (~90$), e-Visa Inde (~25-80$), assurance voyage, réservations d'hôtel et de billets d'avion restent à la charge du client et sont payés directement aux organismes concernés." },
                 ].map((item) => (
                   <li key={item.text} className="flex items-start gap-3">
                     <XCircle className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
@@ -622,8 +622,8 @@ export default function Landing() {
                 a: "Si vous avez obtenu un créneau de rendez-vous (USA, Turquie), Joventy a rempli sa mission et la prime de succès est due. Le refus consulaire lors de l'entretien est une décision souveraine de l'ambassade, indépendante du service Joventy. Nous vous accompagnons cependant pour préparer au mieux votre dossier.",
               },
               {
-                q: "Les frais consulaires (MRV, VFS, e-Visa) sont-ils inclus dans vos tarifs ?",
-                a: "Non. Les frais consulaires sont payés directement par vous au gouvernement ou à l'organisme concerné (banque pour le MRV USA, centre VFS pour la Turquie, portail officiel pour Dubaï et l'Inde). Ces montants varient selon la destination et ne transitent pas par Joventy.",
+                q: "Les frais consulaires, assurances et réservations sont-ils inclus dans vos tarifs ?",
+                a: "Non. Les frais consulaires sont payés directement par vous au gouvernement ou à l'organisme concerné (banque pour le MRV USA, centre VFS pour la Turquie, portail officiel pour Dubaï et l'Inde). De même, l'assurance voyage, les réservations d'hôtel et les billets d'avion — souvent exigés par le consulat comme pièces justificatives — sont entièrement à votre charge. Joventy vous indique ce qu'il faut préparer, mais ne règle pas ces frais à votre place.",
               },
               {
                 q: "Mes documents et informations personnelles sont-ils en sécurité ?",
