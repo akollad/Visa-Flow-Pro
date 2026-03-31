@@ -955,6 +955,17 @@ export default function AdminApplicationDetail() {
             </div>
 
             <div className="p-6 space-y-6">
+              {/* slot_only notice */}
+              {servicePackage === "slot_only" && (
+                <div className="flex items-start gap-3 bg-purple-50 border border-purple-200 rounded-xl p-4 text-sm text-purple-800">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-purple-500" />
+                  <p>
+                    <strong>Package Créneau Uniquement :</strong> Le client a déclaré que son dossier est déjà constitué.
+                    Les documents ci-dessous sont <strong>optionnels</strong> sur la plateforme — ils peuvent être soumis directement au consulat par le client.
+                  </p>
+                </div>
+              )}
+
               {/* Client documents */}
               <div>
                 <p className="text-xs font-semibold text-muted-foreground uppercase mb-3">Documents du client</p>

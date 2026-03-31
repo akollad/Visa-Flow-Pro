@@ -704,6 +704,18 @@ export default function ClientApplicationDetail() {
                   {docs.filter((d) => !d.isAdminUpload).length}/{pricing.requiredDocuments.length} fourni(s)
                 </span>
               </div>
+
+              {/* slot_only notice */}
+              {servicePackage === "slot_only" && (
+                <div className="flex items-start gap-3 bg-purple-50 border border-purple-200 rounded-xl p-4 text-sm text-purple-800 mb-4">
+                  <span className="text-lg">📅</span>
+                  <p>
+                    <strong>Package Créneau Uniquement :</strong> Vous avez indiqué que votre dossier est déjà constitué.
+                    Les documents ci-dessous sont <strong>optionnels</strong> — vous pouvez les soumettre directement au consulat.
+                  </p>
+                </div>
+              )}
+
               <div>
                 {pricing.requiredDocuments.map((doc) => {
                   const uploaded = docs.find((d) => d.docKey === doc.key && !d.isAdminUpload);

@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { VISA_PRICING, type Destination, type ServicePackage } from "./constants";
+import { VISA_PRICING, getAvailablePackages, type Destination, type ServicePackage } from "./constants";
 
 function getRole(identity: { [key: string]: unknown } | null): string {
   if (!identity) return "client";
@@ -100,7 +100,11 @@ export const create = mutation({
     returnDate: v.optional(v.string()),
     purpose: v.string(),
     notes: v.optional(v.string()),
-    servicePackage: v.optional(v.string()),
+    servicePackage: v.optional(v.union(
+      v.literal("full_service"),
+      v.literal("slot_only"),
+      v.literal("dossier_only")
+    )),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -110,7 +114,15 @@ export const create = mutation({
     const pricing = VISA_PRICING[destKey];
     if (!pricing) throw new Error("Destination non supportée");
 
-    const pkg = (args.servicePackage ?? "full_service") as ServicePackage;
+    const pkg: ServicePackage = args.servicePackage ?? "full_service";
+
+    const allowedPackages = getAvailablePackages(destKey);
+    if (!allowedPackages.includes(pkg)) {
+      throw new Error(
+        `Le package "${pkg}" n'est pas disponible pour la destination "${args.destination}". Packages disponibles : ${allowedPackages.join(", ")}.`
+      );
+    }
+
     const isDossierOnly = pkg === "dossier_only";
 
     const priceDetails = {

@@ -428,6 +428,10 @@ export const completeDossierOnly = mutation({
       throw new Error("Ce dossier est déjà complété.");
     }
 
+    if (!app.priceDetails?.isEngagementPaid) {
+      throw new Error("Les frais d'engagement doivent être validés avant de compléter le dossier.");
+    }
+
     const priceDetails = app.priceDetails ?? {
       engagementFee: 0,
       successFee: 0,
