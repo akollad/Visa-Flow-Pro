@@ -9,6 +9,7 @@ const USA_LOGIN_URL = `${USA_BASE}/identity/user/login`;
 const USA_REFRESH_URL = `${USA_BASE}/identity/user/refreshToken`;
 const USA_PAYMENT_URL = `${USA_BASE}/visaworkflowprocessor/workflow/getUserHistoryApplicantPaymentStatus`;
 const USA_APPT_REQUESTS_URL = `${USA_BASE}/visauserapi/appointmentrequest/getallbyuser`;
+// nosemgrep: generic-api-key — clé reCAPTCHA v2 publique, visible dans le HTML de usvisaappt.com, non secrète
 const USA_SITE_KEY = "6LdVVDAqAAAAAK4DS06UwosT8o1SA_3WhzUDAWAp";
 const USA_LOGIN_PAGE = "https://www.usvisaappt.com/visaapplicantui/login";
 const USA_MISSION_ID = 323;
