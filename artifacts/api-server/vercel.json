@@ -1,7 +1,0 @@
-{
-  "buildCommand": "cd ../.. && pnpm install --frozen-lockfile",
-  "installCommand": "echo 'skip'",
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/api" }
-  ]
-}

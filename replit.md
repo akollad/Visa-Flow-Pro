@@ -19,7 +19,6 @@ Premium visa assistance SaaS for the Democratic Republic of Congo (RDC/DRC).
 - **Real-time DB**: Convex (queries, mutations, real-time subscriptions)
 - **Forms**: react-hook-form + @hookform/resolvers + zod
 - **Charts**: recharts
-- **API server**: Express 5 (kept for health-check only)
 - **Routing**: Wouter (SPA)
 
 ## Architecture
@@ -28,7 +27,6 @@ Premium visa assistance SaaS for the Democratic Republic of Congo (RDC/DRC).
 workspace/
 ├── artifacts/
 │   ├── joventy/              # Frontend React + Vite (main app)
-│   ├── api-server/           # Express server (health-check only)
 │   └── slot-hunter/          # Autonomous Playwright bot (run on Railway)
 │       ├── src/
 │       │   ├── index.ts          # Main loop (priority queue, jitter intervals)
