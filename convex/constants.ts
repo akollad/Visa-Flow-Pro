@@ -22,9 +22,11 @@ export const VISA_PRICING = {
     portalAppointmentUrl: "https://www.usvisaappt.com/visaapplicantui/home/appointment/myappointment",
     portalScheduleUrl: "https://www.usvisaappt.com/visaapplicantui/home/dashboard/Appointment-scheduled",
     apiBaseUrl: "https://www.usvisaappt.com/visauserapi",
+    apiAdminBaseUrl: "https://www.usvisaappt.com/visaadministrationapi/v1",
     apiAuthProvider: "aws-cognito",
     apiUserProfileEndpoint: "/portal/getuser",
     apiAppointmentsEndpoint: "/portal/getappointments",
+    apiAppointmentRequestsEndpoint: "/appointmentrequest/getallbyuser",
     missionId: 323,
     appointmentStatusCodes: {
       pending: 2,
