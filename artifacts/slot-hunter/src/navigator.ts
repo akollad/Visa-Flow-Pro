@@ -3,7 +3,9 @@ import { launchBrowser, humanType, humanClick, humanScroll, randomDelay, isDryRu
 import { detectAndSolveCaptcha } from "./captcha.js";
 import { reportSlotFound, sendHeartbeat, uploadScreenshot, type HunterJob } from "./convexClient.js";
 
-const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
+function getSessionTimeoutMs(): number {
+  return Math.round((3 + Math.random() * 2) * 60 * 1000);
+}
 
 export type SessionResult = "slot_found" | "not_found" | "captcha" | "error" | "login_failed";
 
@@ -88,6 +90,15 @@ async function loginToPortal(
   await humanClick(page, submitSelector);
   await randomDelay(2000, 4000);
 
+  const postSubmitCaptcha = await detectAndSolveCaptcha(page, job.hunterConfig.twoCaptchaApiKey);
+  if (postSubmitCaptcha === "no_key" || postSubmitCaptcha === "failed") {
+    console.warn("[navigator] CAPTCHA appeared after submit — not login failure");
+    return "captcha";
+  }
+  if (postSubmitCaptcha === "solved") {
+    await randomDelay(1500, 3000);
+  }
+
   const currentUrl = page.url();
   if (
     currentUrl.includes("login") &&
@@ -111,7 +122,7 @@ async function loginToPortal(
 async function scanForAvailableSlots(
   page: Page,
   job: HunterJob
-): Promise<SlotInfo | null> {
+): Promise<SlotInfo | null | "captcha"> {
   const scheduleUrl =
     job.hunterConfig.scheduleUrl ??
     job.portalScheduleUrl ??
@@ -142,6 +153,12 @@ async function scanForAvailableSlots(
     console.log(`[navigator] Navigating to schedule page: ${scheduleUrl}`);
     await page.goto(scheduleUrl, { waitUntil: "networkidle", timeout: 30000 });
     await randomDelay(2000, 4000);
+  }
+
+  const scheduleCaptcha = await detectAndSolveCaptcha(page, job.hunterConfig.twoCaptchaApiKey);
+  if (scheduleCaptcha === "no_key" || scheduleCaptcha === "failed") {
+    console.warn("[navigator] CAPTCHA on schedule page — signaling captcha result");
+    return "captcha";
   }
 
   await humanScroll(page);
@@ -321,6 +338,13 @@ export async function runHunterSession(job: HunterJob): Promise<SessionResult> {
 
       const slot = await scanForAvailableSlots(page, job);
 
+      if (slot === "captcha") {
+        console.warn(`[navigator] CAPTCHA on schedule page for ${job.applicantName}`);
+        await logoutFromPortal(page);
+        await sendHeartbeat({ applicationId: job.id, result: "captcha" });
+        return "captcha";
+      }
+
       if (slot) {
         console.log(`[navigator] Slot FOUND for ${job.applicantName}: ${slot.date} ${slot.time}`);
         const screenshotId = await captureAndUploadScreenshot(page);
@@ -363,7 +387,9 @@ export async function runHunterSession(job: HunterJob): Promise<SessionResult> {
   })();
 
   try {
-    return await withTimeout(sessionPromise, SESSION_TIMEOUT_MS);
+    const sessionTimeoutMs = getSessionTimeoutMs();
+    console.log(`[navigator] Session timeout set to ${Math.round(sessionTimeoutMs / 60000 * 10) / 10}min for ${job.applicantName}`);
+    return await withTimeout(sessionPromise, sessionTimeoutMs);
   } catch (timeoutErr) {
     console.error(`[navigator] Session timed out for ${job.applicantName}`);
     try {
