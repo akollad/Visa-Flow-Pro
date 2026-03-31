@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -29,10 +29,10 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 const DESTINATIONS = [
-  { id: "usa", name: "États-Unis", desc: "Visas non-immigrants et immigrants" },
-  { id: "dubai", name: "Dubaï", desc: "Visas touristiques et résidents" },
-  { id: "turkey", name: "Turquie", desc: "E-Visa et consulaire" },
-  { id: "india", name: "Inde", desc: "Visas électroniques et standards" },
+  { id: "usa",    name: "États-Unis", desc: "Rendez-vous consulaire — ambassade américaine", processType: "appointment" as const },
+  { id: "dubai",  name: "Dubaï",      desc: "E-Visa 100 % en ligne — résultat en 48-72 h", processType: "evisa" as const },
+  { id: "turkey", name: "Turquie",    desc: "E-Visa en ligne ou Visa Sticker via VFS Global", processType: "hybrid" as const },
+  { id: "india",  name: "Inde",       desc: "E-Visa électronique ou visa régulier (études)", processType: "evisa" as const },
 ];
 
 const PACKAGE_ICONS: Record<string, React.ElementType> = {
@@ -40,6 +40,91 @@ const PACKAGE_ICONS: Record<string, React.ElementType> = {
   slot_only: Calendar,
   dossier_only: ClipboardList,
 };
+
+type PkgInfo = { label: string; tagline: string; description: string; slotNote?: string };
+
+function getPackageInfo(
+  pkgKey: ServicePackage,
+  destination: string | undefined,
+  visaType: string,
+  pricing: (typeof VISA_PRICING)[keyof typeof VISA_PRICING] | null,
+): PkgInfo {
+  const base = SERVICE_PACKAGES[pkgKey];
+  if (!destination || !pricing) {
+    return { label: base.label, tagline: base.tagline, description: base.description };
+  }
+
+  const isTurkeyEvisa = destination === "turkey" && visaType.toLowerCase().includes("e-visa");
+  const isEvisa = pricing.successModel === "evisa" || isTurkeyEvisa;
+
+  if (pkgKey === "full_service") {
+    if (isEvisa) {
+      const name =
+        destination === "turkey" ? "e-Visa Turquie" :
+        destination === "dubai"  ? "visa électronique EAU (GDRFA)" :
+                                   "e-Visa Inde";
+      return {
+        label: base.label,
+        tagline: "Clé en main",
+        description: `Joventy s'occupe de tout : constitution du dossier et obtention de votre ${name}. Soumission 100 % en ligne — aucun rendez-vous nécessaire.`,
+      };
+    }
+    const creneauLabel =
+      destination === "usa"
+        ? "créneau à l'ambassade américaine de Kinshasa"
+        : "créneau de dépôt au centre VFS Global Kinshasa";
+    return {
+      label: base.label,
+      tagline: "Clé en main",
+      description: `Joventy gère votre dossier de A à Z : préparation complète des documents et recherche active d'un ${creneauLabel}. Vous n'avez qu'à vous présenter.`,
+    };
+  }
+
+  if (pkgKey === "slot_only") {
+    if (destination === "usa") {
+      return {
+        label: "Créneau Ambassade",
+        tagline: "Rendez-vous uniquement",
+        description: "Votre DS-160 est soumis et les frais MRV acquittés ? Joventy se concentre uniquement sur la capture d'un créneau disponible à l'ambassade américaine.",
+        slotNote: "Prérequis : DS-160 soumis + frais MRV (185 $) payés.",
+      };
+    }
+    if (destination === "turkey") {
+      return {
+        label: "Créneau VFS",
+        tagline: "Dépôt uniquement",
+        description: "Votre dossier est complet ? Joventy réserve votre créneau de dépôt au centre VFS Global Kinshasa pour votre Visa Sticker Turquie.",
+        slotNote: "Pour le Visa Sticker (VFS) uniquement — pas applicable à l'e-Visa.",
+      };
+    }
+    return { label: base.label, tagline: base.tagline, description: base.description };
+  }
+
+  if (pkgKey === "dossier_only") {
+    if (isEvisa) {
+      const portal =
+        destination === "dubai"  ? "portail officiel GDRFA / ICP" :
+        destination === "india"  ? "portail e-Visa indien" :
+                                   "portail e-Visa Turquie";
+      return {
+        label: base.label,
+        tagline: base.tagline,
+        description: `Joventy prépare et vérifie votre dossier de demande. Vous soumettez ensuite directement sur le ${portal}. Tarif fixe — aucune prime de succès.`,
+      };
+    }
+    const rdv =
+      destination === "usa"
+        ? "à l'ambassade américaine"
+        : "au centre VFS Global";
+    return {
+      label: base.label,
+      tagline: base.tagline,
+      description: `Joventy constitue et vérifie intégralement votre dossier de visa ${pricing.label}. Vous gérez ensuite votre rendez-vous ${rdv} de façon autonome. Tarif fixe — aucune prime de succès.`,
+    };
+  }
+
+  return { label: base.label, tagline: base.tagline, description: base.description };
+}
 
 export default function NewApplication() {
   const [step, setStep] = useState(1);
@@ -64,10 +149,20 @@ export default function NewApplication() {
   });
 
   const selectedDest = form.watch("destination");
+  const selectedVisaType = form.watch("visaType");
   const pricing = selectedDest ? VISA_PRICING[selectedDest] : null;
-  const availablePackages = selectedDest ? getAvailablePackages(selectedDest) : (["full_service", "dossier_only"] as ServicePackage[]);
+  const isTurkeyEvisa = selectedDest === "turkey" && selectedVisaType.toLowerCase().includes("e-visa");
+  const isEvisaFlow = (pricing?.successModel === "evisa") || isTurkeyEvisa;
+  const basePackages = selectedDest ? getAvailablePackages(selectedDest) : (["full_service", "dossier_only"] as ServicePackage[]);
+  const availablePackages = basePackages.filter((p) => !(p === "slot_only" && isTurkeyEvisa));
   const isDossierOnly = selectedPackage === "dossier_only";
   const [isPending, setIsPending] = useState(false);
+
+  useEffect(() => {
+    if (isTurkeyEvisa && selectedPackage === "slot_only") {
+      setSelectedPackage("full_service");
+    }
+  }, [isTurkeyEvisa, selectedPackage]);
 
   const effectiveSuccessFee = isDossierOnly ? 0 : (pricing?.successFee ?? 0);
   const effectiveTotal = isDossierOnly ? (pricing?.engagementFee ?? 0) : (pricing?.total ?? 0);
@@ -170,7 +265,18 @@ export default function NewApplication() {
                                 : "border-border hover:border-primary/20"
                             }`}
                           >
-                            <div className="font-bold text-primary">{dest.name}</div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-primary">{dest.name}</span>
+                              {dest.processType === "evisa" && (
+                                <span className="text-[10px] bg-green-100 text-green-700 font-semibold px-1.5 py-0.5 rounded-full uppercase tracking-wide">E-Visa</span>
+                              )}
+                              {dest.processType === "appointment" && (
+                                <span className="text-[10px] bg-blue-100 text-blue-700 font-semibold px-1.5 py-0.5 rounded-full uppercase tracking-wide">Consulaire</span>
+                              )}
+                              {dest.processType === "hybrid" && (
+                                <span className="text-[10px] bg-amber-100 text-amber-700 font-semibold px-1.5 py-0.5 rounded-full uppercase tracking-wide">E-Visa / VFS</span>
+                              )}
+                            </div>
                             <div className="text-sm text-muted-foreground mt-1">{dest.desc}</div>
                             {VISA_PRICING[dest.id as keyof typeof VISA_PRICING] && (
                               <div className="mt-2 text-xs text-primary/70 font-medium">
@@ -220,9 +326,15 @@ export default function NewApplication() {
               <p className="text-sm text-muted-foreground mb-4">
                 Sélectionnez le niveau de service qui correspond à votre situation.
               </p>
+              {isTurkeyEvisa && (
+                <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+                  <span className="font-semibold">e-Visa Turquie :</span>
+                  <span>Ce visa est traité entièrement en ligne — le package "Créneau VFS" n'est pas applicable.</span>
+                </div>
+              )}
               <div className="space-y-4">
                 {availablePackages.map((pkgKey) => {
-                  const pkg = SERVICE_PACKAGES[pkgKey];
+                  const pkgInfo = getPackageInfo(pkgKey, selectedDest, selectedVisaType, pricing);
                   const isSelected = selectedPackage === pkgKey;
                   const isRecommended = pkgKey === "full_service";
                   return (
@@ -244,19 +356,29 @@ export default function NewApplication() {
                         {(() => { const Icon = PACKAGE_ICONS[pkgKey] ?? Star; return <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 bg-primary/10"><Icon className="w-5 h-5 text-primary" /></div>; })()}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <p className="font-bold text-primary text-base">{pkg.label}</p>
+                            <p className="font-bold text-primary text-base">{pkgInfo.label}</p>
                             {pkgKey === "slot_only" && (
                               <span className="text-[10px] bg-purple-100 text-purple-700 font-semibold px-2 py-0.5 rounded-full uppercase">
-                                {pkg.tagline}
+                                {pkgInfo.tagline}
                               </span>
                             )}
                             {pkgKey === "dossier_only" && (
                               <span className="text-[10px] bg-blue-100 text-blue-700 font-semibold px-2 py-0.5 rounded-full uppercase">
-                                {pkg.tagline}
+                                {pkgInfo.tagline}
+                              </span>
+                            )}
+                            {isEvisaFlow && pkgKey === "full_service" && (
+                              <span className="text-[10px] bg-green-100 text-green-700 font-semibold px-2 py-0.5 rounded-full uppercase">
+                                100 % en ligne
                               </span>
                             )}
                           </div>
-                          <p className="text-sm text-muted-foreground leading-relaxed">{pkg.description}</p>
+                          <p className="text-sm text-muted-foreground leading-relaxed">{pkgInfo.description}</p>
+                          {pkgInfo.slotNote && (
+                            <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-2 py-1 mt-2 font-medium">
+                              {pkgInfo.slotNote}
+                            </p>
+                          )}
                           {pricing && (
                             <div className="mt-3 flex flex-wrap gap-3">
                               <div className="text-xs bg-slate-100 rounded-lg px-3 py-1.5">
@@ -347,15 +469,18 @@ export default function NewApplication() {
               </h2>
 
               {/* Package reminder badge */}
-              {pricing && (
-                <div className="flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 mb-2">
-                  {(() => { const Icon = PACKAGE_ICONS[selectedPackage] ?? Star; return <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-primary/10"><Icon className="w-4 h-4 text-primary" /></div>; })()}
-                  <div>
-                    <p className="text-sm font-bold text-primary">{SERVICE_PACKAGES[selectedPackage].label}</p>
-                    <p className="text-xs text-muted-foreground">{SERVICE_PACKAGES[selectedPackage].description}</p>
+              {pricing && (() => {
+                const info = getPackageInfo(selectedPackage, selectedDest, selectedVisaType, pricing);
+                return (
+                  <div className="flex items-start gap-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 mb-2">
+                    {(() => { const Icon = PACKAGE_ICONS[selectedPackage] ?? Star; return <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 bg-primary/10"><Icon className="w-4 h-4 text-primary" /></div>; })()}
+                    <div>
+                      <p className="text-sm font-bold text-primary">{info.label}</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">{info.description}</p>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Pricing table */}
               {pricing && (
