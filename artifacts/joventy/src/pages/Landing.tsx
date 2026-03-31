@@ -1,4 +1,6 @@
 import { Link } from "wouter";
+import { useQuery } from "convex/react";
+import { api } from "@convex/_generated/api";
 import { Navbar } from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
 import { JoventyLogo } from "@/components/JoventyLogo";
@@ -170,6 +172,18 @@ const GUARANTEES = [
 ];
 
 export default function Landing() {
+  const liveReviews = useQuery(api.reviews.listApproved);
+
+  const testimonialsToShow = liveReviews && liveReviews.length > 0
+    ? liveReviews.map((r) => ({
+        name: r.displayName,
+        city: r.city,
+        dest: r.destination,
+        text: r.comment,
+        stars: r.rating,
+      }))
+    : TESTIMONIALS;
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -449,8 +463,11 @@ export default function Landing() {
             </div>
           </div>
 
+          {liveReviews && liveReviews.length === 0 && (
+            <p className="text-center text-xs text-muted-foreground mb-4 italic">Exemples d'avis · Les vôtres apparaîtront ici après validation</p>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {TESTIMONIALS.map((t) => (
+            {testimonialsToShow.map((t) => (
               <div key={t.name} className="bg-muted rounded-2xl p-7 border border-border flex flex-col">
                 <div className="flex items-center gap-1 mb-4">
                   {[...Array(t.stars)].map((_, i) => (

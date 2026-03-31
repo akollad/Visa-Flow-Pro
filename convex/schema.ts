@@ -104,6 +104,21 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_updated", ["updatedAt"]),
 
+  reviews: defineTable({
+    applicationId: v.id("applications"),
+    userId: v.string(),
+    displayName: v.string(),
+    city: v.string(),
+    destination: v.string(),
+    rating: v.number(),
+    comment: v.string(),
+    isApproved: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_application", ["applicationId"])
+    .index("by_approved", ["isApproved"]),
+
   messages: defineTable({
     applicationId: v.id("applications"),
     senderId: v.string(),

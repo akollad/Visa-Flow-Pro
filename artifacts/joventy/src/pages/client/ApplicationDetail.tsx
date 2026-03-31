@@ -10,11 +10,12 @@ import { formatDate, formatDateOnly, formatCurrency } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { ReviewModal } from "@/components/ReviewModal";
 import {
   Send, Calendar, Plane, CreditCard, ShieldCheck,
   CheckCircle2, Clock, Star, Download, ArrowRight,
   FileText, Search, Lock, XCircle, Upload, Loader2, Eye,
-  Sparkles, ClipboardCheck, Stamp
+  Sparkles, ClipboardCheck, Stamp, MessageSquareHeart
 } from "lucide-react";
 
 type Application = Doc<"applications">;
@@ -319,6 +320,7 @@ export default function ClientApplicationDetail() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [msgText, setMsgText] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
 
   const app = useQuery(api.applications.get, appId ? { id: appId } : "skip");
   const messages = useQuery(api.messages.list, appId ? { applicationId: appId } : "skip") ?? [];
@@ -477,6 +479,30 @@ export default function ClientApplicationDetail() {
             {app.rejectionReason && <p className="text-sm text-red-600 mb-1">{app.rejectionReason}</p>}
             <p className="text-sm text-red-500">Contactez notre équipe via le chat pour plus d'informations.</p>
           </div>
+        </div>
+      )}
+
+      {/* ---- Avis client (dossier complété) ---- */}
+      {isCompleted && appId && (
+        <div className="bg-green-50 border-2 border-green-300 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
+              <MessageSquareHeart className="w-5 h-5 text-green-600" />
+            </div>
+            <div>
+              <h3 className="font-bold text-green-900">Félicitations pour votre dossier !</h3>
+              <p className="text-sm text-green-700 mt-0.5">
+                Votre expérience peut aider d'autres voyageurs congolais. Partagez votre avis ?
+              </p>
+            </div>
+          </div>
+          <Button
+            onClick={() => setShowReviewModal(true)}
+            className="bg-green-600 hover:bg-green-700 text-white font-semibold px-5 h-10 flex-shrink-0 gap-2"
+          >
+            <Star className="w-4 h-4" />
+            Donner mon avis
+          </Button>
         </div>
       )}
 
@@ -858,6 +884,14 @@ export default function ClientApplicationDetail() {
           </form>
         </div>
       </div>
+
+      {showReviewModal && appId && (
+        <ReviewModal
+          applicationId={appId}
+          destination={`${pricing?.flag ?? ""} ${app.visaType}`}
+          onClose={() => setShowReviewModal(false)}
+        />
+      )}
     </div>
   );
 }

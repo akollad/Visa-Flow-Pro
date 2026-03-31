@@ -31,6 +31,7 @@ import AdminApplications from "@/pages/admin/Applications";
 import AdminApplicationDetail from "@/pages/admin/ApplicationDetail";
 import AdminClients from "@/pages/admin/Clients";
 import AdminMessages from "@/pages/admin/Messages";
+import AdminReviews from "@/pages/admin/Reviews";
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
 const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string;
@@ -110,6 +111,9 @@ function Router() {
       </Route>
       <Route path="/admin/messages">
         {() => <ProtectedRoute adminOnly component={AdminMessages} />}
+      </Route>
+      <Route path="/admin/reviews">
+        {() => <ProtectedRoute adminOnly component={AdminReviews} />}
       </Route>
 
       <Route component={NotFound} />

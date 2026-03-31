@@ -11,6 +11,7 @@ import {
   LogOut,
   ChevronRight,
   MessageCircle,
+  MessageSquareHeart,
   Menu,
   X,
 } from "lucide-react";
@@ -34,11 +35,15 @@ export function DashboardLayout({ children, isAdmin = false }: DashboardLayoutPr
     { href: "/dashboard/messages", label: "Messagerie", icon: MessageCircle, badge: unreadTotal },
   ];
 
+  const pendingReviews = useQuery(api.reviews.listAll);
+  const pendingReviewCount = pendingReviews?.filter((r) => !r.isApproved).length ?? 0;
+
   const adminLinks = [
     { href: "/admin", label: "Tableau de Bord", icon: LayoutDashboard },
     { href: "/admin/applications", label: "Tous les Dossiers", icon: FileText },
     { href: "/admin/clients", label: "Clients", icon: Users },
     { href: "/admin/messages", label: "Messagerie", icon: MessageCircle, badge: unreadTotal },
+    { href: "/admin/reviews", label: "Avis Clients", icon: MessageSquareHeart, badge: pendingReviewCount },
   ];
 
   const links = isAdmin ? adminLinks : clientLinks;
