@@ -24,6 +24,13 @@ export const VISA_PRICING = {
     apiBaseUrl: "https://www.usvisaappt.com/visauserapi",
     apiAuthProvider: "aws-cognito",
     apiUserProfileEndpoint: "/portal/getuser",
+    apiAppointmentsEndpoint: "/portal/getappointments",
+    missionId: 323,
+    appointmentStatusCodes: {
+      pending: 2,
+      scheduled: 1,
+      cancelled: 0,
+    },
     processingType: "appointment",
     successCopy: {
       triggerLabel: "Créneau capturé",
