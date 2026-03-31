@@ -70,6 +70,12 @@ export default defineSchema({
       v.literal("slot_only"),
       v.literal("dossier_only")
     )),
+    slotUrgencyTier: v.optional(v.union(
+      v.literal("standard"),
+      v.literal("prioritaire"),
+      v.literal("urgent"),
+      v.literal("tres_urgent")
+    )),
   })
     .index("by_user", ["userId"])
     .index("by_status", ["status"])

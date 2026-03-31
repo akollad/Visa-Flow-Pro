@@ -106,6 +106,51 @@ export type Destination = keyof typeof VISA_PRICING;
 export type SuccessModel = "appointment" | "evisa";
 export type ServicePackage = "full_service" | "slot_only" | "dossier_only";
 
+export const SLOT_URGENCY_TIERS = {
+  standard: {
+    key: "standard" as const,
+    label: "Standard",
+    tagline: "> 3 mois",
+    desc: "Date souhaitée dans plus de 3 mois",
+    depositAmount: 50,
+    successAmount: 100,
+    total: 150,
+    variableNote: null,
+  },
+  prioritaire: {
+    key: "prioritaire" as const,
+    label: "Prioritaire",
+    tagline: "1 à 3 mois",
+    desc: "Date souhaitée dans 1 à 3 mois",
+    depositAmount: 80,
+    successAmount: 170,
+    total: 250,
+    variableNote: null,
+  },
+  urgent: {
+    key: "urgent" as const,
+    label: "Urgent",
+    tagline: "15 à 30 jours",
+    desc: "Date souhaitée dans 15 à 30 jours",
+    depositAmount: 100,
+    successAmount: 250,
+    total: 350,
+    variableNote: null,
+  },
+  tres_urgent: {
+    key: "tres_urgent" as const,
+    label: "Très Urgent",
+    tagline: "< 15 jours / ASAP",
+    desc: "Date souhaitée dans moins de 15 jours ou dès que possible",
+    depositAmount: 150,
+    successAmount: 300,
+    total: 450,
+    variableNote: "Prime indicative — peut dépasser 450 $ selon disponibilité. Confirmée par Joventy.",
+  },
+} as const;
+
+export type SlotUrgencyTier = keyof typeof SLOT_URGENCY_TIERS;
+
 export const SERVICE_PACKAGES = {
   full_service: {
     key: "full_service" as const,

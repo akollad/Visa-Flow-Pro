@@ -3,7 +3,7 @@ import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Id } from "@convex/_generated/dataModel";
-import { MOBILE_MONEY_INFO, VISA_PRICING, SERVICE_PACKAGES } from "@convex/constants";
+import { MOBILE_MONEY_INFO, VISA_PRICING, SERVICE_PACKAGES, SLOT_URGENCY_TIERS, type SlotUrgencyTier } from "@convex/constants";
 import { formatCurrency } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -37,6 +37,9 @@ export default function PaymentGate() {
   const isEvisaModel = effectiveModel === "evisa";
   const servicePackage = (app as { servicePackage?: string } | undefined)?.servicePackage ?? "full_service";
   const isDossierOnly = servicePackage === "dossier_only";
+  const isSlotOnly = servicePackage === "slot_only";
+  const urgencyTierKey = (app as { slotUrgencyTier?: string } | undefined)?.slotUrgencyTier as SlotUrgencyTier | undefined;
+  const urgencyTier = urgencyTierKey ? SLOT_URGENCY_TIERS[urgencyTierKey] : null;
 
   const amount =
     paymentType === "engagement"
@@ -117,7 +120,9 @@ export default function PaymentGate() {
         <h1 className="text-3xl font-serif font-bold text-primary">Paiement Mobile Money</h1>
         <p className="text-muted-foreground mt-1">
           {paymentType === "engagement"
-            ? "Réglez les frais d'engagement pour activer votre dossier."
+            ? isSlotOnly
+              ? "Réglez le versement de réservation pour confirmer votre demande de créneau."
+              : "Réglez les frais d'engagement pour activer votre dossier."
             : isEvisaModel
               ? "Réglez la prime de succès pour recevoir votre visa électronique."
               : "Réglez la prime de succès pour confirmer votre rendez-vous consulaire."}
@@ -127,18 +132,34 @@ export default function PaymentGate() {
       <div className="bg-primary text-white rounded-2xl p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <p className="text-slate-300 text-sm font-medium uppercase tracking-wide mb-1">
-            {paymentType === "engagement" ? "Frais d'engagement" : "Prime de succès"}
+            {paymentType === "engagement"
+              ? isSlotOnly ? "Versement de réservation (dépôt)" : "Frais d'engagement"
+              : isSlotOnly ? "Solde de la prime (créneau obtenu)" : "Prime de succès"}
           </p>
           <p className="text-4xl font-bold text-secondary">{formatCurrency(amount)}</p>
           <p className="text-slate-300 text-xs mt-1">
             Dossier : {app.destination.toUpperCase()} — {app.visaType}
+            {isSlotOnly && urgencyTier && ` — Urgence : ${urgencyTier.label}`}
           </p>
         </div>
         <div className="text-right">
-          <p className="text-xs text-slate-400 mb-1">Total du programme</p>
-          <p className="text-lg font-semibold text-white">{formatCurrency(app.price)}</p>
+          <p className="text-xs text-slate-400 mb-1">{isSlotOnly ? "Prime totale" : "Total du programme"}</p>
+          <p className="text-lg font-semibold text-white">{formatCurrency(app.price ?? 0)}</p>
         </div>
       </div>
+
+      {paymentType === "engagement" && isSlotOnly && (
+        <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 text-sm text-purple-800 flex items-start gap-3">
+          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="font-semibold mb-1">Versement de réservation — Créneau Uniquement</p>
+            <p>Ce versement initial de <strong>{formatCurrency(amount)}</strong> confirme votre demande.
+            {" "}Le solde de <strong>{formatCurrency(app.priceDetails?.successFee ?? 0)}</strong> sera dû
+            uniquement si Joventy obtient votre créneau de rendez-vous.</p>
+            {urgencyTier && <p className="mt-1.5 text-xs text-purple-600 font-medium">Niveau d'urgence : {urgencyTier.label} — {urgencyTier.desc}</p>}
+          </div>
+        </div>
+      )}
 
       {paymentType === "engagement" && isDossierOnly && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800 flex items-start gap-3">
@@ -150,7 +171,7 @@ export default function PaymentGate() {
         </div>
       )}
 
-      {paymentType === "engagement" && !isDossierOnly && (
+      {paymentType === "engagement" && !isDossierOnly && !isSlotOnly && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800 flex items-start gap-3">
           <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
           <p>

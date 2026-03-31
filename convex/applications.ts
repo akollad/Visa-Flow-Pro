@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { VISA_PRICING, getAvailablePackages, type Destination, type ServicePackage } from "./constants";
+import { VISA_PRICING, SLOT_URGENCY_TIERS, getAvailablePackages, type Destination, type ServicePackage, type SlotUrgencyTier } from "./constants";
 
 function getRole(identity: { [key: string]: unknown } | null): string {
   if (!identity) return "client";
@@ -105,6 +105,12 @@ export const create = mutation({
       v.literal("slot_only"),
       v.literal("dossier_only")
     )),
+    slotUrgencyTier: v.optional(v.union(
+      v.literal("standard"),
+      v.literal("prioritaire"),
+      v.literal("urgent"),
+      v.literal("tres_urgent")
+    )),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -124,16 +130,38 @@ export const create = mutation({
     }
 
     const isDossierOnly = pkg === "dossier_only";
+    const isSlotOnly = pkg === "slot_only";
+
+    // Slot-only uses urgency-tier pricing (prime split into deposit + success)
+    let engagementFee: number;
+    let successFee: number;
+    let totalPrice: number;
+
+    if (isSlotOnly) {
+      const tier: SlotUrgencyTier = (args.slotUrgencyTier ?? "standard") as SlotUrgencyTier;
+      const tierData = SLOT_URGENCY_TIERS[tier];
+      engagementFee = tierData.depositAmount;
+      successFee = tierData.successAmount;
+      totalPrice = tierData.total;
+    } else {
+      engagementFee = pricing.engagementFee;
+      successFee = isDossierOnly ? 0 : pricing.successFee;
+      totalPrice = isDossierOnly ? pricing.engagementFee : pricing.total;
+    }
 
     const priceDetails = {
-      engagementFee: pricing.engagementFee,
-      successFee: isDossierOnly ? 0 : pricing.successFee,
+      engagementFee,
+      successFee,
       paidAmount: 0,
       isEngagementPaid: false,
       isSuccessFeePaid: isDossierOnly,
     };
 
-    const { servicePackage: _sp, ...appArgs } = args;
+    const { servicePackage: _sp, slotUrgencyTier: _sut, ...appArgs } = args;
+
+    const tierLabel = isSlotOnly
+      ? ` — Urgence : ${SLOT_URGENCY_TIERS[(args.slotUrgencyTier ?? "standard") as SlotUrgencyTier].label}. Dépôt : ${engagementFee}$ / Solde : ${successFee}$`
+      : isDossierOnly ? " (tarif fixe, pas de prime de succès)" : "";
 
     const id = await ctx.db.insert("applications", {
       ...appArgs,
@@ -143,13 +171,14 @@ export const create = mutation({
       userEmail: identity.email,
       status: "awaiting_engagement_payment",
       isPaid: false,
-      price: isDossierOnly ? pricing.engagementFee : pricing.total,
+      price: totalPrice,
       priceDetails,
       successModel: pricing.successModel,
       servicePackage: pkg,
+      slotUrgencyTier: isSlotOnly ? ((args.slotUrgencyTier ?? "standard") as SlotUrgencyTier) : undefined,
       logs: [
         makeLog(
-          `Dossier créé pour ${pricing.label} — ${args.visaType}. Package : ${pkg}. Frais d'engagement : ${pricing.engagementFee}$${isDossierOnly ? " (tarif fixe, pas de prime de succès)" : ""}`,
+          `Dossier créé pour ${pricing.label} — ${args.visaType}. Package : ${pkg}.${tierLabel}`,
           identity.name ?? "client"
         ),
       ],

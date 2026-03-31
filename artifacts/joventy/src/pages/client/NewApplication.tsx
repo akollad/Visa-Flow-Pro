@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { VISA_PRICING, SERVICE_PACKAGES, getAvailablePackages, type ServicePackage } from "@convex/constants";
+import { VISA_PRICING, SERVICE_PACKAGES, SLOT_URGENCY_TIERS, getAvailablePackages, type ServicePackage, type SlotUrgencyTier } from "@convex/constants";
 import { formatCurrency } from "@/lib/format";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -129,6 +129,7 @@ function getPackageInfo(
 export default function NewApplication() {
   const [step, setStep] = useState(1);
   const [selectedPackage, setSelectedPackage] = useState<ServicePackage>("full_service");
+  const [selectedUrgencyTier, setSelectedUrgencyTier] = useState<SlotUrgencyTier>("standard");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
@@ -156,6 +157,8 @@ export default function NewApplication() {
   const basePackages = selectedDest ? getAvailablePackages(selectedDest) : (["full_service", "dossier_only"] as ServicePackage[]);
   const availablePackages = basePackages.filter((p) => !(p === "slot_only" && isTurkeyEvisa));
   const isDossierOnly = selectedPackage === "dossier_only";
+  const isSlotOnly = selectedPackage === "slot_only";
+  const activeTier = SLOT_URGENCY_TIERS[selectedUrgencyTier];
   const [isPending, setIsPending] = useState(false);
 
   useEffect(() => {
@@ -164,8 +167,9 @@ export default function NewApplication() {
     }
   }, [isTurkeyEvisa, selectedPackage]);
 
-  const effectiveSuccessFee = isDossierOnly ? 0 : (pricing?.successFee ?? 0);
-  const effectiveTotal = isDossierOnly ? (pricing?.engagementFee ?? 0) : (pricing?.total ?? 0);
+  const effectiveEngagementFee = isSlotOnly ? activeTier.depositAmount : (pricing?.engagementFee ?? 0);
+  const effectiveSuccessFee = isSlotOnly ? activeTier.successAmount : isDossierOnly ? 0 : (pricing?.successFee ?? 0);
+  const effectiveTotal = isSlotOnly ? activeTier.total : isDossierOnly ? (pricing?.engagementFee ?? 0) : (pricing?.total ?? 0);
 
   const onSubmit = async (data: FormValues) => {
     setIsPending(true);
@@ -180,6 +184,7 @@ export default function NewApplication() {
         purpose: data.purpose,
         notes: data.notes || undefined,
         servicePackage: selectedPackage,
+        slotUrgencyTier: isSlotOnly ? selectedUrgencyTier : undefined,
       });
       toast({ title: "Dossier créé !", description: "Réglez les frais d'engagement pour démarrer le traitement." });
       setLocation(`/dashboard/applications/${id}/payment`);
@@ -414,6 +419,74 @@ export default function NewApplication() {
                   );
                 })}
               </div>
+
+              {/* Urgency tier selector — slot_only only */}
+              {isSlotOnly && (
+                <div className="mt-6 animate-in fade-in slide-in-from-top-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Calendar className="w-4 h-4 text-secondary" />
+                    <h3 className="text-sm font-bold text-primary">Urgence du rendez-vous souhaité</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    La prime varie selon la rapidité requise : plus la date est proche, plus elle est élevée.
+                    Elle est divisée en deux versements — un dépôt maintenant, le solde lorsque le créneau est obtenu.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {(Object.keys(SLOT_URGENCY_TIERS) as SlotUrgencyTier[]).map((tierKey) => {
+                      const tier = SLOT_URGENCY_TIERS[tierKey];
+                      const isSelected = selectedUrgencyTier === tierKey;
+                      return (
+                        <div
+                          key={tierKey}
+                          onClick={() => setSelectedUrgencyTier(tierKey)}
+                          className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                            isSelected
+                              ? "border-secondary bg-orange-50/60 shadow-sm"
+                              : "border-border hover:border-primary/20 bg-white"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-bold text-primary text-sm">{tier.label}</span>
+                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full uppercase tracking-wide ${
+                                  tierKey === "tres_urgent" ? "bg-red-100 text-red-700" :
+                                  tierKey === "urgent" ? "bg-orange-100 text-orange-700" :
+                                  tierKey === "prioritaire" ? "bg-amber-100 text-amber-700" :
+                                  "bg-slate-100 text-slate-600"
+                                }`}>{tier.tagline}</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground mb-2">{tier.desc}</p>
+                              <div className="flex flex-wrap gap-2">
+                                <span className="text-xs bg-slate-100 rounded-lg px-2.5 py-1">
+                                  <span className="text-slate-500">Dépôt : </span>
+                                  <span className="font-bold text-primary">{formatCurrency(tier.depositAmount)}</span>
+                                </span>
+                                <span className="text-xs bg-slate-100 rounded-lg px-2.5 py-1">
+                                  <span className="text-slate-500">Solde : </span>
+                                  <span className="font-bold text-primary">{formatCurrency(tier.successAmount)}</span>
+                                </span>
+                                <span className="text-xs bg-primary/10 text-primary rounded-lg px-2.5 py-1 font-semibold">
+                                  Total : {formatCurrency(tier.total)}
+                                  {tierKey === "tres_urgent" && "+"}
+                                </span>
+                              </div>
+                            </div>
+                            <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 mt-1 transition-all ${
+                              isSelected ? "border-secondary bg-secondary" : "border-slate-300"
+                            }`}>
+                              {isSelected && <div className="w-full h-full flex items-center justify-center"><div className="w-1.5 h-1.5 rounded-full bg-white" /></div>}
+                            </div>
+                          </div>
+                          {tier.variableNote && (
+                            <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-2 py-1 mt-2">{tier.variableNote}</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* STEP 3 — Traveller info */}
@@ -485,14 +558,22 @@ export default function NewApplication() {
               {/* Pricing table */}
               {pricing && (
                 <div className="bg-primary rounded-xl p-6 text-white mb-2">
-                  <p className="text-secondary text-xs uppercase font-semibold tracking-wide mb-3">Structure tarifaire Joventy</p>
+                  <p className="text-secondary text-xs uppercase font-semibold tracking-wide mb-3">
+                    {isSlotOnly ? `Structure tarifaire — ${activeTier.label}` : "Structure tarifaire Joventy"}
+                  </p>
                   <div className="space-y-3">
                     <div className="flex justify-between items-center pb-3 border-b border-white/10">
                       <div>
-                        <p className="font-semibold">Frais d'engagement</p>
-                        <p className="text-xs text-slate-300">À payer maintenant pour activer le dossier</p>
+                        <p className="font-semibold">
+                          {isSlotOnly ? "Versement de réservation (dépôt)" : "Frais d'engagement"}
+                        </p>
+                        <p className="text-xs text-slate-300">
+                          {isSlotOnly
+                            ? "À payer maintenant pour confirmer votre demande"
+                            : "À payer maintenant pour activer le dossier"}
+                        </p>
                       </div>
-                      <span className="text-xl font-bold text-secondary">{formatCurrency(pricing.engagementFee)}</span>
+                      <span className="text-xl font-bold text-secondary">{formatCurrency(effectiveEngagementFee)}</span>
                     </div>
                     {isDossierOnly ? (
                       <div className="flex justify-between items-center text-green-300">
@@ -505,20 +586,31 @@ export default function NewApplication() {
                     ) : (
                       <div className="flex justify-between items-center">
                         <div>
-                          <p className="font-semibold">Prime de succès</p>
+                          <p className="font-semibold">
+                            {isSlotOnly ? "Solde de la prime (créneau obtenu)" : "Prime de succès"}
+                          </p>
                           <p className="text-xs text-slate-300">
-                            {pricing.successModel === "evisa"
-                              ? "Due uniquement si votre visa est obtenu"
-                              : "Due uniquement si votre créneau de RDV est obtenu"}
+                            {isSlotOnly
+                              ? "À régler uniquement si Joventy obtient votre créneau"
+                              : pricing.successModel === "evisa"
+                                ? "Due uniquement si votre visa est obtenu"
+                                : "Due uniquement si votre créneau de RDV est obtenu"}
                           </p>
                         </div>
                         <span className="text-xl font-bold text-white">{formatCurrency(effectiveSuccessFee)}</span>
                       </div>
                     )}
                     <div className="flex justify-between items-center pt-3 border-t border-white/10">
-                      <p className="font-bold text-lg">{isDossierOnly ? "Total (tarif fixe)" : "Total programme"}</p>
-                      <span className="text-2xl font-bold text-secondary">{formatCurrency(effectiveTotal)}</span>
+                      <p className="font-bold text-lg">
+                        {isDossierOnly ? "Total (tarif fixe)" : isSlotOnly ? "Prime totale" : "Total programme"}
+                      </p>
+                      <span className="text-2xl font-bold text-secondary">
+                        {formatCurrency(effectiveTotal)}{activeTier.variableNote && isSlotOnly ? "+" : ""}
+                      </span>
                     </div>
+                    {isSlotOnly && activeTier.variableNote && (
+                      <p className="text-xs text-amber-300 bg-white/5 rounded-lg px-3 py-2">{activeTier.variableNote}</p>
+                    )}
                   </div>
                 </div>
               )}
@@ -547,6 +639,9 @@ export default function NewApplication() {
                 <p><strong>Destination :</strong> {selectedDest?.toUpperCase()}</p>
                 <p><strong>Visa :</strong> {form.watch("visaType")}</p>
                 <p><strong>Package :</strong> {SERVICE_PACKAGES[selectedPackage].label}</p>
+                {isSlotOnly && (
+                  <p><strong>Urgence :</strong> {activeTier.label} — {activeTier.tagline}</p>
+                )}
                 <p><strong>Demandeur :</strong> {form.watch("applicantName")}</p>
                 <p><strong>Passeport :</strong> {form.watch("passportNumber")}</p>
               </div>
