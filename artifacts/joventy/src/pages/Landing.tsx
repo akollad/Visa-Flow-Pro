@@ -87,7 +87,7 @@ const PACKAGES = [
     features: [
       "Formulaires DS-160, MRV, VFS ou e-Visa",
       "Vérification complète des pièces justificatives",
-      "Recherche automatique de créneau (bot 24/7)",
+      "Recherche active de créneau consulaire",
       "Chat dédié avec un conseiller Joventy",
       "Prime de succès due uniquement si résultat",
     ],
@@ -100,7 +100,7 @@ const PACKAGES = [
     desc: "Vos formulaires sont remplis, vos frais MRV payés ? Joventy se concentre uniquement sur la capture d'un créneau disponible à l'ambassade (USA) ou au centre VFS (Turquie).",
     highlight: false,
     features: [
-      "Surveillance continue du portail (bot 24/7)",
+      "Surveillance continue du portail consulaire",
       "Alerte immédiate à la capture",
       "Disponible USA & Turquie VFS",
       "Niveaux d'urgence : Standard → Très urgent",
