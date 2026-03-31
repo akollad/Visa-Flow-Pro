@@ -29,7 +29,7 @@ export const VISA_PRICING = {
     apiAppointmentRequestsEndpoint: "/appointmentrequest/getallbyuser",
     missionId: 323,
     appointmentStatusCodes: {
-      pending: 2,
+      pendingPayment: 2,
       scheduled: 1,
       cancelled: 0,
     },

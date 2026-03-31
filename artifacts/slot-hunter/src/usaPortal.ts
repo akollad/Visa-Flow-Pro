@@ -153,7 +153,7 @@ export async function loginUsaPortal(
 }
 
 export async function checkUsaAppointmentRequestStatus(session: UsaSession): Promise<{
-  status: "pending_slot" | "scheduled" | "no_request" | "error";
+  status: "payment_required" | "scheduled" | "no_request" | "error";
   applicationId: string | null;
   pendingAppoStatus: number | null;
   primaryApplicant: string | null;
@@ -199,11 +199,11 @@ export async function checkUsaAppointmentRequestStatus(session: UsaSession): Pro
     };
   } else if (appoStatus === 2) {
     return {
-      status: "pending_slot",
+      status: "payment_required",
       applicationId: appId,
       pendingAppoStatus: 2,
       primaryApplicant: applicant,
-      message: `Demande de RDV active pour ${applicant} — en attente d'un créneau (applicationId: ${appId})`,
+      message: `Formulaire complet — paiement MRV (185$) non encore effectué par ${applicant}`,
     };
   } else {
     return {
@@ -211,7 +211,7 @@ export async function checkUsaAppointmentRequestStatus(session: UsaSession): Pro
       applicationId: appId,
       pendingAppoStatus: appoStatus,
       primaryApplicant: applicant,
-      message: `Aucune demande de RDV active (pendingAppoStatus: ${appoStatus})`,
+      message: `Aucune demande de RDV soumise (pendingAppoStatus: ${appoStatus})`,
     };
   }
 }
@@ -281,13 +281,23 @@ export async function runUsaApiSession(job: HunterJob): Promise<SessionResult> {
   }
 
   if (requestStatus.status === "no_request") {
-    console.warn(`[usa] Aucune demande de RDV active — ${requestStatus.message}`);
+    console.warn(`[usa] Aucune demande soumise : ${requestStatus.message}`);
     await sendHeartbeat({
       applicationId: job.id,
       result: "not_found",
       errorMessage: requestStatus.message,
     });
     return "not_found";
+  }
+
+  if (requestStatus.status === "payment_required") {
+    console.warn(`[usa] 💳 ${requestStatus.message}`);
+    await sendHeartbeat({
+      applicationId: job.id,
+      result: "payment_required",
+      errorMessage: requestStatus.message,
+    });
+    return "payment_required";
   }
 
   if (requestStatus.status === "scheduled") {
@@ -303,7 +313,7 @@ export async function runUsaApiSession(job: HunterJob): Promise<SessionResult> {
     return "slot_found";
   }
 
-  console.log(`[usa] Demande de RDV active (pendingAppoStatus=2) — recherche de créneaux...`);
+  console.log(`[usa] Paiement confirmé (pendingAppoStatus=1) — lancement scan créneaux...`);
 
   const slotResult = await scanUsaSlotsWithBrowser(job, session);
   return slotResult;
