@@ -16,7 +16,7 @@ export default function Confidentialite() {
       <h2>1. Responsable du traitement</h2>
       <p>
         Le responsable du traitement de vos données personnelles est :<br />
-        <strong>Akollad Groupe S.A.S.</strong>, holding technologique dont le siège est établi à
+        <strong>Akollad Groupe</strong>, holding technologique dont le siège est établi à
         Kinshasa, République Démocratique du Congo (RCCM : CD/KNG/RCCM/25-A-07960 —
         N° Impôt : A2557944L — ID : 01-J6100-N86614P).<br />
         Site groupe : <a href="https://akollad.com" target="_blank" rel="noreferrer">akollad.com</a> —

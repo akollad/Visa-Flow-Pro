@@ -10,12 +10,11 @@ export default function MentionsLegales() {
       <h2>1. Éditeur du site</h2>
       <p>
         Le site <strong>joventy.cd</strong> est un site vitrine institutionnel présentant un service
-        édité par <strong>Akollad Groupe S.A.S.</strong>, holding technologique de droit congolais
+        édité par <strong>Akollad Groupe</strong>, holding technologique de droit congolais
         dont le siège est établi à Kinshasa, République Démocratique du Congo.
       </p>
       <ul>
-        <li><strong>Dénomination sociale :</strong> Akollad Groupe S.A.S.</li>
-        <li><strong>Forme juridique :</strong> Société par Actions Simplifiée (S.A.S.)</li>
+        <li><strong>Dénomination sociale :</strong> Akollad Groupe</li>
         <li><strong>Siège social :</strong> Kinshasa, République Démocratique du Congo</li>
         <li><strong>RCCM :</strong> CD/KNG/RCCM/25-A-07960</li>
         <li><strong>Numéro d'Impôt :</strong> A2557944L</li>
@@ -27,7 +26,7 @@ export default function MentionsLegales() {
 
       <h2>2. Directeur de la publication</h2>
       <p>
-        Le directeur de la publication du site est le représentant légal d'Akollad Groupe S.A.S.
+        Le directeur de la publication du site est le représentant légal d'Akollad Groupe.
         Pour toute question relative au contenu du site, vous pouvez le contacter à l'adresse
         e-mail : <a href="mailto:contact@joventy.cd">contact@joventy.cd</a>.
       </p>
@@ -53,13 +52,13 @@ export default function MentionsLegales() {
       <h2>4. Propriété intellectuelle</h2>
       <p>
         L'ensemble du contenu du site joventy.cd (textes, images, logos, graphismes, icônes,
-        structure, logiciels, bases de données, etc.) est la propriété exclusive d'Akollad Groupe S.A.S.
+        structure, logiciels, bases de données, etc.) est la propriété exclusive d'Akollad Groupe
         ou de ses partenaires, et est protégé par les lois en vigueur sur la propriété intellectuelle.
       </p>
       <p>
         Toute reproduction, représentation, modification, publication ou adaptation de tout ou
         partie des éléments du site, quel que soit le moyen ou le procédé utilisé, est
-        <strong> interdite, sauf autorisation écrite préalable</strong> d'Akollad Groupe S.A.S.
+        <strong> interdite, sauf autorisation écrite préalable</strong> d'Akollad Groupe.
       </p>
       <p>
         Le non-respect de cette interdiction constitue une contrefaçon pouvant engager la
