@@ -48,6 +48,8 @@ export interface HunterJob {
   portalScheduleUrl: string | null;
 }
 
+const RETRYABLE_HTTP_CODES = new Set([429, 500, 502, 503, 504]);
+
 async function fetchWithRetry(
   url: string,
   options: RequestInit,
@@ -55,15 +57,28 @@ async function fetchWithRetry(
 ): Promise<Response> {
   let lastError: Error | null = null;
   for (let i = 0; i < retries; i++) {
+    let res: Response;
     try {
-      const res = await fetch(url, options);
-      return res;
+      res = await fetch(url, options);
     } catch (err) {
       lastError = err as Error;
       const delay = 1000 * (i + 1);
-      console.warn(`[convexClient] fetch attempt ${i + 1} failed, retrying in ${delay}ms...`);
+      console.warn(`[convexClient] Network error attempt ${i + 1}/${retries}, retrying in ${delay}ms...`);
       await new Promise((r) => setTimeout(r, delay));
+      continue;
     }
+
+    if (!RETRYABLE_HTTP_CODES.has(res.status)) {
+      return res;
+    }
+
+    const retryAfter = res.headers.get("Retry-After");
+    const delay = retryAfter
+      ? parseInt(retryAfter, 10) * 1000
+      : 1000 * Math.pow(2, i);
+    console.warn(`[convexClient] HTTP ${res.status} attempt ${i + 1}/${retries}, retrying in ${Math.round(delay)}ms...`);
+    lastError = new Error(`HTTP ${res.status}`);
+    await new Promise((r) => setTimeout(r, delay));
   }
   throw lastError ?? new Error("fetch failed after retries");
 }
