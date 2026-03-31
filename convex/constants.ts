@@ -267,7 +267,7 @@ export const APPLICATION_STATUSES = {
 export type ApplicationStatus = keyof typeof APPLICATION_STATUSES;
 
 export const MOBILE_MONEY_INFO = {
-  mpesa: { name: "M-Pesa", number: "+243 XX XXX XXXX", instructions: "Envoyez le montant exact au numéro ci-dessus, puis uploadez la capture d'écran du reçu." },
-  airtel: { name: "Airtel Money", number: "+243 XX XXX XXXX", instructions: "Envoyez le montant exact au numéro ci-dessus, puis uploadez la capture d'écran du reçu." },
-  orange: { name: "Orange Money", number: "+243 XX XXX XXXX", instructions: "Envoyez le montant exact au numéro ci-dessus, puis uploadez la capture d'écran du reçu." },
+  mpesa: { name: "M-Pesa", number: "+243 840 808 122", instructions: "Envoyez le montant exact au numéro ci-dessus, puis uploadez la capture d'écran du reçu." },
+  airtel: { name: "Airtel Money", number: "0820 344 541", instructions: "Envoyez le montant exact au numéro ci-dessus, puis uploadez la capture d'écran du reçu." },
+  orange: { name: "Orange Money", number: "0990 775 880", instructions: "Envoyez le montant exact au numéro ci-dessus, puis uploadez la capture d'écran du reçu." },
 };
