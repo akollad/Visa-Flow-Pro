@@ -152,10 +152,11 @@ export async function loginUsaPortal(
   };
 }
 
-export async function checkUsaPaymentStatus(session: UsaSession): Promise<{
-  status: "payment_required" | "pending_slot" | "scheduled" | "error";
+export async function checkUsaAppointmentRequestStatus(session: UsaSession): Promise<{
+  status: "pending_slot" | "scheduled" | "no_request" | "error";
   applicationId: string | null;
   pendingAppoStatus: number | null;
+  primaryApplicant: string | null;
   message: string;
 }> {
   const headers = {
@@ -169,40 +170,48 @@ export async function checkUsaPaymentStatus(session: UsaSession): Promise<{
   try {
     const res = await fetch(USA_PAYMENT_URL, { method: "GET", headers });
     if (!res.ok) {
-      console.error(`[usa] Payment status HTTP ${res.status}`);
-      return { status: "error", applicationId: null, pendingAppoStatus: null, message: `HTTP ${res.status}` };
+      console.error(`[usa] Appointment status HTTP ${res.status}`);
+      return { status: "error", applicationId: null, pendingAppoStatus: null, primaryApplicant: null, message: `HTTP ${res.status}` };
     }
-    data = (await res.json()) as UsaPaymentStatus;
+    const raw = await res.json();
+    if (!raw || typeof raw !== "object") {
+      return { status: "no_request", applicationId: null, pendingAppoStatus: null, primaryApplicant: null, message: "Aucune demande de RDV trouvée" };
+    }
+    data = raw as UsaPaymentStatus;
   } catch (err) {
-    console.error("[usa] Erreur appel payment status:", err);
-    return { status: "error", applicationId: null, pendingAppoStatus: null, message: String(err) };
+    console.error("[usa] Erreur appel appointment status:", err);
+    return { status: "error", applicationId: null, pendingAppoStatus: null, primaryApplicant: null, message: String(err) };
   }
 
   const appId = data.applicationId ?? null;
   const appoStatus = data.pendingAppoStatus ?? null;
+  const applicant = data.primaryApplicant ?? null;
 
-  console.log(`[usa] pendingAppoStatus=${appoStatus} applicationId=${appId} applicant=${data.primaryApplicant}`);
+  console.log(`[usa] pendingAppoStatus=${appoStatus} applicationId=${appId} applicant=${applicant}`);
 
-  if (appoStatus === 2) {
-    return {
-      status: "pending_slot",
-      applicationId: appId,
-      pendingAppoStatus: 2,
-      message: `MRV payé — demande de RDV active (applicationId: ${appId})`,
-    };
-  } else if (appoStatus === 1) {
+  if (appoStatus === 1) {
     return {
       status: "scheduled",
       applicationId: appId,
       pendingAppoStatus: 1,
-      message: `RDV déjà planifié (applicationId: ${appId})`,
+      primaryApplicant: applicant,
+      message: `Créneau déjà attribué pour ${applicant} (applicationId: ${appId})`,
+    };
+  } else if (appoStatus === 2) {
+    return {
+      status: "pending_slot",
+      applicationId: appId,
+      pendingAppoStatus: 2,
+      primaryApplicant: applicant,
+      message: `Demande de RDV active pour ${applicant} — en attente d'un créneau (applicationId: ${appId})`,
     };
   } else {
     return {
-      status: "payment_required",
+      status: "no_request",
       applicationId: appId,
       pendingAppoStatus: appoStatus,
-      message: `Frais MRV non confirmés par le portail (pendingAppoStatus: ${appoStatus})`,
+      primaryApplicant: applicant,
+      message: `Aucune demande de RDV active (pendingAppoStatus: ${appoStatus})`,
     };
   }
 }
@@ -257,26 +266,36 @@ export async function runUsaApiSession(job: HunterJob): Promise<SessionResult> {
     return "login_failed";
   }
 
-  const paymentCheck = await checkUsaPaymentStatus(session);
-  session.applicationId = paymentCheck.applicationId;
-  session.pendingAppoStatus = paymentCheck.pendingAppoStatus;
+  const requestStatus = await checkUsaAppointmentRequestStatus(session);
+  session.applicationId = requestStatus.applicationId;
+  session.pendingAppoStatus = requestStatus.pendingAppoStatus;
 
-  if (paymentCheck.status === "payment_required") {
-    console.warn(`[usa] 💳 Paiement MRV requis : ${paymentCheck.message}`);
+  if (requestStatus.status === "error") {
+    console.error(`[usa] Erreur lecture statut demande : ${requestStatus.message}`);
     await sendHeartbeat({
       applicationId: job.id,
-      result: "payment_required",
-      errorMessage: paymentCheck.message,
+      result: "error",
+      errorMessage: requestStatus.message,
     });
-    return "payment_required";
+    return "error";
   }
 
-  if (paymentCheck.status === "scheduled") {
-    console.log(`[usa] ✅ RDV déjà planifié : ${paymentCheck.message}`);
+  if (requestStatus.status === "no_request") {
+    console.warn(`[usa] Aucune demande de RDV active — ${requestStatus.message}`);
+    await sendHeartbeat({
+      applicationId: job.id,
+      result: "not_found",
+      errorMessage: requestStatus.message,
+    });
+    return "not_found";
+  }
+
+  if (requestStatus.status === "scheduled") {
+    console.log(`[usa] ✅ Créneau déjà attribué : ${requestStatus.message}`);
     try {
       await reportSlotFound({
         applicationId: job.id,
-        date: "Déjà planifié",
+        date: "Créneau déjà attribué",
         time: "",
         location: `Ambassade USA Kinshasa (Mission ${USA_MISSION_ID})`,
       });
@@ -284,7 +303,7 @@ export async function runUsaApiSession(job: HunterJob): Promise<SessionResult> {
     return "slot_found";
   }
 
-  console.log(`[usa] ✅ Paiement MRV confirmé — recherche de créneaux via navigateur...`);
+  console.log(`[usa] Demande de RDV active (pendingAppoStatus=2) — recherche de créneaux...`);
 
   const slotResult = await scanUsaSlotsWithBrowser(job, session);
   return slotResult;
