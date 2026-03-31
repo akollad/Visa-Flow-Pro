@@ -4,7 +4,10 @@ import { VISA_PRICING, SLOT_URGENCY_TIERS, getAvailablePackages, type Destinatio
 
 function getRole(identity: { [key: string]: unknown } | null): string {
   if (!identity) return "client";
-  return (identity.role as string) || "client";
+  if (identity.role) return identity.role as string;
+  const pub = identity.publicMetadata as { role?: string } | undefined;
+  if (pub?.role) return pub.role;
+  return "client";
 }
 
 function makeLog(msg: string, author?: string) {

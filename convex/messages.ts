@@ -3,7 +3,10 @@ import { mutation, query } from "./_generated/server";
 
 function getRole(identity: { [key: string]: unknown } | null): string {
   if (!identity) return "client";
-  return (identity.role as string) || "client";
+  if (identity.role) return identity.role as string;
+  const pub = identity.publicMetadata as { role?: string } | undefined;
+  if (pub?.role) return pub.role;
+  return "client";
 }
 
 export const list = query({
