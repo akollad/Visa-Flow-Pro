@@ -91,6 +91,8 @@ export const getActiveJobs = internalQuery({
           hunterConfig: (app as { hunterConfig?: { embassyUsername: string; embassyPassword: string } }).hunterConfig,
           portalUrl: (pricing as { portalUrl?: string } | undefined)?.portalUrl ?? null,
           portalName: (pricing as { portalName?: string } | undefined)?.portalName ?? null,
+          portalDashboardUrl: (pricing as { portalDashboardUrl?: string } | undefined)?.portalDashboardUrl ?? null,
+          portalAppointmentUrl: (pricing as { portalAppointmentUrl?: string } | undefined)?.portalAppointmentUrl ?? null,
         };
       });
   },

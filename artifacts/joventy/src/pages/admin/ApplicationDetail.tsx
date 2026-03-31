@@ -1096,16 +1096,31 @@ export default function AdminApplicationDetail() {
               <div className="p-6 space-y-5">
                 {/* Portail cible */}
                 {(pricing as { portalUrl?: string; portalName?: string } | undefined)?.portalUrl && (
-                  <div className="flex items-center gap-2 bg-slate-50 rounded-lg px-4 py-2.5 border border-slate-200">
-                    <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide shrink-0">Portail cible :</span>
-                    <a
-                      href={(pricing as { portalUrl?: string }).portalUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-primary font-semibold underline underline-offset-2 truncate"
-                    >
-                      {(pricing as { portalName?: string; portalUrl?: string }).portalName ?? (pricing as { portalUrl?: string }).portalUrl}
-                    </a>
+                  <div className="space-y-1.5 bg-slate-50 rounded-lg px-4 py-3 border border-slate-200">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide shrink-0">Login :</span>
+                      <a
+                        href={(pricing as { portalUrl?: string }).portalUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-primary font-semibold underline underline-offset-2 truncate"
+                      >
+                        {(pricing as { portalName?: string; portalUrl?: string }).portalName ?? (pricing as { portalUrl?: string }).portalUrl}
+                      </a>
+                    </div>
+                    {(pricing as { portalAppointmentUrl?: string } | undefined)?.portalAppointmentUrl && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide shrink-0">Créneaux :</span>
+                        <a
+                          href={(pricing as { portalAppointmentUrl?: string }).portalAppointmentUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary font-semibold underline underline-offset-2 truncate"
+                        >
+                          {(pricing as { portalAppointmentUrl?: string }).portalAppointmentUrl}
+                        </a>
+                      </div>
+                    )}
                   </div>
                 )}
 

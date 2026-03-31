@@ -18,6 +18,8 @@ export const VISA_PRICING = {
     embassyAddress: "502 Gombe, Kinshasa, Ambassade des États-Unis",
     portalUrl: "https://www.usvisaappt.com/visaapplicantui/login",
     portalName: "AVITS / VISAPP (usvisaappt.com)",
+    portalDashboardUrl: "https://www.usvisaappt.com/visaapplicantui/home/dashboard/requests",
+    portalAppointmentUrl: "https://www.usvisaappt.com/visaapplicantui/home/appointment/myappointment",
     processingType: "appointment",
     successCopy: {
       triggerLabel: "Créneau capturé",
