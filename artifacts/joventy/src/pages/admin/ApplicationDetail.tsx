@@ -3,7 +3,7 @@ import { useRoute } from "wouter";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Id } from "@convex/_generated/dataModel";
-import { VISA_PRICING, SERVICE_PACKAGES } from "@convex/constants";
+import { VISA_PRICING, SERVICE_PACKAGES, SLOT_URGENCY_TIERS, type SlotUrgencyTier } from "@convex/constants";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatDate, formatDateOnly } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,7 @@ import {
   RefreshCw,
   AlertTriangle,
   Package,
+  Pencil,
 } from "lucide-react";
 
 function PaymentReceiptModal({ url, onClose }: { url: string; onClose: () => void }) {
@@ -346,8 +347,13 @@ export default function AdminApplicationDetail() {
   const setInReview = useMutation(api.admin.setInReview);
   const saveAdminNotes = useMutation(api.admin.saveAdminNotes);
   const completeDossierOnly = useMutation(api.admin.completeDossierOnly);
+  const adjustSlotSuccessFee = useMutation(api.admin.adjustSlotSuccessFee);
   const [noteSaving, setNoteSaving] = useState(false);
   const [visaUploading, setVisaUploading] = useState(false);
+  const [showAdjustFee, setShowAdjustFee] = useState(false);
+  const [adjustFeeInput, setAdjustFeeInput] = useState("");
+  const [adjustFeeReason, setAdjustFeeReason] = useState("");
+  const [adjustFeeSaving, setAdjustFeeSaving] = useState(false);
   const [visaNotes, setVisaNotes] = useState("");
   const visaFileRef = useRef<HTMLInputElement>(null);
 
@@ -430,6 +436,32 @@ export default function AdminApplicationDetail() {
     }
   };
 
+  const handleAdjustFee = async () => {
+    if (!appId) return;
+    const val = parseFloat(adjustFeeInput);
+    if (isNaN(val) || val < 0) {
+      toast({ variant: "destructive", title: "Montant invalide", description: "Entrez un montant en USD valide." });
+      return;
+    }
+    setAdjustFeeSaving(true);
+    try {
+      await adjustSlotSuccessFee({
+        applicationId: appId,
+        newSuccessFee: val,
+        reason: adjustFeeReason.trim() || undefined,
+      });
+      toast({ title: "Prime mise à jour", description: `Nouvelle prime : ${val} USD. Le client verra le montant actualisé.` });
+      setShowAdjustFee(false);
+      setAdjustFeeInput("");
+      setAdjustFeeReason("");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erreur lors de la mise à jour";
+      toast({ variant: "destructive", title: "Erreur", description: msg });
+    } finally {
+      setAdjustFeeSaving(false);
+    }
+  };
+
   if (app === undefined)
     return <div className="p-12 text-center text-muted-foreground">Chargement...</div>;
   if (!app)
@@ -448,6 +480,10 @@ export default function AdminApplicationDetail() {
   const isEvisaModel = successModel === "evisa";
   const servicePackage = (app as { servicePackage?: string }).servicePackage ?? "full_service";
   const isDossierOnly = servicePackage === "dossier_only";
+  const isSlotOnly = servicePackage === "slot_only";
+  const urgencyTierKey = (app as { slotUrgencyTier?: string }).slotUrgencyTier as SlotUrgencyTier | undefined;
+  const urgencyTier = urgencyTierKey ? SLOT_URGENCY_TIERS[urgencyTierKey] : null;
+  const canAdjustFee = isSlotOnly && !isSuccessFeePaid;
 
   const docsByKey = Object.fromEntries(docs.filter((d) => !d.isAdminUpload).map((d) => [d.docKey, d]));
 
@@ -662,6 +698,65 @@ export default function AdminApplicationDetail() {
                 </div>
               </div>
             </div>
+
+            {/* Adjust slot success fee — slot_only only, before success fee is paid */}
+            {canAdjustFee && (
+              <div className="border border-amber-200 bg-amber-50 rounded-xl p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-amber-800">
+                    <Pencil className="w-4 h-4" />
+                    Ajuster la prime de succès
+                    {urgencyTier?.variableNote && (
+                      <span className="text-xs font-normal text-amber-600 ml-1">— prime indicative</span>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs border-amber-300 text-amber-800 hover:bg-amber-100"
+                    onClick={() => {
+                      setShowAdjustFee((v) => !v);
+                      if (!showAdjustFee) setAdjustFeeInput(String(app.priceDetails?.successFee ?? ""));
+                    }}
+                  >
+                    {showAdjustFee ? "Annuler" : "Modifier"}
+                  </Button>
+                </div>
+                {showAdjustFee && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-xs text-amber-700">
+                      Prime actuelle : <strong>{app.priceDetails?.successFee ?? 0} USD</strong>.
+                      Le client verra le nouveau montant en temps réel avant de payer le solde.
+                    </p>
+                    <div className="flex gap-2">
+                      <Input
+                        type="number"
+                        min={0}
+                        placeholder="Nouvelle prime (USD)"
+                        className="h-8 text-sm w-44"
+                        value={adjustFeeInput}
+                        onChange={(e) => setAdjustFeeInput(e.target.value)}
+                      />
+                      <Input
+                        type="text"
+                        placeholder="Motif (optionnel)"
+                        className="h-8 text-sm flex-1"
+                        value={adjustFeeReason}
+                        onChange={(e) => setAdjustFeeReason(e.target.value)}
+                      />
+                      <Button
+                        size="sm"
+                        className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white px-4"
+                        onClick={handleAdjustFee}
+                        disabled={adjustFeeSaving}
+                      >
+                        {adjustFeeSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Confirmer"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Revenue summary */}
             {app.priceDetails && (

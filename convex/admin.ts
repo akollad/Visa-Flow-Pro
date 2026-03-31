@@ -484,6 +484,56 @@ export const setInReview = mutation({
   },
 });
 
+export const adjustSlotSuccessFee = mutation({
+  args: {
+    applicationId: v.id("applications"),
+    newSuccessFee: v.number(),
+    reason: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    requireAdmin(identity as Record<string, unknown>);
+
+    if (args.newSuccessFee < 0) throw new Error("La prime ne peut pas être négative");
+
+    const app = await ctx.db.get(args.applicationId);
+    if (!app) throw new Error("Dossier introuvable");
+    if ((app as { servicePackage?: string }).servicePackage !== "slot_only") {
+      throw new Error("Ajustement uniquement disponible pour les dossiers Créneau Uniquement");
+    }
+    if (app.priceDetails?.isSuccessFeePaid) {
+      throw new Error("La prime de succès a déjà été réglée — ajustement impossible");
+    }
+
+    const prevFee = app.priceDetails?.successFee ?? 0;
+    const engagementFee = app.priceDetails?.engagementFee ?? 0;
+
+    await ctx.db.patch(args.applicationId, {
+      priceDetails: {
+        ...(app.priceDetails ?? {
+          engagementFee,
+          successFee: prevFee,
+          paidAmount: 0,
+          isEngagementPaid: false,
+          isSuccessFeePaid: false,
+        }),
+        successFee: args.newSuccessFee,
+      },
+      price: engagementFee + args.newSuccessFee,
+      updatedAt: Date.now(),
+      logs: [
+        ...(app.logs ?? []),
+        makeLog(
+          `Prime de succès ajustée : ${prevFee} $ → ${args.newSuccessFee} $${args.reason ? ` (${args.reason})` : ""}.`,
+          identity?.name ?? "admin"
+        ),
+      ],
+    });
+
+    return args.applicationId;
+  },
+});
+
 export const saveAdminNotes = mutation({
   args: {
     applicationId: v.id("applications"),
