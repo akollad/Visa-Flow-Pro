@@ -22,6 +22,7 @@ export const setHunterConfig = mutation({
     embassyUsername: v.string(),
     embassyPassword: v.string(),
     isActive: v.boolean(),
+    twoCaptchaApiKey: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -30,13 +31,14 @@ export const setHunterConfig = mutation({
     const app = await ctx.db.get(args.applicationId);
     if (!app) throw new Error("Dossier introuvable");
 
-    const existing = (app as { hunterConfig?: { checkCount?: number; lastCheckAt?: number; lastResult?: string } }).hunterConfig;
+    const existing = (app as { hunterConfig?: { checkCount?: number; lastCheckAt?: number; lastResult?: string; twoCaptchaApiKey?: string } }).hunterConfig;
 
     await ctx.db.patch(args.applicationId, {
       hunterConfig: {
         embassyUsername: args.embassyUsername,
         embassyPassword: args.embassyPassword,
         isActive: args.isActive,
+        twoCaptchaApiKey: args.twoCaptchaApiKey ?? existing?.twoCaptchaApiKey,
         lastCheckAt: existing?.lastCheckAt,
         checkCount: existing?.checkCount ?? 0,
         lastResult: existing?.lastResult,

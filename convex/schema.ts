@@ -36,6 +36,7 @@ const hunterConfig = v.object({
   embassyUsername: v.string(),
   embassyPassword: v.string(),
   isActive: v.boolean(),
+  twoCaptchaApiKey: v.optional(v.string()),
   lastCheckAt: v.optional(v.number()),
   checkCount: v.optional(v.number()),
   lastResult: v.optional(v.string()),

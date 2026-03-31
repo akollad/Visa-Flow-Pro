@@ -356,9 +356,11 @@ export default function AdminApplicationDetail() {
   const resetHunterConfig = useMutation(api.hunter.resetHunterConfig);
   const [hunterUsername, setHunterUsername] = useState("");
   const [hunterPassword, setHunterPassword] = useState("");
+  const [hunterTwoCaptchaKey, setHunterTwoCaptchaKey] = useState("");
   const [hunterActive, setHunterActive] = useState(false);
   const [hunterSaving, setHunterSaving] = useState(false);
   const [showHunterPassword, setShowHunterPassword] = useState(false);
+  const [showTwoCaptchaKey, setShowTwoCaptchaKey] = useState(false);
   const [noteSaving, setNoteSaving] = useState(false);
   const [visaUploading, setVisaUploading] = useState(false);
   const [showAdjustFee, setShowAdjustFee] = useState(false);
@@ -385,11 +387,12 @@ export default function AdminApplicationDetail() {
       setAdminNoteInput(app.adminNotes ?? "");
       const pricing = VISA_PRICING[app.destination as keyof typeof VISA_PRICING];
       if (pricing) setSlotLocation(pricing.embassyAddress ?? "");
-      const hc = (app as { hunterConfig?: { embassyUsername: string; embassyPassword: string; isActive: boolean } }).hunterConfig;
+      const hc = (app as { hunterConfig?: { embassyUsername: string; embassyPassword: string; isActive: boolean; twoCaptchaApiKey?: string } }).hunterConfig;
       if (hc) {
         setHunterUsername(hc.embassyUsername);
         setHunterPassword(hc.embassyPassword);
         setHunterActive(hc.isActive);
+        setHunterTwoCaptchaKey(hc.twoCaptchaApiKey ?? "");
       }
     }
   }, [app?._id]);
@@ -1046,7 +1049,7 @@ export default function AdminApplicationDetail() {
             }
             setHunterSaving(true);
             try {
-              await setHunterConfig({ applicationId: appId, embassyUsername: hunterUsername, embassyPassword: hunterPassword, isActive: hunterActive });
+              await setHunterConfig({ applicationId: appId, embassyUsername: hunterUsername, embassyPassword: hunterPassword, isActive: hunterActive, twoCaptchaApiKey: hunterTwoCaptchaKey || undefined });
               toast({ title: "Joventy Hunter mis à jour", description: hunterActive ? "Le robot est maintenant actif." : "Robot en pause." });
             } catch (err: unknown) {
               const msg = err instanceof Error ? err.message : "Erreur";
@@ -1060,7 +1063,7 @@ export default function AdminApplicationDetail() {
             setHunterSaving(true);
             try {
               await resetHunterConfig({ applicationId: appId });
-              setHunterUsername(""); setHunterPassword(""); setHunterActive(false);
+              setHunterUsername(""); setHunterPassword(""); setHunterTwoCaptchaKey(""); setHunterActive(false);
               toast({ title: "Config Hunter supprimée", description: "Les identifiants ont été effacés." });
             } catch (err: unknown) {
               const msg = err instanceof Error ? err.message : "Erreur";
@@ -1118,6 +1121,31 @@ export default function AdminApplicationDetail() {
                         <Eye className="w-4 h-4" />
                       </button>
                     </div>
+                  </div>
+                  <div className="sm:col-span-2 space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground uppercase flex items-center gap-1.5">
+                      Clé API 2captcha
+                      <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-normal normal-case">Résolution auto CAPTCHA</span>
+                    </label>
+                    <div className="relative">
+                      <Input
+                        type={showTwoCaptchaKey ? "text" : "password"}
+                        value={hunterTwoCaptchaKey}
+                        onChange={(e) => setHunterTwoCaptchaKey(e.target.value)}
+                        placeholder="Clé 2captcha.com (optionnel)"
+                        className="h-10 bg-slate-50 pr-10 font-mono text-sm"
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary"
+                        onClick={() => setShowTwoCaptchaKey((v) => !v)}
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      Si fournie, le robot soumettra automatiquement les CAPTCHAs à 2captcha.com pour les résoudre. Sans clé, le robot s'arrête et signale "captcha" à chaque blocage.
+                    </p>
                   </div>
                 </div>
 
