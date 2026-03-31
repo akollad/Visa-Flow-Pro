@@ -6,7 +6,7 @@ export default function Conditions() {
       title="Conditions Générales d'Utilisation"
       subtitle="Règles régissant l'utilisation des services Joventy"
       lastUpdated="Mars 2025"
-      description="Conditions générales d'utilisation du service Joventy : tarification, obligations, responsabilités et règles régissant l'assistance visa pour les résidents de la RDC."
+      description="Conditions d'utilisation de Joventy : tarification, obligations et règles régissant l'assistance visa pour les résidents de la RDC."
       slug="conditions"
     >
       <p>

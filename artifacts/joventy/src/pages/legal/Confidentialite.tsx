@@ -6,7 +6,7 @@ export default function Confidentialite() {
       title="Politique de confidentialité"
       subtitle="Comment Joventy collecte, utilise et protège vos données personnelles"
       lastUpdated="Mars 2025"
-      description="Comment Joventy collecte, protège et traite vos données personnelles dans le cadre de nos services d'assistance visa. Vos droits, durées de conservation et sécurité."
+      description="Politique de confidentialité Joventy : collecte, traitement et protection de vos données. Vos droits selon la loi congolaise."
       slug="confidentialite"
     >
       <p>

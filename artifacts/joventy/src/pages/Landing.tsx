@@ -190,10 +190,10 @@ export default function Landing() {
     <div className="min-h-screen bg-background">
       <Helmet>
         <title>Joventy — Visa USA, Dubaï, Turquie, Inde depuis Kinshasa (RDC)</title>
-        <meta name="description" content="Joventy prépare vos formulaires de visa, réserve vos créneaux consulaires et soumet vos e-Visas pour l'USA, Dubaï, la Turquie et l'Inde. Paiement M-Pesa, Airtel, Orange Money. Résultat garanti." />
+        <meta name="description" content="Assistance visa USA, Dubaï, Turquie et Inde depuis Kinshasa. Joventy remplit vos formulaires, trouve vos créneaux et soumet vos e-Visas. Paiement M-Pesa." />
         <link rel="canonical" href="https://joventy.cd/" />
         <meta property="og:title" content="Joventy — Visa USA, Dubaï, Turquie, Inde depuis Kinshasa (RDC)" />
-        <meta property="og:description" content="Joventy prépare vos formulaires de visa, réserve vos créneaux consulaires et soumet vos e-Visas pour l'USA, Dubaï, la Turquie et l'Inde. Paiement M-Pesa, Airtel, Orange Money." />
+        <meta property="og:description" content="Assistance visa USA, Dubaï, Turquie et Inde depuis Kinshasa. Joventy remplit vos formulaires, trouve vos créneaux et soumet vos e-Visas. Paiement M-Pesa." />
         <meta property="og:url" content="https://joventy.cd/" />
         <meta property="og:type" content="website" />
       </Helmet>

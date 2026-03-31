@@ -22,25 +22,25 @@
   <url>
     <loc>https://joventy.cd/mentions-legales</loc>
     <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
+    <priority>0.8</priority>
   </url>
 
   <url>
     <loc>https://joventy.cd/confidentialite</loc>
     <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
+    <priority>0.8</priority>
   </url>
 
   <url>
     <loc>https://joventy.cd/conditions</loc>
     <changefreq>yearly</changefreq>
-    <priority>0.4</priority>
+    <priority>0.8</priority>
   </url>
 
   <url>
     <loc>https://joventy.cd/remboursement</loc>
     <changefreq>yearly</changefreq>
-    <priority>0.4</priority>
+    <priority>0.8</priority>
   </url>
 
 </urlset>
