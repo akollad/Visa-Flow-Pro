@@ -11,6 +11,7 @@ import { CheckCircle2, Upload, Copy, AlertCircle, ArrowRight, Clock } from "luci
 
 const MPESA_NUMBER = MOBILE_MONEY_INFO.mpesa.number;
 const AIRTEL_NUMBER = MOBILE_MONEY_INFO.airtel.number;
+const ORANGE_NUMBER = MOBILE_MONEY_INFO.orange.number;
 
 export default function PaymentGate() {
   const [, params] = useRoute("/dashboard/applications/:id/payment");
@@ -22,7 +23,7 @@ export default function PaymentGate() {
   const generateUploadUrl = useMutation(api.applications.generateReceiptUploadUrl);
   const uploadPaymentProof = useMutation(api.applications.uploadPaymentProof);
 
-  const [selectedMethod, setSelectedMethod] = useState<"mpesa" | "airtel">("mpesa");
+  const [selectedMethod, setSelectedMethod] = useState<"mpesa" | "airtel" | "orange">("mpesa");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -88,7 +89,7 @@ export default function PaymentGate() {
   if (app === undefined) return <div className="p-12 text-center text-muted-foreground">Chargement...</div>;
   if (!app) return <div className="p-12 text-center text-red-500">Dossier introuvable</div>;
 
-  const number = selectedMethod === "mpesa" ? MPESA_NUMBER : AIRTEL_NUMBER;
+  const number = selectedMethod === "mpesa" ? MPESA_NUMBER : selectedMethod === "airtel" ? AIRTEL_NUMBER : ORANGE_NUMBER;
 
   if (done || alreadySent) {
     return (
@@ -188,18 +189,18 @@ export default function PaymentGate() {
       <div className="bg-white rounded-2xl border border-border shadow-sm p-6 sm:p-8 space-y-6">
         <div>
           <h2 className="text-lg font-bold text-primary mb-4">1. Choisissez votre opérateur</h2>
-          <div className="grid grid-cols-2 gap-3">
-            {(["mpesa", "airtel"] as const).map((m) => (
+          <div className="grid grid-cols-3 gap-3">
+            {(["mpesa", "airtel", "orange"] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => setSelectedMethod(m)}
-                className={`p-4 rounded-xl border-2 font-bold transition-all text-center ${
+                className={`p-4 rounded-xl border-2 font-bold transition-all text-center text-sm ${
                   selectedMethod === m
                     ? "border-secondary bg-orange-50 text-primary"
                     : "border-border text-muted-foreground hover:border-primary/30"
                 }`}
               >
-                {m === "mpesa" ? "M-Pesa" : "Airtel Money"}
+                {m === "mpesa" ? "M-Pesa" : m === "airtel" ? "Airtel Money" : "Orange Money"}
               </button>
             ))}
           </div>
@@ -213,7 +214,7 @@ export default function PaymentGate() {
               <span className="text-2xl font-bold text-primary">{formatCurrency(amount)}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Au numéro {selectedMethod === "mpesa" ? "M-Pesa" : "Airtel Money"}</span>
+              <span className="text-sm text-muted-foreground">Au numéro {selectedMethod === "mpesa" ? "M-Pesa" : selectedMethod === "airtel" ? "Airtel Money" : "Orange Money"}</span>
               <div className="flex items-center gap-2">
                 <span className="font-mono font-semibold text-primary">{number}</span>
                 <button onClick={() => handleCopy(number)} className="text-slate-400 hover:text-secondary transition-colors">

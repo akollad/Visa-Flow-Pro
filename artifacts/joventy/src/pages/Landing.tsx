@@ -59,7 +59,7 @@ const STEPS = [
   {
     num: "02",
     title: "Payez par Mobile Money",
-    desc: "Réglez les frais d'engagement via M-Pesa ou Airtel Money. Aucun virement bancaire, aucune carte étrangère requise.",
+    desc: "Réglez les frais d'engagement via M-Pesa, Airtel Money ou Orange Money. Aucun virement bancaire, aucune carte étrangère requise.",
     icon: Phone,
   },
   {
@@ -162,7 +162,7 @@ const GUARANTEES = [
   {
     icon: Phone,
     title: "Mobile Money uniquement",
-    desc: "Pas de virement international, pas de carte étrangère. Payez via M-Pesa ou Airtel Money depuis votre téléphone.",
+    desc: "Pas de virement international, pas de carte étrangère. Payez via M-Pesa, Airtel Money ou Orange Money depuis votre téléphone.",
   },
   {
     icon: MessageCircle,
@@ -211,7 +211,7 @@ export default function Landing() {
           </h1>
 
           <p className="text-lg md:text-xl text-white/75 max-w-2xl mx-auto mb-10 leading-relaxed">
-            Joventy remplit vos formulaires, cherche vos créneaux consulaires et soumet vos e-Visas pour l'USA, Dubaï, la Turquie et l'Inde. Paiement Mobile Money, résultat garanti.
+            Joventy remplit vos formulaires, cherche vos créneaux consulaires et soumet vos e-Visas pour l'USA, Dubaï, la Turquie et l'Inde. Paiement via M-Pesa, Airtel Money ou Orange Money, résultat garanti.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-14">
@@ -250,7 +250,7 @@ export default function Landing() {
           <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-muted-foreground font-medium">
             {[
               { icon: ShieldCheck, label: "Paiement au résultat" },
-              { icon: Phone, label: "M-Pesa & Airtel Money" },
+              { icon: Phone, label: "M-Pesa, Airtel & Orange Money" },
               { icon: Clock, label: "Suivi en temps réel" },
               { icon: MessageCircle, label: "Chat conseiller inclus" },
               { icon: Award, label: "Données 100% confidentielles" },
@@ -505,7 +505,7 @@ export default function Landing() {
             <span className="text-secondary">Créez votre dossier en 5 minutes.</span>
           </h2>
           <p className="text-white/70 text-lg mb-10">
-            Rejoignez les voyageurs congolais qui font confiance à Joventy. Paiement Mobile Money, sans paperasse, résultat garanti.
+            Rejoignez les voyageurs congolais qui font confiance à Joventy. Paiement via M-Pesa, Airtel Money ou Orange Money, sans paperasse, résultat garanti.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link href="/register">
@@ -627,7 +627,7 @@ export default function Landing() {
 
           <div className="pt-8 border-t border-white/10 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-white/35">
             <p>© {new Date().getFullYear()} Joventy RDC · Assistance visa premium · Kinshasa, République Démocratique du Congo</p>
-            <p>Paiement via M-Pesa & Airtel Money 🇨🇩</p>
+            <p>Paiement via M-Pesa, Airtel Money & Orange Money 🇨🇩</p>
           </div>
         </div>
       </footer>

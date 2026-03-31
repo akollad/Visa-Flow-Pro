@@ -269,4 +269,5 @@ export type ApplicationStatus = keyof typeof APPLICATION_STATUSES;
 export const MOBILE_MONEY_INFO = {
   mpesa: { name: "M-Pesa", number: "+243 XX XXX XXXX", instructions: "Envoyez le montant exact au numéro ci-dessus, puis uploadez la capture d'écran du reçu." },
   airtel: { name: "Airtel Money", number: "+243 XX XXX XXXX", instructions: "Envoyez le montant exact au numéro ci-dessus, puis uploadez la capture d'écran du reçu." },
+  orange: { name: "Orange Money", number: "+243 XX XXX XXXX", instructions: "Envoyez le montant exact au numéro ci-dessus, puis uploadez la capture d'écran du reçu." },
 };
