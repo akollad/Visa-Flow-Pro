@@ -1,4 +1,4 @@
-import { internalMutation, mutation, internalQuery, action } from "./_generated/server";
+import { internalMutation, mutation, internalQuery, query, action } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { coreMarkSlotFound } from "./slotFoundHelper";
@@ -209,5 +209,139 @@ export const checkTwoCaptchaBalance = action({
     }
 
     return { balance, checkedAt: Date.now() };
+  },
+});
+
+export const pingPortal = action({
+  args: { destination: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    requireAdmin(identity as { [key: string]: unknown } | null);
+
+    const pricing = VISA_PRICING[args.destination as keyof typeof VISA_PRICING];
+    if (!pricing) throw new Error("Destination inconnue");
+
+    const url = (pricing as { portalUrl: string }).portalUrl;
+    const portalName = (pricing as { portalName: string }).portalName;
+    const startMs = Date.now();
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 9000);
+
+      const res = await fetch(url, {
+        method: "GET",
+        signal: controller.signal,
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+        redirect: "follow",
+      });
+
+      clearTimeout(timeoutId);
+      const latencyMs = Date.now() - startMs;
+
+      return {
+        ok: res.status < 500,
+        status: res.status,
+        latencyMs,
+        url,
+        portalName,
+        error: null as string | null,
+      };
+    } catch (err) {
+      const latencyMs = Date.now() - startMs;
+      const errMsg = err instanceof Error ? err.message : "Unknown error";
+      const isTimeout = errMsg.includes("abort") || errMsg.includes("timeout") || errMsg.includes("timed out");
+      return {
+        ok: false,
+        status: null as number | null,
+        latencyMs,
+        url,
+        portalName,
+        error: isTimeout ? "Timeout (>9s) — portail inaccessible ou très lent" : errMsg,
+      };
+    }
+  },
+});
+
+export const createBotTest = mutation({
+  args: {
+    destination: v.string(),
+    testUsername: v.optional(v.string()),
+    testPassword: v.optional(v.string()),
+    twoCaptchaApiKey: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    requireAdmin(identity as { [key: string]: unknown } | null);
+
+    const pricing = VISA_PRICING[args.destination as keyof typeof VISA_PRICING];
+    if (!pricing) throw new Error("Destination inconnue");
+
+    const testId = await ctx.db.insert("botTests", {
+      destination: args.destination,
+      portalUrl: (pricing as { portalUrl: string }).portalUrl,
+      portalName: (pricing as { portalName: string }).portalName,
+      testUsername: args.testUsername,
+      testPassword: args.testPassword,
+      twoCaptchaApiKey: args.twoCaptchaApiKey,
+      status: "pending",
+      requestedAt: Date.now(),
+      requestedBy: identity!.subject,
+    });
+
+    return testId;
+  },
+});
+
+export const listBotTests = query({
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    requireAdmin(identity as { [key: string]: unknown } | null);
+
+    const tests = await ctx.db
+      .query("botTests")
+      .withIndex("by_requested")
+      .order("desc")
+      .take(50);
+
+    return tests;
+  },
+});
+
+export const claimPendingBotTest = internalMutation({
+  handler: async (ctx) => {
+    const pending = await ctx.db
+      .query("botTests")
+      .withIndex("by_status", (q) => q.eq("status", "pending"))
+      .order("asc")
+      .first();
+
+    if (!pending) return null;
+
+    await ctx.db.patch(pending._id, { status: "running" });
+    return pending;
+  },
+});
+
+export const completeBotTest = internalMutation({
+  args: {
+    testId: v.id("botTests"),
+    result: v.string(),
+    latencyMs: v.optional(v.number()),
+    httpStatus: v.optional(v.number()),
+    errorMessage: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.testId, {
+      status: "done",
+      result: args.result,
+      latencyMs: args.latencyMs,
+      httpStatus: args.httpStatus,
+      errorMessage: args.errorMessage,
+      completedAt: Date.now(),
+    });
   },
 });

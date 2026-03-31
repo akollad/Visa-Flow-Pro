@@ -156,6 +156,49 @@ export async function sendHeartbeat(payload: {
   }
 }
 
+export interface BotTest {
+  _id: string;
+  destination: string;
+  portalUrl: string;
+  portalName: string;
+  testUsername?: string;
+  testPassword?: string;
+  twoCaptchaApiKey?: string;
+  status: string;
+}
+
+export async function getPendingBotTest(): Promise<BotTest | null> {
+  const url = `${CONVEX_SITE_URL}/hunter/pending-test`;
+  const res = await fetchWithRetry(url, {
+    method: "GET",
+    headers: { "X-Hunter-Key": HUNTER_API_KEY, "Content-Type": "application/json" },
+  });
+
+  if (!res.ok) return null;
+
+  const data = (await res.json()) as { test: BotTest | null };
+  return data.test ?? null;
+}
+
+export async function reportBotTestResult(payload: {
+  testId: string;
+  result: string;
+  latencyMs?: number;
+  httpStatus?: number;
+  errorMessage?: string;
+}): Promise<void> {
+  const url = `${CONVEX_SITE_URL}/hunter/test-result`;
+  const res = await fetchWithRetry(url, {
+    method: "POST",
+    headers: { "X-Hunter-Key": HUNTER_API_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    console.warn(`[convexClient] reportBotTestResult failed: ${res.status}`);
+  }
+}
+
 export async function uploadScreenshot(base64: string): Promise<string | null> {
   const url = `${CONVEX_SITE_URL}/hunter/upload-screenshot`;
   try {

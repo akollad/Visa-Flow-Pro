@@ -128,6 +128,26 @@ export default defineSchema({
     readBy: v.optional(v.array(v.string())),
   }).index("by_application", ["applicationId"]),
 
+  botTests: defineTable({
+    destination: v.string(),
+    portalUrl: v.string(),
+    portalName: v.string(),
+    testUsername: v.optional(v.string()),
+    testPassword: v.optional(v.string()),
+    twoCaptchaApiKey: v.optional(v.string()),
+    status: v.string(),
+    result: v.optional(v.string()),
+    latencyMs: v.optional(v.number()),
+    httpStatus: v.optional(v.number()),
+    errorMessage: v.optional(v.string()),
+    requestedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    requestedBy: v.string(),
+  })
+    .index("by_status", ["status"])
+    .index("by_destination", ["destination"])
+    .index("by_requested", ["requestedAt"]),
+
   documents: defineTable({
     applicationId: v.id("applications"),
     docKey: v.string(),

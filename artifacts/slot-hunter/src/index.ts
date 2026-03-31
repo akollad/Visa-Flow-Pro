@@ -1,8 +1,8 @@
 import * as dotenv from "dotenv";
 dotenv.config();
 
-import { getActiveJobs, sendHeartbeat, type HunterJob } from "./convexClient.js";
-import { runHunterSession, type SessionResult } from "./navigator.js";
+import { getActiveJobs, sendHeartbeat, getPendingBotTest, type HunterJob } from "./convexClient.js";
+import { runHunterSession, runBotTestSession, type SessionResult } from "./navigator.js";
 
 // ─── Tier intervals : temps MINIMUM entre deux checks du MÊME dossier ──────
 const URGENCY_INTERVAL: Record<string, { min: number; max: number }> = {
@@ -196,6 +196,22 @@ async function main(): Promise<void> {
   }
 
   while (true) {
+    try {
+      const pendingTest = await getPendingBotTest();
+      if (pendingTest) {
+        log("INFO", `🧪 Test bot détecté — ${pendingTest.destination} (${pendingTest.portalUrl})`);
+        try {
+          await runBotTestSession(pendingTest);
+          log("INFO", `🧪 Test bot terminé — ${pendingTest.destination}`);
+        } catch (err) {
+          log("ERROR", `Erreur test bot ${pendingTest.destination}: ${err}`);
+        }
+        continue;
+      }
+    } catch (err) {
+      log("WARN", `Vérification pending tests échouée (non critique): ${err}`);
+    }
+
     let jobs: HunterJob[];
     try {
       jobs = await getActiveJobs();

@@ -1,7 +1,7 @@
 import type { Browser, Page } from "playwright";
 import { launchBrowser, humanType, humanClick, humanScroll, randomDelay, isDryRun } from "./browser.js";
 import { detectAndSolveCaptcha } from "./captcha.js";
-import { reportSlotFound, sendHeartbeat, uploadScreenshot, type HunterJob } from "./convexClient.js";
+import { reportSlotFound, sendHeartbeat, uploadScreenshot, reportBotTestResult, type HunterJob, type BotTest } from "./convexClient.js";
 
 function getSessionTimeoutMs(): number {
   return Math.round((3 + Math.random() * 2) * 60 * 1000);
@@ -295,6 +295,134 @@ async function logoutFromPortal(page: Page): Promise<void> {
     console.log("[navigator] No logout button found — closing session directly");
   } catch (e) {
     console.warn("[navigator] Logout failed (non-critical):", e);
+  }
+}
+
+export async function runBotTestSession(test: BotTest): Promise<void> {
+  console.log(`[navigator] Bot test démarré — ${test.destination} (${test.portalUrl})`);
+
+  if (isDryRun()) {
+    console.log(`[navigator] DRY_RUN — simulation test bot`);
+    await randomDelay(1000, 2000);
+    await reportBotTestResult({
+      testId: test._id,
+      result: "login_success",
+      latencyMs: 1500,
+      httpStatus: 200,
+    });
+    return;
+  }
+
+  const startMs = Date.now();
+
+  if (!test.testUsername || !test.testPassword) {
+    const browserRef: { current: Browser | null } = { current: null };
+    try {
+      const { browser: b, page } = await launchBrowser();
+      browserRef.current = b;
+
+      console.log(`[navigator] Test ping portail: ${test.portalUrl}`);
+      let httpStatus: number | undefined;
+      let ok = false;
+
+      try {
+        const res = await page.goto(test.portalUrl, { waitUntil: "domcontentloaded", timeout: 15000 });
+        httpStatus = res?.status() ?? undefined;
+        ok = httpStatus !== undefined && httpStatus < 500;
+      } catch (e) {
+        console.warn(`[navigator] Impossible de charger le portail: ${e}`);
+      }
+
+      const latencyMs = Date.now() - startMs;
+      const result = ok ? "portal_ok" : "portal_unreachable";
+
+      console.log(`[navigator] Test ping terminé — ${result} (${latencyMs}ms, HTTP ${httpStatus ?? "N/A"})`);
+
+      await reportBotTestResult({
+        testId: test._id,
+        result,
+        latencyMs,
+        httpStatus,
+        errorMessage: ok ? undefined : "Portail inaccessible depuis le bot",
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await reportBotTestResult({
+        testId: test._id,
+        result: "error",
+        latencyMs: Date.now() - startMs,
+        errorMessage: msg.slice(0, 200),
+      });
+    } finally {
+      try { await browserRef.current?.close(); } catch { /* ignore */ }
+    }
+    return;
+  }
+
+  const jobLike: HunterJob = {
+    id: `bot-test-${test._id}`,
+    destination: test.destination,
+    visaType: "test",
+    applicantName: `[TEST] ${test.destination}`,
+    travelDate: "",
+    urgencyTier: "standard",
+    slotBookingRefs: null,
+    hunterConfig: {
+      embassyUsername: test.testUsername!,
+      embassyPassword: test.testPassword!,
+      isActive: true,
+      twoCaptchaApiKey: test.twoCaptchaApiKey,
+    },
+    portalUrl: test.portalUrl,
+    portalName: test.portalName,
+    portalDashboardUrl: null,
+    portalAppointmentUrl: null,
+    portalScheduleUrl: null,
+    lastCheckAt: null,
+  };
+
+  const browserRef: { current: Browser | null } = { current: null };
+
+  try {
+    const { browser: b, page } = await launchBrowser();
+    browserRef.current = b;
+
+    const loginResult = await loginToPortal(page, jobLike);
+    const latencyMs = Date.now() - startMs;
+
+    let result: string;
+    let errorMessage: string | undefined;
+
+    if (loginResult === "ok") {
+      result = "login_success";
+      console.log(`[navigator] Test connexion RÉUSSI — ${test.destination} (${latencyMs}ms)`);
+    } else if (loginResult === "captcha") {
+      result = "captcha";
+      errorMessage = "CAPTCHA détecté — vérification impossible";
+      console.warn(`[navigator] CAPTCHA lors du test ${test.destination}`);
+    } else {
+      result = "login_failed";
+      errorMessage = "Identifiants incorrects ou portail indisponible";
+      console.warn(`[navigator] Échec login test ${test.destination}`);
+    }
+
+    await reportBotTestResult({
+      testId: test._id,
+      result,
+      latencyMs,
+      errorMessage,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[navigator] Erreur test bot ${test.destination}:`, msg);
+    await reportBotTestResult({
+      testId: test._id,
+      result: "error",
+      latencyMs: Date.now() - startMs,
+      errorMessage: msg.slice(0, 200),
+    });
+  } finally {
+    try { await browserRef.current?.close(); } catch { /* ignore */ }
   }
 }
 

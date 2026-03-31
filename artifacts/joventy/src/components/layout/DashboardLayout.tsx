@@ -14,6 +14,7 @@ import {
   MessageSquareHeart,
   Menu,
   X,
+  Bot,
 } from "lucide-react";
 import { JoventyLogo } from "@/components/JoventyLogo";
 
@@ -44,6 +45,7 @@ export function DashboardLayout({ children, isAdmin = false }: DashboardLayoutPr
     { href: "/admin/clients", label: "Clients", icon: Users },
     { href: "/admin/messages", label: "Messagerie", icon: MessageCircle, badge: unreadTotal },
     { href: "/admin/reviews", label: "Avis Clients", icon: MessageSquareHeart, badge: pendingReviewCount },
+    { href: "/admin/bot-test", label: "Bot & Portails", icon: Bot },
   ];
 
   const links = isAdmin ? adminLinks : clientLinks;
