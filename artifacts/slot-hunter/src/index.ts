@@ -3,14 +3,12 @@ dotenv.config();
 
 import { getActiveJobs, sendHeartbeat, type HunterJob } from "./convexClient.js";
 import { runHunterSession, type SessionResult } from "./navigator.js";
-import { randomDelay } from "./browser.js";
 
 const MIN_INTERVAL_MS = 8 * 60 * 1000;
 const MAX_INTERVAL_MS = 22 * 60 * 1000;
 const INITIAL_DELAY_MIN_MS = 2000;
 const INITIAL_DELAY_MAX_MS = 8000;
-const MAX_CONSECUTIVE_FAILURES = 3;
-const POLL_INTERVAL_MS = 5 * 60 * 1000;
+const MAX_LOGIN_FAILURES = 3;
 
 const URGENCY_INTERVAL: Record<string, { min: number; max: number }> = {
   tres_urgent: { min: 8 * 60 * 1000, max: 10 * 60 * 1000 },
@@ -19,7 +17,7 @@ const URGENCY_INTERVAL: Record<string, { min: number; max: number }> = {
   standard: { min: 19 * 60 * 1000, max: 22 * 60 * 1000 },
 };
 
-const consecutiveFailures = new Map<string, number>();
+const consecutiveLoginFailures = new Map<string, number>();
 const lastIntervals = new Map<string, number>();
 const pausedJobs = new Set<string>();
 
@@ -53,15 +51,15 @@ function formatMs(ms: number): string {
 
 async function processJob(job: HunterJob): Promise<void> {
   if (pausedJobs.has(job.id)) {
-    log("INFO", `Skipping paused job: ${job.applicantName} (${job.id})`);
+    log("INFO", `Skipping paused job: ${job.applicantName}`);
     return;
   }
 
   const initialDelay = INITIAL_DELAY_MIN_MS + Math.random() * (INITIAL_DELAY_MAX_MS - INITIAL_DELAY_MIN_MS);
-  log("INFO", `[${job.applicantName}] Waiting ${Math.round(initialDelay)}ms before starting session...`);
+  log("INFO", `[${job.applicantName}] Waiting ${Math.round(initialDelay)}ms before session...`);
   await new Promise((r) => setTimeout(r, initialDelay));
 
-  log("INFO", `[${job.applicantName}] Starting hunt (${job.destination} / ${job.urgencyTier} / ${job.visaType})`);
+  log("INFO", `[${job.applicantName}] Hunt start (${job.destination} / ${job.urgencyTier})`);
 
   let result: SessionResult;
   try {
@@ -75,24 +73,24 @@ async function processJob(job: HunterJob): Promise<void> {
 
   switch (result) {
     case "slot_found":
-      consecutiveFailures.delete(job.id);
+      consecutiveLoginFailures.delete(job.id);
       pausedJobs.add(job.id);
-      log("INFO", `[${job.applicantName}] SLOT FOUND — removing from active queue`);
+      log("INFO", `[${job.applicantName}] SLOT FOUND — removed from queue`);
       break;
 
-    case "login_failed":
-    case "error": {
-      const failures = (consecutiveFailures.get(job.id) ?? 0) + 1;
-      consecutiveFailures.set(job.id, failures);
-      log("WARN", `[${job.applicantName}] Failure #${failures}/${MAX_CONSECUTIVE_FAILURES}`);
-      if (failures >= MAX_CONSECUTIVE_FAILURES) {
+    case "login_failed": {
+      const loginFails = (consecutiveLoginFailures.get(job.id) ?? 0) + 1;
+      consecutiveLoginFailures.set(job.id, loginFails);
+      log("WARN", `[${job.applicantName}] Login failure #${loginFails}/${MAX_LOGIN_FAILURES}`);
+
+      if (loginFails >= MAX_LOGIN_FAILURES) {
         pausedJobs.add(job.id);
-        log("ERROR", `[${job.applicantName}] Max failures reached — pausing server-side via heartbeat`);
+        log("ERROR", `[${job.applicantName}] ${MAX_LOGIN_FAILURES} consecutive login failures — pausing server-side`);
         try {
           await sendHeartbeat({
             applicationId: job.id,
             result: "error",
-            errorMessage: `Auto-paused: ${failures} login failures consécutives`,
+            errorMessage: `Auto-paused: ${loginFails} login failures consécutives — vérifier les identifiants`,
             shouldPause: true,
           });
         } catch (err) {
@@ -102,13 +100,37 @@ async function processJob(job: HunterJob): Promise<void> {
       break;
     }
 
+    case "error":
+      log("WARN", `[${job.applicantName}] Transient error (timeout/network/parsing) — will retry next cycle`);
+      break;
+
     case "captcha":
       log("WARN", `[${job.applicantName}] Blocked by CAPTCHA — will retry next cycle`);
       break;
 
     case "not_found":
-      consecutiveFailures.delete(job.id);
+      consecutiveLoginFailures.delete(job.id);
+      log("INFO", `[${job.applicantName}] No slot found this cycle`);
       break;
+  }
+}
+
+function syncAdminResets(freshJobs: HunterJob[]): void {
+  const freshJobIds = new Set(freshJobs.map((j) => j.id));
+
+  for (const jobId of pausedJobs) {
+    const freshJob = freshJobs.find((j) => j.id === jobId);
+    if (freshJob && freshJob.hunterConfig.isActive) {
+      log("INFO", `[${freshJob.applicantName}] Admin reset detected — resuming (clearing login failure count)`);
+      pausedJobs.delete(jobId);
+      consecutiveLoginFailures.delete(jobId);
+    }
+  }
+
+  for (const jobId of consecutiveLoginFailures.keys()) {
+    if (!freshJobIds.has(jobId)) {
+      consecutiveLoginFailures.delete(jobId);
+    }
   }
 }
 
@@ -123,18 +145,21 @@ async function runCycle(): Promise<void> {
     return;
   }
 
+  syncAdminResets(jobs);
+
   const activeJobs = jobs.filter((j) => !pausedJobs.has(j.id));
-  log("INFO", `${activeJobs.length} active jobs (${pausedJobs.size} paused)`);
+  log("INFO", `${activeJobs.length} active jobs (${pausedJobs.size} paused locally)`);
 
   if (activeJobs.length === 0) {
     log("INFO", "No active jobs — sleeping until next poll");
     return;
   }
 
-  for (const job of activeJobs) {
+  for (let i = 0; i < activeJobs.length; i++) {
+    const job = activeJobs[i];
     await processJob(job);
 
-    if (job !== activeJobs[activeJobs.length - 1]) {
+    if (i < activeJobs.length - 1) {
       const interval = randomInterval(job.urgencyTier);
       log("INFO", `Waiting ${formatMs(interval)} before next job...`);
       await new Promise((r) => setTimeout(r, interval));
@@ -155,6 +180,7 @@ async function main(): Promise<void> {
   log("INFO", `Hunter API Key: ${hunterKey ? "configured" : "MISSING"}`);
   log("INFO", `Proxy: ${process.env.PROXY_URL ? "configured" : "none"}`);
   log("INFO", `Interval range: ${formatMs(MIN_INTERVAL_MS)}–${formatMs(MAX_INTERVAL_MS)} (varies by urgency)`);
+  log("INFO", `Pause after: ${MAX_LOGIN_FAILURES} consecutive login_failed results (transient errors don't count)`);
 
   if (!convexUrl || !hunterKey) {
     log("ERROR", "CONVEX_SITE_URL and HUNTER_API_KEY are required — exiting");
@@ -171,19 +197,6 @@ async function main(): Promise<void> {
     const sleepMs = MIN_INTERVAL_MS + Math.random() * (MAX_INTERVAL_MS - MIN_INTERVAL_MS);
     log("INFO", `Sleeping ${formatMs(sleepMs)} before next cycle...`);
     await new Promise((r) => setTimeout(r, sleepMs));
-
-    try {
-      const freshJobs = await getActiveJobs();
-      for (const job of freshJobs) {
-        if (pausedJobs.has(job.id) && job.hunterConfig.isActive) {
-          const failures = consecutiveFailures.get(job.id) ?? 0;
-          if (failures === 0) {
-            log("INFO", `[${job.applicantName}] Re-activated by admin — removing from paused set`);
-            pausedJobs.delete(job.id);
-          }
-        }
-      }
-    } catch { /* ignore */ }
   }
 }
 
