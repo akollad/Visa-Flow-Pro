@@ -451,6 +451,17 @@ export async function checkUsaAppointmentRequestStatus(session: UsaSession): Pro
     const res = await fetch(USA_PAYMENT_STATUS_URL, { method: "GET", headers });
     if (!res.ok) {
       console.error(`[usa] Appointment status HTTP ${res.status}`);
+      // 403/401 : le compte peut être bloqué ou le token invalide juste après le login —
+      // vider le cache pour forcer une reconnexion propre au prochain cycle.
+      if (res.status === 403 || res.status === 401) {
+        const cacheKey = session.accessToken
+          ? [...tokenCache.entries()].find(([, v]) => v.accessToken === session.accessToken)?.[0]
+          : undefined;
+        if (cacheKey) {
+          console.warn(`[usa] ${res.status} sur appointment status — cache token vidé pour reconnexion`);
+          tokenCache.delete(cacheKey);
+        }
+      }
       return { status: "error", applicationId: null, pendingAppoStatus: null, primaryApplicant: null, message: `HTTP ${res.status}` };
     }
     const raw = await res.json();
@@ -811,6 +822,11 @@ async function getUsaOfcList(session: UsaSession, missionId: number): Promise<Us
     console.log(`[usa] OFCs disponibles (mission ${missionId}): ${list.map(o => o.postName).join(", ") || "aucun"}`);
     return list.filter(o => o.officeType === "OFC");
   } catch (err) {
+    // Re-lancer les erreurs circuit-breaker — elles doivent remonter jusqu'à scanUsaSlotsViaAPI.
+    // Les avaler ici ferait continuer le scan silencieusement avec une liste vide, sans heartbeat.
+    if (err instanceof RateLimitError || err instanceof AccountBlockedError || err instanceof TokenExpiredError) {
+      throw err;
+    }
     console.warn(`[usa] getOfcList erreur: ${err}`);
     return [];
   }
@@ -1259,8 +1275,44 @@ async function scanUsaSlotsViaAPI(job: HunterJob, session: UsaSession): Promise<
       continue;
     }
     if (found) {
-      // ── 1. Booking automatique ──────────────────────────────
-      const booking = await bookUsaSlot(session, found);
+      // Le booking et le téléchargement du PDF sont dans un try/catch séparé :
+      // les erreurs circuit-breaker (RateLimit, Blocked, TokenExpired) doivent
+      // stopper le scan et déclencher un heartbeat d'alerte, pas crasher silencieusement.
+      let booking: UsaBookingResult;
+      try {
+        // ── 1. Booking automatique ────────────────────────────
+        booking = await bookUsaSlot(session, found);
+      } catch (bookErr) {
+        if (bookErr instanceof RateLimitError) {
+          const waitSec = Math.round((bookErr.retryAfterMs ?? 60000) / 1000);
+          console.error(`[usa] ⛔ RATE LIMIT lors du booking — scan interrompu (retry: ${waitSec}s)`);
+          await sendHeartbeat({
+            applicationId: job.id,
+            result: "error",
+            errorMessage: `Rate limit (429) lors du booking — ${bookErr.message}. Reprendre dans ~${waitSec}s.`,
+          });
+          return "error";
+        }
+        if (bookErr instanceof AccountBlockedError) {
+          console.error(`[usa] ⛔ COMPTE BLOQUÉ lors du booking — ${bookErr.message}`);
+          const cacheKey = job.hunterConfig.embassyUsername?.toLowerCase() ?? "";
+          if (cacheKey) tokenCache.delete(cacheKey);
+          await sendHeartbeat({ applicationId: job.id, result: "error", errorMessage: `Compte bloqué (403) lors du booking` });
+          return "error";
+        }
+        if (bookErr instanceof TokenExpiredError) {
+          console.error(`[usa] ⛔ TOKEN EXPIRÉ lors du booking — reconnexion au prochain cycle`);
+          const cacheKey = job.hunterConfig.embassyUsername?.toLowerCase() ?? "";
+          if (cacheKey) tokenCache.delete(cacheKey);
+          await sendHeartbeat({ applicationId: job.id, result: "error", errorMessage: `Token JWT expiré lors du booking` });
+          return "error";
+        }
+        // Erreur réseau inattendue — traiter comme booking échoué et continuer
+        const msg = bookErr instanceof Error ? bookErr.message : String(bookErr);
+        console.error(`[usa] Erreur inattendue lors du booking: ${msg}`);
+        booking = { success: false, error: msg };
+      }
+
       await randomDelay(1000, 2000);
 
       // ── 2. Télécharger le PDF de confirmation ───────────────
