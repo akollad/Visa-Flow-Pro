@@ -201,6 +201,15 @@ export async function reportBotTestResult(payload: {
 }
 
 export async function uploadScreenshot(base64: string): Promise<string | null> {
+  return uploadFile(base64, "image/png");
+}
+
+/**
+ * Uploade n'importe quel fichier (image, PDF, etc.) vers Convex Storage.
+ * @param base64 — contenu encodé en base64
+ * @param contentType — ex: "image/png", "application/pdf"
+ */
+export async function uploadFile(base64: string, contentType: string): Promise<string | null> {
   const url = `${CONVEX_SITE_URL}/hunter/upload-screenshot`;
   try {
     const res = await fetchWithRetry(url, {
@@ -209,18 +218,18 @@ export async function uploadScreenshot(base64: string): Promise<string | null> {
         "X-Hunter-Key": HUNTER_API_KEY,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ base64, contentType: "image/png" }),
+      body: JSON.stringify({ base64, contentType }),
     });
 
     if (!res.ok) {
-      console.warn(`[convexClient] Screenshot upload failed: ${res.status}`);
+      console.warn(`[convexClient] File upload failed (${contentType}): ${res.status}`);
       return null;
     }
 
     const data = (await res.json()) as { ok: boolean; storageId?: string };
     return data.storageId ?? null;
   } catch (err) {
-    console.warn("[convexClient] Screenshot upload error:", err);
+    console.warn("[convexClient] File upload error:", err);
     return null;
   }
 }

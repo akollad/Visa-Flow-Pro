@@ -1,6 +1,6 @@
 import { createCipheriv, pbkdf2Sync, randomBytes } from "crypto";
 import { launchBrowser, randomDelay } from "./browser.js";
-import { reportSlotFound, sendHeartbeat, type HunterJob } from "./convexClient.js";
+import { reportSlotFound, sendHeartbeat, uploadFile, type HunterJob } from "./convexClient.js";
 
 type SessionResult = "slot_found" | "not_found" | "captcha" | "error" | "login_failed" | "payment_required";
 
@@ -25,6 +25,7 @@ const USA_SLOT_TIMES_URL = `${USA_ADMIN_URL}/modifyslot/getSlotTime`;
 const USA_APP_DETAILS_URL = (applicationId: string, applicantId: number) =>
   `${USA_APPOINTMENT_URL}/appointments/getApplicationDetails?applicationId=${applicationId}&applicantId=${applicantId}`;
 const USA_CONFIRMATION_LETTER_URL = `${USA_NOTIFICATION_URL}/template/appointmentLetter`;
+const USA_SCHEDULE_URL = `${USA_APPOINTMENT_URL}/appointments/schedule`;
 
 const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
 
@@ -621,11 +622,20 @@ async function getUsaOfcList(session: UsaSession, missionId: number): Promise<Us
  * puis les dates et horaires dans ce mois.
  * Retourne le premier créneau trouvé ou null.
  */
+interface SlotFound {
+  date: string;
+  time: string;
+  slotId: number;
+  ofcName: string;
+  slot: UsaTimeSlot;
+  bookingBase: Record<string, unknown>;
+}
+
 async function findFirstSlotForOfc(
   session: UsaSession,
   ofc: UsaOfc,
   appDetails: UsaAppDetails
-): Promise<{ date: string; time: string; slotId: number; ofcName: string } | null> {
+): Promise<SlotFound | null> {
   const basePayload = {
     postUserId: ofc.postUserId,
     applicantId: appDetails.applicantId,
@@ -729,7 +739,112 @@ async function findFirstSlotForOfc(
     time,
     slotId: slot.slotId,
     ofcName: ofc.postName,
+    slot,           // objet complet UsaTimeSlot pour le booking
+    bookingBase: basePayload as Record<string, unknown>,  // champs communs au booking
   };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Types & fonction de booking automatique
+// ─────────────────────────────────────────────────────────────
+
+interface UsaBookingPayload {
+  postUserId: number;
+  applicantId: number;
+  applicationId: string;
+  visaType: string;
+  visaClass: string;
+  locationType: "OFC" | "POST";
+  appointmentLocationType: "OFC" | "POST";
+  slotId: number;
+  date: string;
+  startTime: string;
+  endTime: string;
+  [key: string]: unknown;
+}
+
+interface UsaBookingEntry {
+  responseMsg?: string;
+  appointmentId?: number;
+  [key: string]: unknown;
+}
+
+type UsaBookingResponse = UsaBookingEntry[];
+
+interface UsaBookingResult {
+  success: boolean;
+  appointmentId?: number;
+  responseMsg?: string;
+  error?: string;
+  statusCode?: number;
+}
+
+/**
+ * Réserve automatiquement un créneau trouvé par findFirstSlotForOfc.
+ * PUT /visaappointmentapi/appointments/schedule
+ *
+ * Codes d'erreur connus (extraits du bundle Angular) :
+ *   409 → créneau déjà pris par un autre usager (conflit)
+ *   502 → erreur serveur temporaire
+ *
+ * Réponse succès : Array<{ responseMsg, appointmentId, ... }>
+ */
+async function bookUsaSlot(
+  session: UsaSession,
+  found: { slot: UsaTimeSlot; bookingBase: Record<string, unknown> }
+): Promise<UsaBookingResult> {
+  const payload = {
+    ...found.bookingBase,
+    ...found.slot,          // slotId, date, startTime, endTime + champs extra du portail
+    appointmentLocationType: "OFC" as const,
+  } as UsaBookingPayload;
+
+  console.log(
+    `[usa] 📝 Tentative de booking — slotId=${payload.slotId}, date=${payload.date}, ` +
+    `OFC postUserId=${payload.postUserId}`
+  );
+
+  try {
+    const res = await fetch(USA_SCHEDULE_URL, {
+      method: "PUT",
+      headers: authHeaders(session.accessToken),
+      body: JSON.stringify(payload),
+    });
+
+    if (res.ok) {
+      let arr: UsaBookingResponse = [];
+      try { arr = await res.json() as UsaBookingResponse; } catch { /* body vide */ }
+      const msg = arr[0]?.responseMsg ?? "Booking confirmé";
+      const appointmentId = arr[0]?.appointmentId;
+      console.log(`[usa] ✅ BOOKING RÉUSSI — "${msg}" (appointmentId=${appointmentId})`);
+      return { success: true, appointmentId, responseMsg: msg };
+    }
+
+    // 409 = créneau déjà pris
+    if (res.status === 409) {
+      const body = await res.json().catch(() => ({})) as { responseMessage?: string };
+      const msg = body.responseMessage ?? "Créneau déjà pris (conflit 409)";
+      console.warn(`[usa] ⚠️ Conflit 409 — ${msg}`);
+      return { success: false, error: msg, statusCode: 409 };
+    }
+
+    // 502 = erreur serveur temporaire
+    if (res.status === 502) {
+      const body = await res.json().catch(() => ({})) as { responseMessage?: string };
+      const msg = body.responseMessage ?? "Erreur serveur 502";
+      console.warn(`[usa] ⚠️ Serveur 502 — ${msg}`);
+      return { success: false, error: msg, statusCode: 502 };
+    }
+
+    const text = await res.text();
+    console.warn(`[usa] ⚠️ Booking échoué HTTP ${res.status}: ${text.slice(0, 300)}`);
+    return { success: false, error: `HTTP ${res.status}`, statusCode: res.status };
+
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[usa] Booking erreur réseau: ${msg}`);
+    return { success: false, error: msg };
+  }
 }
 
 /**
@@ -818,20 +933,42 @@ async function scanUsaSlotsViaAPI(job: HunterJob, session: UsaSession): Promise<
     console.log(`[usa] Scan OFC: ${ofc.postName} (postUserId=${ofc.postUserId})`);
     await randomDelay(800, 1500);
 
-    const slot = await findFirstSlotForOfc(session, ofc, effectiveDetails);
-    if (slot) {
-      await reportSlotFound({
-        applicationId: job.id,
-        date: slot.date,
-        time: slot.time,
-        location: `${slot.ofcName} — Ambassade USA (mission ${USA_MISSION_ID}, slotId=${slot.slotId})`,
-      });
+    const found = await findFirstSlotForOfc(session, ofc, effectiveDetails);
+    if (found) {
+      // ── 1. Booking automatique ──────────────────────────────
+      const booking = await bookUsaSlot(session, found);
+      await randomDelay(1000, 2000);
 
-      // Tenter de télécharger la confirmation si déjà réservé
+      // ── 2. Télécharger le PDF de confirmation ───────────────
+      let pdfStorageId: string | undefined;
       const pdf = await downloadUsaConfirmationPdf(session, session.applicationId);
       if (pdf) {
-        console.log(`[usa] ✅ Confirmation PDF disponible (${pdf.length} bytes) — à uploader vers Convex`);
-        // TODO: uploader le PDF vers Convex Storage et notifier
+        console.log(`[usa] 📄 Confirmation PDF (${pdf.length} bytes) — upload vers Convex...`);
+        const b64 = pdf.toString("base64");
+        pdfStorageId = (await uploadFile(b64, "application/pdf")) ?? undefined;
+        if (pdfStorageId) {
+          console.log(`[usa] ✅ PDF uploadé → storageId: ${pdfStorageId}`);
+        }
+      }
+
+      // ── 3. Rapport vers Convex ──────────────────────────────
+      const bookingNote = booking.success
+        ? `booking confirmé — appointmentId=${booking.appointmentId}`
+        : `booking échoué (${booking.statusCode ?? "err"}: ${booking.error})`;
+
+      await reportSlotFound({
+        applicationId: job.id,
+        date: found.date,
+        time: found.time,
+        location: `${found.ofcName} — Ambassade USA (slotId=${found.slotId}, ${bookingNote})`,
+        confirmationCode: booking.appointmentId?.toString(),
+        screenshotStorageId: pdfStorageId,
+      });
+
+      if (!booking.success && booking.statusCode === 409) {
+        // Créneau pris en concurrence — continuer le scan sur les autres OFCs
+        console.log("[usa] Conflit 409 — le créneau a été pris. Poursuite du scan...");
+        continue;
       }
 
       return "slot_found";
