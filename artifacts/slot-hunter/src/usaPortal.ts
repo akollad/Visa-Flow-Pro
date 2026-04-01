@@ -1073,16 +1073,16 @@ async function bookUsaSlot(
 
     // 409 = créneau déjà pris par un autre usager (race entre hunters)
     if (res.status === 409) {
-      const body = await res.json().catch(() => ({})) as { responseMessage?: string };
-      const msg = body.responseMessage ?? "Créneau déjà pris (conflit 409)";
+      const body = await res.json().catch(() => ({})) as { responseMsg?: string };
+      const msg = body.responseMsg ?? "Créneau déjà pris (conflit 409)";
       console.warn(`[usa] ⚠️ Conflit 409 — ${msg}`);
       return { success: false, error: msg, statusCode: 409 };
     }
 
     // 502 = erreur serveur temporaire
     if (res.status === 502) {
-      const body = await res.json().catch(() => ({})) as { responseMessage?: string };
-      const msg = body.responseMessage ?? "Erreur serveur 502";
+      const body = await res.json().catch(() => ({})) as { responseMsg?: string };
+      const msg = body.responseMsg ?? "Erreur serveur 502";
       console.warn(`[usa] ⚠️ Serveur 502 — ${msg}`);
       return { success: false, error: msg, statusCode: 502 };
     }
@@ -1315,15 +1315,25 @@ async function scanUsaSlotsViaAPI(job: HunterJob, session: UsaSession): Promise<
 
       await randomDelay(1000, 2000);
 
+      // 409 = créneau pris en concurrence AVANT notre booking.
+      // Ne pas signaler le slot comme trouvé (on ne l'a pas obtenu) — scanner le prochain OFC.
+      if (!booking.success && booking.statusCode === 409) {
+        console.log("[usa] Conflit 409 — le créneau a été pris avant nous. Poursuite du scan...");
+        continue;
+      }
+
       // ── 2. Télécharger le PDF de confirmation ───────────────
+      // Uniquement si le booking a réussi : le portail ne génère la lettre que sur un RDV confirmé.
       let pdfStorageId: string | undefined;
-      const pdf = await downloadUsaConfirmationPdf(session, session.applicationId);
-      if (pdf) {
-        console.log(`[usa] 📄 Confirmation PDF (${pdf.length} bytes) — upload vers Convex...`);
-        const b64 = pdf.toString("base64");
-        pdfStorageId = (await uploadFile(b64, "application/pdf")) ?? undefined;
-        if (pdfStorageId) {
-          console.log(`[usa] ✅ PDF uploadé → storageId: ${pdfStorageId}`);
+      if (booking.success) {
+        const pdf = await downloadUsaConfirmationPdf(session, session.applicationId);
+        if (pdf) {
+          console.log(`[usa] 📄 Confirmation PDF (${pdf.length} bytes) — upload vers Convex...`);
+          const b64 = pdf.toString("base64");
+          pdfStorageId = (await uploadFile(b64, "application/pdf")) ?? undefined;
+          if (pdfStorageId) {
+            console.log(`[usa] ✅ PDF uploadé → storageId: ${pdfStorageId}`);
+          }
         }
       }
 
@@ -1340,12 +1350,6 @@ async function scanUsaSlotsViaAPI(job: HunterJob, session: UsaSession): Promise<
         confirmationCode: booking.appointmentId?.toString(),
         screenshotStorageId: pdfStorageId,
       });
-
-      if (!booking.success && booking.statusCode === 409) {
-        // Créneau pris en concurrence — continuer le scan sur les autres OFCs
-        console.log("[usa] Conflit 409 — le créneau a été pris. Poursuite du scan...");
-        continue;
-      }
 
       return "slot_found";
     }
