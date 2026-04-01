@@ -1,6 +1,14 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 
+function getRole(identity: { [key: string]: unknown } | null): string {
+  if (!identity) return "client";
+  if (identity.role) return identity.role as string;
+  const pub = identity.publicMetadata as { role?: string } | undefined;
+  if (pub?.role) return pub.role;
+  return "client";
+}
+
 export const submit = mutation({
   args: {
     applicationId: v.id("applications"),
@@ -68,12 +76,7 @@ export const listAll = query({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-      .unique();
-    if (!user || user.role !== "admin") return null;
+    if (!identity || getRole(identity as Record<string, unknown>) !== "admin") return null;
 
     const reviews = await ctx.db.query("reviews").order("desc").collect();
     return await Promise.all(
@@ -89,12 +92,9 @@ export const approve = mutation({
   args: { reviewId: v.id("reviews") },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Non authentifié");
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-      .unique();
-    if (!user || user.role !== "admin") throw new Error("Accès refusé");
+    if (!identity || getRole(identity as Record<string, unknown>) !== "admin") {
+      throw new Error("Accès réservé aux administrateurs");
+    }
     await ctx.db.patch(args.reviewId, { isApproved: true });
   },
 });
@@ -103,12 +103,9 @@ export const reject = mutation({
   args: { reviewId: v.id("reviews") },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Non authentifié");
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-      .unique();
-    if (!user || user.role !== "admin") throw new Error("Accès refusé");
+    if (!identity || getRole(identity as Record<string, unknown>) !== "admin") {
+      throw new Error("Accès réservé aux administrateurs");
+    }
     await ctx.db.patch(args.reviewId, { isApproved: false });
   },
 });
@@ -117,12 +114,9 @@ export const remove = mutation({
   args: { reviewId: v.id("reviews") },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Non authentifié");
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-      .unique();
-    if (!user || user.role !== "admin") throw new Error("Accès refusé");
+    if (!identity || getRole(identity as Record<string, unknown>) !== "admin") {
+      throw new Error("Accès réservé aux administrateurs");
+    }
     await ctx.db.delete(args.reviewId);
   },
 });

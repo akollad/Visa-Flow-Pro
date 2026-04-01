@@ -413,6 +413,12 @@ export default function AdminApplicationDetail() {
     try {
       await sendMessage({ applicationId: appId, content: msgText });
       setMsgText("");
+    } catch (err: unknown) {
+      toast({
+        variant: "destructive",
+        title: "Erreur d'envoi",
+        description: err instanceof Error ? err.message : "Le message n'a pas pu être envoyé.",
+      });
     } finally {
       setIsSending(false);
     }
