@@ -104,6 +104,13 @@ interface CachedToken {
 
 const tokenCache = new Map<string, CachedToken>();
 
+/**
+ * Verrou de login concurrent : si deux jobs pour le même compte tentent un login simultané,
+ * le deuxième attend la résolution du premier au lieu d'envoyer une 2e requête au serveur.
+ * Deux logins simultanés peuvent déclencher un lockout côté portail.
+ */
+const pendingLogin = new Map<string, Promise<UsaSession | null>>();
+
 function parseJwtExpiry(token: string): number {
   try {
     const payload = token.split(".")[1];
@@ -124,7 +131,13 @@ async function refreshUsaToken(cached: CachedToken): Promise<CachedToken | null>
   try {
     const res = await fetch(USA_REFRESH_URL, {
       method: "POST",
-      headers: { ...BROWSER_HEADERS },
+      // Le refresh est appelé depuis la session active — referer = dashboard
+      // Content-Type obligatoire car le body est du JSON
+      headers: {
+        ...BROWSER_HEADERS,
+        "Content-Type": "application/json",
+        "Referer": REFERER_DASHBOARD,
+      },
       body: JSON.stringify({ refreshToken: cached.refreshToken }),
     });
 
@@ -262,29 +275,43 @@ export async function getUsaSession(
     tokenCache.delete(cacheKey);
   }
 
-  // Login direct avec credentials chiffrés en AES — le CAPTCHA est validé côté client uniquement
-  let session: UsaSession | null = null;
-
-  try {
-    console.log("[usa] Login API avec credentials AES chiffrés...");
-    session = await loginUsaPortal(username, password, null);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(`Login USA échoué: ${msg}`);
+  // ── Verrou anti-race-condition ──────────────────────────────────────────────
+  // Si un login est déjà en cours pour ce compte (job concurrent), on attend sa
+  // résolution plutôt que d'envoyer une 2e requête qui pourrait déclencher un lockout.
+  const inFlight = pendingLogin.get(cacheKey);
+  if (inFlight) {
+    console.log(`[usa] Login déjà en cours pour ${username} — attente de la réponse en cours...`);
+    return inFlight;
   }
 
-  if (!session) return null;
+  const loginPromise = (async (): Promise<UsaSession | null> => {
+    let session: UsaSession | null = null;
+    try {
+      console.log("[usa] Login API avec credentials AES chiffrés...");
+      session = await loginUsaPortal(username, password, null);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`Login USA échoué: ${msg}`);
+    } finally {
+      pendingLogin.delete(cacheKey);
+    }
 
-  const expiresAt = parseJwtExpiry(session.accessToken) || Date.now() + 55 * 60 * 1000;
-  tokenCache.set(cacheKey, {
-    accessToken: session.accessToken,
-    refreshToken: session.refreshToken,
-    expiresAt,
-    userID: session.userID,
-    fullName: session.fullName,
-  });
+    if (!session) return null;
 
-  return session;
+    const expiresAt = parseJwtExpiry(session.accessToken) || Date.now() + 55 * 60 * 1000;
+    tokenCache.set(cacheKey, {
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
+      expiresAt,
+      userID: session.userID,
+      fullName: session.fullName,
+    });
+
+    return session;
+  })();
+
+  pendingLogin.set(cacheKey, loginPromise);
+  return loginPromise;
 }
 
 /**
@@ -337,12 +364,25 @@ export async function loginUsaPortal(
   try {
     response = await fetch(USA_LOGIN_URL, {
       method: "POST",
-      headers: BROWSER_HEADERS,
+      // Content-Type obligatoire : body JSON. Referer = page de login (le formulaire poste vers lui-même).
+      // authHeaders() ne convient pas ici car on n'a pas encore de token.
+      headers: {
+        ...BROWSER_HEADERS,
+        "Content-Type": "application/json",
+        "Referer": REFERER_LOGIN,
+      },
       body: JSON.stringify(body),
     });
   } catch (err) {
     console.error("[usa] Erreur réseau lors du login:", err);
     throw new Error(`Réseau: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // 429 au login = trop de tentatives → risque de lockout compte
+  if (response.status === 429) {
+    const retryAfter = response.headers.get("Retry-After");
+    const waitMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : 60_000;
+    throw new RateLimitError(USA_LOGIN_URL, waitMs);
   }
 
   // Lire le corps de la réponse dans tous les cas pour logger le vrai message d'erreur
@@ -374,7 +414,8 @@ export async function loginUsaPortal(
     throw new Error(`Portail: ${data.msg}`);
   }
 
-  if (data.isActive !== "ACTIVE") {
+  // Comparaison insensible à la casse — le serveur peut renvoyer "active", "Active" ou "ACTIVE"
+  if ((data.isActive ?? "").toUpperCase() !== "ACTIVE") {
     console.warn(`[usa] Compte inactif: isActive=${data.isActive}, msg=${data.msg}`);
     throw new Error(`Compte non actif (isActive=${data.isActive})`);
   }
@@ -1001,7 +1042,20 @@ async function bookUsaSlot(
       return { success: true, appointmentId, responseMsg: msg };
     }
 
-    // 409 = créneau déjà pris
+    // Circuit-breakers : ces erreurs pendant le booking stoppent tout le scan
+    if (res.status === 429) {
+      const retryAfter = res.headers.get("Retry-After");
+      const waitMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : undefined;
+      throw new RateLimitError(USA_SCHEDULE_URL, waitMs);
+    }
+    if (res.status === 403) {
+      throw new AccountBlockedError(USA_SCHEDULE_URL);
+    }
+    if (res.status === 401) {
+      throw new TokenExpiredError();
+    }
+
+    // 409 = créneau déjà pris par un autre usager (race entre hunters)
     if (res.status === 409) {
       const body = await res.json().catch(() => ({})) as { responseMessage?: string };
       const msg = body.responseMessage ?? "Créneau déjà pris (conflit 409)";
@@ -1022,6 +1076,10 @@ async function bookUsaSlot(
     return { success: false, error: `HTTP ${res.status}`, statusCode: res.status };
 
   } catch (err) {
+    // Re-lancer les erreurs circuit-breaker pour qu'elles remontent jusqu'à scanUsaSlotsViaAPI
+    if (err instanceof RateLimitError || err instanceof AccountBlockedError || err instanceof TokenExpiredError) {
+      throw err;
+    }
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[usa] Booking erreur réseau: ${msg}`);
     return { success: false, error: msg };
@@ -1041,8 +1099,11 @@ export async function downloadUsaConfirmationPdf(
   try {
     const res = await fetch(USA_CONFIRMATION_LETTER_URL, {
       method: "POST",
+      // sessionHeaders : inclut les cookies APP_ID_TOBE + missionId, obligatoires après booking.
+      // Referer = page de scheduling (le PDF est téléchargé immédiatement après confirmation).
+      // Accept = application/pdf : overwrite "application/json" de authHeaders.
       headers: {
-        ...authHeaders(session.accessToken),
+        ...sessionHeaders(session.accessToken, applicationId, USA_MISSION_ID, REFERER_CREATE_APT),
         "Accept": "application/pdf",
       },
       body: JSON.stringify({ applicationId }),
