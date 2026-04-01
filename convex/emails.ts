@@ -98,8 +98,13 @@ function cta(href: string, text: string): string {
   return `<a href="${href}" style="display:inline-block;margin-top:20px;padding:14px 28px;background:#2563eb;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">${text}</a>`;
 }
 
-function badge(text: string, color = "#2563eb"): string {
-  return `<span style="display:inline-block;padding:3px 10px;background:${color};color:#fff;font-size:11px;font-weight:600;border-radius:4px;letter-spacing:0.5px;">${text}</span>`;
+function escHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function info(label: string, value: string): string {
@@ -335,7 +340,7 @@ export const sendApplicationRejectedClient = internalAction({
       <h2 style="margin:0 0 16px;color:#1e293b;font-size:22px;">Information concernant votre dossier</h2>
       <p style="color:#475569;font-size:15px;line-height:1.7;">Après examen, votre dossier de visa <strong>${destLabel(args.destination)}</strong> pour <strong>${args.applicantName}</strong> n'a pas pu être traité pour la raison suivante :</p>
       <div style="background:#fef2f2;border-left:4px solid #ef4444;padding:14px 18px;margin:16px 0;border-radius:0 6px 6px 0;">
-        <p style="margin:0;color:#991b1b;font-size:14px;">${args.reason}</p>
+        <p style="margin:0;color:#991b1b;font-size:14px;">${escHtml(args.reason)}</p>
       </div>
       <p style="color:#475569;font-size:15px;line-height:1.7;">Si vous pensez qu'il s'agit d'une erreur ou si vous souhaitez plus d'informations, contactez-nous via la messagerie de votre espace client.</p>
       ${cta(`${APP_URL}/dashboard`, "Contacter Joventy")}
@@ -359,9 +364,11 @@ export const sendNewMessageClient = internalAction({
     applicationId: v.string(),
   },
   handler: async (_ctx, args) => {
-    const preview = args.messagePreview.length > 160
-      ? args.messagePreview.slice(0, 157) + "..."
-      : args.messagePreview;
+    const preview = escHtml(
+      args.messagePreview.length > 160
+        ? args.messagePreview.slice(0, 157) + "..."
+        : args.messagePreview
+    );
 
     const body = `
       <p style="margin:0 0 4px;color:#64748b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;">Nouveau message</p>
@@ -391,14 +398,16 @@ export const sendNewMessageAdmin = internalAction({
     applicationId: v.string(),
   },
   handler: async (_ctx, args) => {
-    const preview = args.messagePreview.length > 200
-      ? args.messagePreview.slice(0, 197) + "..."
-      : args.messagePreview;
+    const preview = escHtml(
+      args.messagePreview.length > 200
+        ? args.messagePreview.slice(0, 197) + "..."
+        : args.messagePreview
+    );
 
     const body = `
       <p style="margin:0 0 4px;color:#64748b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;">Message client</p>
       <h2 style="margin:0 0 16px;color:#1e293b;font-size:22px;">Nouveau message d'un client</h2>
-      <p style="color:#475569;font-size:15px;">De : <strong>${args.senderName}</strong> — Dossier : <strong>${args.applicantName}</strong> (${destLabel(args.destination)})</p>
+      <p style="color:#475569;font-size:15px;">De : <strong>${escHtml(args.senderName)}</strong> — Dossier : <strong>${escHtml(args.applicantName)}</strong> (${destLabel(args.destination)})</p>
       <div style="background:#f1f5f9;border-radius:8px;padding:16px 20px;margin:16px 0;">
         <p style="margin:0;color:#1e293b;font-size:14px;line-height:1.7;font-style:italic;">"${preview}"</p>
       </div>
