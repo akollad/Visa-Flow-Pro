@@ -13,10 +13,13 @@ COPY tsconfig.json ./
 
 COPY artifacts/slot-hunter/package.json ./artifacts/slot-hunter/package.json
 
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
 RUN pnpm install --frozen-lockfile --filter @workspace/slot-hunter
 
-COPY artifacts/slot-hunter ./artifacts/slot-hunter
+# Install exact Chromium version matching the installed playwright package
+RUN cd artifacts/slot-hunter && npx playwright install chromium
 
-ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+COPY artifacts/slot-hunter ./artifacts/slot-hunter
 
 CMD ["pnpm", "--filter", "@workspace/slot-hunter", "run", "start"]
