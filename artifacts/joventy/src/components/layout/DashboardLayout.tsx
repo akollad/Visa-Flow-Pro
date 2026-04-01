@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
+import { OnboardingModal } from "@/components/OnboardingModal";
 import {
   LayoutDashboard,
   FileText,
@@ -132,6 +133,7 @@ export function DashboardLayout({ children, isAdmin = false }: DashboardLayoutPr
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
+      {!isAdmin && <OnboardingModal />}
       {/* Desktop sidebar */}
       <aside className="hidden md:flex w-64 bg-white border-r border-border flex-shrink-0 flex-col z-20 sticky top-0 h-screen">
         <SidebarContent />

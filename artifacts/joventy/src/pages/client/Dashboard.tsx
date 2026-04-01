@@ -4,6 +4,7 @@ import { api } from "@convex/_generated/api";
 import { useAuth } from "@/lib/auth";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatDate } from "@/lib/format";
+import { OnboardingBanner } from "@/components/OnboardingBanner";
 import {
   FileText,
   Plus,
@@ -82,6 +83,9 @@ export default function ClientDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Onboarding banner — only when no applications yet */}
+      {!isLoading && applications.length === 0 && <OnboardingBanner />}
 
       {/* Unread messages alert */}
       {unreadConvs.length > 0 && (
