@@ -1,5 +1,5 @@
+import { createCipheriv, pbkdf2Sync, randomBytes } from "crypto";
 import { launchBrowser, randomDelay } from "./browser.js";
-import { solveCaptchaForSite } from "./captcha.js";
 import { reportSlotFound, sendHeartbeat, type HunterJob } from "./convexClient.js";
 
 type SessionResult = "slot_found" | "not_found" | "captcha" | "error" | "login_failed" | "payment_required";
@@ -9,12 +9,28 @@ const USA_LOGIN_URL = `${USA_BASE}/identity/user/login`;
 const USA_REFRESH_URL = `${USA_BASE}/identity/user/refreshToken`;
 const USA_PAYMENT_URL = `${USA_BASE}/visaworkflowprocessor/workflow/getUserHistoryApplicantPaymentStatus`;
 const USA_APPT_REQUESTS_URL = `${USA_BASE}/visauserapi/appointmentrequest/getallbyuser`;
-// nosemgrep: generic-api-key — clé reCAPTCHA v2 publique, visible dans le HTML de usvisaappt.com, non secrète
-const USA_SITE_KEY = "6LdVVDAqAAAAAK4DS06UwosT8o1SA_3WhzUDAWAp";
-const USA_LOGIN_PAGE = "https://www.usvisaappt.com/visaapplicantui/login";
 const USA_MISSION_ID = 323;
 
 const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
+
+// Clé AES du portail USA — extraite du bundle Angular public (visaapplicantui/main.js)
+// nosemgrep: generic-api-key — clé publique, visible dans le JS client du portail
+const USA_ENC_SEC_KEY = "OuoCdl8xQh/OX6LbmgLEtZxZrvnOmrubsMhPW1VPRjk=";
+
+/**
+ * Chiffre les credentials en AES-256-CBC avec PBKDF2 (SHA1, 1000 itérations),
+ * identique à cryptoService.encrypt() du portail Angular.
+ * Format de sortie : salt_hex(32) + iv_hex(32) + base64(ciphertext)
+ */
+function encryptPortalCredentials(username: string, password: string): string {
+  const plaintext = `${username}:${password}`;
+  const salt = randomBytes(16);
+  const key = pbkdf2Sync(USA_ENC_SEC_KEY, salt, 1000, 32, "sha1");
+  const iv = randomBytes(16);
+  const cipher = createCipheriv("aes-256-cbc", key, iv);
+  const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  return salt.toString("hex") + iv.toString("hex") + encrypted.toString("base64");
+}
 
 interface CachedToken {
   accessToken: string;
@@ -136,24 +152,11 @@ const BROWSER_HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
 };
 
-export async function solveCaptchaForUsa(captchaApiKey: string): Promise<string> {
-  console.log("[usa] Résolution reCAPTCHA via 2captcha (site key USA)...");
-  try {
-    const token = await solveCaptchaForSite(captchaApiKey, USA_SITE_KEY, USA_LOGIN_PAGE);
-    if (!token) throw new Error("2captcha a retourné un token vide");
-    console.log("[usa] reCAPTCHA résolu avec succès");
-    return token;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[usa] Échec résolution reCAPTCHA:", msg);
-    throw new Error(`Résolution CAPTCHA: ${msg}`);
-  }
-}
 
 export async function getUsaSession(
   username: string,
   password: string,
-  captchaApiKey?: string
+  _captchaApiKey?: string  // Conservé pour compatibilité — le portail USA ne requiert pas de CAPTCHA via API
 ): Promise<UsaSession | null> {
   const cacheKey = username.toLowerCase();
   const cached = tokenCache.get(cacheKey);
@@ -189,35 +192,15 @@ export async function getUsaSession(
     tokenCache.delete(cacheKey);
   }
 
-  // Tenter d'abord sans CAPTCHA (l'API l'accepte souvent sans token)
+  // Login direct avec credentials chiffrés en AES — le CAPTCHA est validé côté client uniquement
   let session: UsaSession | null = null;
-  let lastError = "";
 
   try {
-    console.log("[usa] Tentative login sans CAPTCHA...");
+    console.log("[usa] Login API avec credentials AES chiffrés...");
     session = await loginUsaPortal(username, password, null);
   } catch (err) {
-    lastError = err instanceof Error ? err.message : String(err);
-    console.warn(`[usa] Login sans captcha échoué (${lastError}) — essai avec CAPTCHA...`);
-  }
-
-  if (!session && captchaApiKey) {
-    let captchaToken: string;
-    try {
-      console.log("[usa] Résolution CAPTCHA via 2captcha...");
-      captchaToken = await solveCaptchaForUsa(captchaApiKey);
-    } catch (captchaErr) {
-      const captchaMsg = captchaErr instanceof Error ? captchaErr.message : String(captchaErr);
-      throw new Error(`Login (sans captcha): ${lastError} | ${captchaMsg}`);
-    }
-    try {
-      session = await loginUsaPortal(username, password, captchaToken);
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      throw new Error(`Login (sans captcha): ${lastError} | Login (avec captcha): ${errMsg}`);
-    }
-  } else if (!session) {
-    throw new Error(lastError || "Login échoué (raison inconnue)");
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Login USA échoué: ${msg}`);
   }
 
   if (!session) return null;
@@ -237,18 +220,17 @@ export async function getUsaSession(
 export async function loginUsaPortal(
   username: string,
   password: string,
-  captchaToken: string | null
+  _captchaToken?: string | null  // Conservé pour compatibilité — le CAPTCHA n'est pas requis par l'API
 ): Promise<UsaSession | null> {
-  console.log(`[usa] Connexion API pour ${username} (captcha: ${captchaToken ? "oui" : "non"})...`);
+  console.log(`[usa] Connexion API pour ${username} avec credentials AES chiffrés...`);
 
-  const body: Record<string, unknown> = {
-    userName: username,
-    password,
-    // missionId retiré du login — requis seulement pour la réservation de créneau, pas l'auth
-    ...(captchaToken ? { recaptchaToken: captchaToken, captchaToken } : {}),
+  // Le portail USA attend les credentials chiffrés en AES-256-CBC dans le champ "authorization"
+  // Format découvert dans le bundle Angular public : { authorization: "Basic " + encrypt(user:pass) }
+  const body = {
+    authorization: `Basic ${encryptPortalCredentials(username, password)}`,
   };
 
-  console.log(`[usa] Body login: ${JSON.stringify({ ...body, password: "***" })}`);
+  console.log(`[usa] Body login: {authorization: "Basic <AES_encrypted(${username}:***)}"}`);
 
   let response: Response;
   try {
