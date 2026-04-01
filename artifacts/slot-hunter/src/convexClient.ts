@@ -169,10 +169,16 @@ export interface BotTest {
 
 export async function getPendingBotTest(): Promise<BotTest | null> {
   const url = `${CONVEX_SITE_URL}/hunter/pending-test`;
-  // GET — pas de body, donc pas de Content-Type
+  // POST — claimPendingBotTest est une mutation (écriture DB).
+  // Un GET pourrait être retransmis par un proxy HTTP (GET est idempotent par convention),
+  // ce qui réclamerait le même test deux fois. POST évite ce risque.
   const res = await fetchWithRetry(url, {
-    method: "GET",
-    headers: { "X-Hunter-Key": HUNTER_API_KEY },
+    method: "POST",
+    headers: {
+      "X-Hunter-Key": HUNTER_API_KEY,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({}),
   });
 
   if (!res.ok) return null;

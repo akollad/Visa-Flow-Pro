@@ -74,8 +74,15 @@ async function pollCaptchaSolution(
       json: "1",
     });
 
-    const res = await fetch(`${TWO_CAPTCHA_BASE}/res.php?${params.toString()}`);
-    const data = (await res.json()) as { status: number; request: string };
+    let data: { status: number; request: string };
+    try {
+      const res = await fetch(`${TWO_CAPTCHA_BASE}/res.php?${params.toString()}`);
+      data = (await res.json()) as { status: number; request: string };
+    } catch (err) {
+      console.warn(`[captcha] Erreur réseau/JSON pendant le poll (tentative ${i + 1}/${MAX_POLL_ATTEMPTS}):`, err);
+      // Erreur transitoire — on continue à poller
+      continue;
+    }
 
     if (data.status === 1) {
       return data.request;

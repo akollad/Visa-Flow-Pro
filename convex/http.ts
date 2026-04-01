@@ -189,7 +189,7 @@ http.route({
 
     let body: {
       applicationId: string;
-      result: "not_found" | "captcha" | "error";
+      result: "not_found" | "captcha" | "error" | "payment_required";
       errorMessage?: string;
       shouldPause?: boolean;
     };
@@ -266,7 +266,7 @@ http.route({
 
 http.route({
   path: "/hunter/pending-test",
-  method: "GET",
+  method: "POST",
   handler: httpAction(async (ctx, request) => {
     const err = requireHunterKey(request);
     if (err) return err;

@@ -181,10 +181,11 @@ export const recordHeartbeat = internalMutation({
     });
 
     if (args.shouldPause) {
+      const pauseReason = args.errorMessage ?? "Hunter auto-paused";
       await ctx.db.patch(args.applicationId, {
         logs: [
           ...((app as { logs?: Array<{ msg: string; time: number; author: string }> }).logs ?? []),
-          { msg: "Hunter auto-paused: 3 login failures consécutives", time: Date.now(), author: "Joventy Hunter" },
+          { msg: pauseReason, time: Date.now(), author: "Joventy Hunter" },
         ],
         updatedAt: Date.now(),
       });
