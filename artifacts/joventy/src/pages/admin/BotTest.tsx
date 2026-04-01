@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
+
 import { VISA_PRICING } from "@convex/constants";
 import {
   Wifi,
@@ -151,8 +151,7 @@ export default function AdminBotTest() {
   }
 
   return (
-    <DashboardLayout isAdmin>
-      <div className="max-w-5xl mx-auto space-y-8">
+    <div className="max-w-5xl mx-auto space-y-8">
         <div>
           <h1 className="text-2xl font-bold text-primary flex items-center gap-3">
             <Bot className="w-7 h-7 text-secondary" />
@@ -496,7 +495,6 @@ export default function AdminBotTest() {
             </div>
           )}
         </section>
-      </div>
-    </DashboardLayout>
+    </div>
   );
 }
