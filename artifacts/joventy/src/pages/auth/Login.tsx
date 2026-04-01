@@ -79,17 +79,14 @@ export default function Login() {
       setLoadingOAuth(strategy);
     });
     try {
-      const { error: err } = await signIn.sso({
+      const base = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
+      await signIn.authenticateWithRedirect({
         strategy,
-        redirectCallbackUrl: `${window.location.origin}/sso-callback`,
-        redirectUrl: `${window.location.origin}/dashboard`,
+        redirectUrl: `${window.location.origin}${base}/sso-callback`,
+        redirectUrlComplete: `${window.location.origin}${base}/dashboard`,
       });
-      if (err) {
-        setError(err.longMessage || err.message);
-        setLoadingOAuth(null);
-      }
     } catch (e: any) {
-      setError(e?.message || "Erreur de connexion OAuth");
+      setError(e?.errors?.[0]?.longMessage || e?.message || "Erreur de connexion OAuth");
       setLoadingOAuth(null);
     }
   };
