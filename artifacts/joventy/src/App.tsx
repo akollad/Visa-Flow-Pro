@@ -41,7 +41,12 @@ import AdminReviews from "@/pages/admin/Reviews";
 import AdminBotTest from "@/pages/admin/BotTest";
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
-const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string;
+
+const clerkPublishableKey = (
+  import.meta.env.DEV
+    ? import.meta.env.VITE_CLERK_PUBLISHABLE_KEY_DEV
+    : import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
+) as string;
 
 const Redirect = ({ to }: { to: string }) => {
   const [, setLocation] = useLocation();
