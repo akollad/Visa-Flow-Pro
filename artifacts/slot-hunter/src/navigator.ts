@@ -572,7 +572,11 @@ export async function runHunterSession(job: HunterJob): Promise<SessionResult> {
 
   if (job.destination === "usa") {
     console.log(`[navigator] Destination USA → mode API directe (sans Playwright login)`);
-    return runUsaApiSession(job);
+    // Timeout identique aux sessions Playwright : si le portail ne répond plus,
+    // le process ne se bloque pas indéfiniment. La session USA peut prendre plus
+    // de temps (warm-up + scan multi-OFCs), donc on accorde 8 minutes.
+    const usaTimeoutMs = 8 * 60 * 1000;
+    return withTimeout(runUsaApiSession(job), usaTimeoutMs);
   }
 
   const browserRef: { current: Browser | null } = { current: null };

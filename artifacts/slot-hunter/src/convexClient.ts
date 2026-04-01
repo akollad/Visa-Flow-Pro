@@ -88,12 +88,10 @@ async function fetchWithRetry(
 
 export async function getActiveJobs(): Promise<HunterJob[]> {
   const url = `${CONVEX_SITE_URL}/hunter/jobs`;
+  // GET — pas de body, donc pas de Content-Type
   const res = await fetchWithRetry(url, {
     method: "GET",
-    headers: {
-      "X-Hunter-Key": HUNTER_API_KEY,
-      "Content-Type": "application/json",
-    },
+    headers: { "X-Hunter-Key": HUNTER_API_KEY },
   });
 
   if (!res.ok) {
@@ -171,9 +169,10 @@ export interface BotTest {
 
 export async function getPendingBotTest(): Promise<BotTest | null> {
   const url = `${CONVEX_SITE_URL}/hunter/pending-test`;
+  // GET — pas de body, donc pas de Content-Type
   const res = await fetchWithRetry(url, {
     method: "GET",
-    headers: { "X-Hunter-Key": HUNTER_API_KEY, "Content-Type": "application/json" },
+    headers: { "X-Hunter-Key": HUNTER_API_KEY },
   });
 
   if (!res.ok) return null;

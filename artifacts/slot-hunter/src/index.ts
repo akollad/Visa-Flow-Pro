@@ -28,17 +28,33 @@ const URGENCY_ORDER: Record<string, number> = {
 };
 
 const MAX_LOGIN_FAILURES = 3;
+// Auto-pause après N erreurs transitoires consécutives (429/403/réseau) sur le même dossier.
+// Évite d'harceler le portail en boucle si le compte est rate-limité ou bloqué.
+const MAX_CONSECUTIVE_ERRORS = 5;
 
 const consecutiveLoginFailures = new Map<string, number>();
+const consecutiveErrors = new Map<string, number>();
 const pausedJobs = new Set<string>();
-const lastIntervalUsed = new Map<string, number>();
 
 function log(level: "INFO" | "WARN" | "ERROR", msg: string): void {
   const ts = new Date().toISOString();
   console.log(`[${ts}] [${level}] ${msg}`);
 }
 
-function getIntervalMs(urgencyTier: string): number {
+/**
+ * Prochaine échéance planifiée par job, calculée une seule fois après chaque cycle.
+ * Séparé de getIntervalMs pour éviter les effets de bord lors des appels multiples
+ * à getNextCheckDue dans le même tour de boucle (filter + sort + getTimeUntilNextDue).
+ */
+const scheduledNextDue = new Map<string, number>();
+
+/**
+ * Génère un intervalle aléatoire pour un tier, en évitant de répéter
+ * une valeur trop proche de la dernière utilisée pour ce tier.
+ * À appeler UNE SEULE FOIS par cycle (dans handleResult), pas dans getNextCheckDue.
+ */
+const lastIntervalUsed = new Map<string, number>();
+function generateIntervalMs(urgencyTier: string): number {
   const cfg = URGENCY_INTERVAL[urgencyTier] ?? URGENCY_INTERVAL.standard;
   const last = lastIntervalUsed.get(urgencyTier);
   let interval = cfg.min + Math.random() * (cfg.max - cfg.min);
@@ -65,11 +81,19 @@ function formatMs(ms: number): string {
   return `${min}m${sec}s`;
 }
 
+/**
+ * Retourne l'heure planifiée pour le prochain check du job.
+ * Lit depuis scheduledNextDue (calculé une seule fois dans handleResult).
+ * Si aucune valeur n'est encore planifiée (premier cycle), retourne 0 → dû immédiatement.
+ */
 function getNextCheckDue(job: HunterJob): number {
+  const scheduled = scheduledNextDue.get(job.id);
+  if (scheduled !== undefined) return scheduled;
+  // Fallback : si Convex a un lastCheckAt, utiliser un intervalle minimum fixe
   const lastCheck = job.lastCheckAt ?? job.hunterConfig.lastCheckAt;
   if (!lastCheck) return 0;
   const cfg = URGENCY_INTERVAL[job.urgencyTier] ?? URGENCY_INTERVAL.standard;
-  return lastCheck + getIntervalMs(job.urgencyTier);
+  return lastCheck + cfg.min;
 }
 
 function findNextDueJob(jobs: HunterJob[]): HunterJob | null {
@@ -119,13 +143,19 @@ function syncAdminResets(freshJobs: HunterJob[]): void {
       log("INFO", `[${freshJob.applicantName}] Admin reset détecté — reprise`);
       pausedJobs.delete(jobId);
       consecutiveLoginFailures.delete(jobId);
+      consecutiveErrors.delete(jobId);
+      scheduledNextDue.delete(jobId);  // forcer un check immédiat après reset admin
     }
   }
 
   for (const jobId of consecutiveLoginFailures.keys()) {
-    if (!freshJobIds.has(jobId)) {
-      consecutiveLoginFailures.delete(jobId);
-    }
+    if (!freshJobIds.has(jobId)) consecutiveLoginFailures.delete(jobId);
+  }
+  for (const jobId of consecutiveErrors.keys()) {
+    if (!freshJobIds.has(jobId)) consecutiveErrors.delete(jobId);
+  }
+  for (const jobId of scheduledNextDue.keys()) {
+    if (!freshJobIds.has(jobId)) scheduledNextDue.delete(jobId);
   }
 }
 
@@ -135,11 +165,13 @@ async function handleResult(job: HunterJob, result: SessionResult): Promise<void
   switch (result) {
     case "slot_found":
       consecutiveLoginFailures.delete(job.id);
+      consecutiveErrors.delete(job.id);
       pausedJobs.add(job.id);
       log("INFO", `[${job.applicantName}] ✅ CRÉNEAU TROUVÉ — dossier retiré de la file`);
-      break;
+      return; // pas de reschedule : le job est terminé
 
     case "login_failed": {
+      consecutiveErrors.delete(job.id);
       const loginFails = (consecutiveLoginFailures.get(job.id) ?? 0) + 1;
       consecutiveLoginFailures.set(job.id, loginFails);
       log("WARN", `[${job.applicantName}] Échec login #${loginFails}/${MAX_LOGIN_FAILURES}`);
@@ -157,13 +189,36 @@ async function handleResult(job: HunterJob, result: SessionResult): Promise<void
         } catch (err) {
           log("WARN", `[${job.applicantName}] Heartbeat pause échoué: ${err}`);
         }
+        return; // pas de reschedule : le job est en pause
       }
       break;
     }
 
-    case "error":
-      log("WARN", `[${job.applicantName}] Erreur transitoire — prochain cycle prévu selon tier`);
+    case "error": {
+      consecutiveLoginFailures.delete(job.id);
+      const errCount = (consecutiveErrors.get(job.id) ?? 0) + 1;
+      consecutiveErrors.set(job.id, errCount);
+      log("WARN", `[${job.applicantName}] Erreur transitoire #${errCount}/${MAX_CONSECUTIVE_ERRORS} — prochain cycle selon tier`);
+
+      // Auto-pause si le dossier génère trop d'erreurs consécutives (429/403/réseau)
+      // pour éviter de harceler le portail en boucle sur un compte rate-limité
+      if (errCount >= MAX_CONSECUTIVE_ERRORS) {
+        pausedJobs.add(job.id);
+        log("ERROR", `[${job.applicantName}] ${MAX_CONSECUTIVE_ERRORS} erreurs consécutives — auto-pause (compte potentiellement bloqué)`);
+        try {
+          await sendHeartbeat({
+            applicationId: job.id,
+            result: "error",
+            errorMessage: `Auto-paused: ${errCount} erreurs transitoires consécutives — vérifier statut portail`,
+            shouldPause: true,
+          });
+        } catch (err) {
+          log("WARN", `[${job.applicantName}] Heartbeat pause échoué: ${err}`);
+        }
+        return; // pas de reschedule : le job est en pause
+      }
       break;
+    }
 
     case "captcha":
       log("WARN", `[${job.applicantName}] Bloqué par CAPTCHA — prochain cycle prévu selon tier`);
@@ -171,14 +226,23 @@ async function handleResult(job: HunterJob, result: SessionResult): Promise<void
 
     case "payment_required":
       consecutiveLoginFailures.delete(job.id);
+      consecutiveErrors.delete(job.id);
       log("WARN", `[${job.applicantName}] 💳 Paiement portail requis — frais consulaires non validés par le portail`);
       break;
 
     case "not_found":
       consecutiveLoginFailures.delete(job.id);
+      consecutiveErrors.delete(job.id);
       log("INFO", `[${job.applicantName}] Aucun créneau disponible`);
       break;
   }
+
+  // Planifier le prochain cycle : générer l'intervalle UNE SEULE FOIS ici,
+  // stocké dans scheduledNextDue, lu de façon déterministe par getNextCheckDue.
+  const intervalMs = generateIntervalMs(job.urgencyTier);
+  const nextDue = Date.now() + intervalMs;
+  scheduledNextDue.set(job.id, nextDue);
+  log("INFO", `[${job.applicantName}] Prochain check dans ${formatMs(intervalMs)} (${new Date(nextDue).toLocaleTimeString("fr-CD")})`);
 }
 
 async function main(): Promise<void> {
