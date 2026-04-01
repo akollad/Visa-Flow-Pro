@@ -73,25 +73,19 @@ export default function Login() {
 
   const handleOAuth = async (strategy: "oauth_google" | "oauth_apple" | "oauth_facebook", isDisabled?: boolean) => {
     if (isDisabled) return;
-    if (loadingOAuth) return;
-    const clerkJs = (window as any).Clerk;
-    if (!clerkJs?.client?.signIn) {
-      setError("Service d'authentification non prêt. Réessayez dans un instant.");
-      return;
-    }
+    if (!signIn || loadingOAuth) return;
     flushSync(() => {
       setError("");
       setLoadingOAuth(strategy);
     });
-    try {
-      const base = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
-      await clerkJs.client.signIn.authenticateWithRedirect({
-        strategy,
-        redirectUrl: `${window.location.origin}${base}/sso-callback`,
-        redirectUrlComplete: `${window.location.origin}${base}/dashboard`,
-      });
-    } catch (e: any) {
-      setError(e?.errors?.[0]?.longMessage || e?.message || "Erreur de connexion OAuth");
+    const base = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
+    const { error } = await signIn.sso({
+      strategy,
+      redirectCallbackUrl: `${window.location.origin}${base}/sso-callback`,
+      redirectUrl: `${window.location.origin}${base}/dashboard`,
+    });
+    if (error) {
+      setError(error.longMessage ?? error.message ?? "Erreur OAuth");
       setLoadingOAuth(null);
     }
   };
