@@ -248,7 +248,8 @@ export async function loginUsaPortal(
   };
 
   if (captchaToken) {
-    body.captchaToken = captchaToken;
+    // Champ attendu par le portail USA (vérifier via DevTools si ça change)
+    body.recaptchaToken = captchaToken;
   }
 
   let response: Response;
