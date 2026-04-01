@@ -8,7 +8,7 @@ const USA_BASE = "https://www.usvisaappt.com";
 const USA_LOGIN_URL = `${USA_BASE}/identity/user/login`;
 const USA_LOGOUT_URL = `${USA_BASE}/identity/user/logout`;
 const USA_REFRESH_URL = `${USA_BASE}/identity/user/refreshToken`;
-const USA_PAYMENT_URL = `${USA_BASE}/visaworkflowprocessor/workflow/getUserHistoryApplicantPaymentStatus`;
+const USA_PAYMENT_STATUS_URL = `${USA_BASE}/visaworkflowprocessor/workflow/getUserHistoryApplicantPaymentStatus`;
 const USA_APPT_REQUESTS_URL = `${USA_BASE}/visauserapi/appointmentrequest/getallbyuser`;
 const USA_MISSION_ID = 323;
 
@@ -16,6 +16,9 @@ const USA_MISSION_ID = 323;
 const USA_ADMIN_URL = `${USA_BASE}/visaadministrationapi/v1`;
 const USA_APPOINTMENT_URL = `${USA_BASE}/visaappointmentapi`;
 const USA_NOTIFICATION_URL = `${USA_BASE}/visanotificationapi`;
+const USA_PAYMENT_URL = `${USA_BASE}/visapaymentapi/v1`;
+const USA_WORKFLOW_URL = `${USA_BASE}/visaworkflowprocessor`;
+const USA_INTEGRATION_URL = `${USA_BASE}/visaintegrationapi`; // sanity check
 
 const USA_OFC_LIST_URL = (missionId: number) =>
   `${USA_ADMIN_URL}/ofcuser/ofclist/${missionId}`;
@@ -26,6 +29,14 @@ const USA_APP_DETAILS_URL = (applicationId: string, applicantId: number) =>
   `${USA_APPOINTMENT_URL}/appointments/getApplicationDetails?applicationId=${applicationId}&applicantId=${applicantId}`;
 const USA_CONFIRMATION_LETTER_URL = `${USA_NOTIFICATION_URL}/template/appointmentLetter`;
 const USA_SCHEDULE_URL = `${USA_APPOINTMENT_URL}/appointments/schedule`;
+// Anti-détection : endpoints que le vrai portail appelle dans son flux normal
+const USA_LANDING_PAGE_URL = `${USA_APPOINTMENT_URL}/appointment/getLandingPageDeatils`;
+const USA_SANITY_CHECK_URL = (applicationId: string) =>
+  `${USA_INTEGRATION_URL}/visa/sanitycheck/${applicationId}?stepType=slotBooking`;
+const USA_FCS_CHECK_URL = (applicationId: string) =>
+  `${USA_PAYMENT_URL}/feecollection/checkFcs/${applicationId}`;
+const USA_WORKFLOW_STATUS_URL = (applicationId: string) =>
+  `${USA_WORKFLOW_URL}/workflow/status/complete/${applicationId}`;
 
 const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
 
@@ -343,7 +354,7 @@ export async function loginUsaPortal(
 }
 
 export async function checkUsaAppointmentRequestStatus(session: UsaSession): Promise<{
-  status: "payment_required" | "scheduled" | "no_request" | "error";
+  status: "payment_required" | "scheduled" | "no_request" | "pending" | "error";
   applicationId: string | null;
   pendingAppoStatus: number | null;
   primaryApplicant: string | null;
@@ -358,7 +369,7 @@ export async function checkUsaAppointmentRequestStatus(session: UsaSession): Pro
   let data: UsaPaymentStatus | null = null;
 
   try {
-    const res = await fetch(USA_PAYMENT_URL, { method: "GET", headers });
+    const res = await fetch(USA_PAYMENT_STATUS_URL, { method: "GET", headers });
     if (!res.ok) {
       console.error(`[usa] Appointment status HTTP ${res.status}`);
       return { status: "error", applicationId: null, pendingAppoStatus: null, primaryApplicant: null, message: `HTTP ${res.status}` };
@@ -379,6 +390,22 @@ export async function checkUsaAppointmentRequestStatus(session: UsaSession): Pro
 
   console.log(`[usa] pendingAppoStatus=${appoStatus} applicationId=${appId} applicant=${applicant}`);
 
+  // Interprétation de pendingAppoStatus — tirée du bundle Angular (getAppIdByUserId) :
+  //   0           → aucune demande / paiement non confirmé (portal: synchronizeAccount)
+  //   1           → créneau déjà attribué (portal: redirect dashboard)
+  //   2, 3, etc.  → paiement fait, en attente de créneau (portal: aller à l'appointment create)
+  // Le bundle confirme : "0 !== pendingAppoStatus" → toujours redirigé vers la création de RDV.
+
+  if (appoStatus === 0 || appoStatus === null) {
+    return {
+      status: "no_request",
+      applicationId: appId,
+      pendingAppoStatus: appoStatus,
+      primaryApplicant: applicant,
+      message: `Aucune demande active ou paiement non confirmé (pendingAppoStatus: ${appoStatus})`,
+    };
+  }
+
   if (appoStatus === 1) {
     return {
       status: "scheduled",
@@ -387,23 +414,16 @@ export async function checkUsaAppointmentRequestStatus(session: UsaSession): Pro
       primaryApplicant: applicant,
       message: `Créneau déjà attribué pour ${applicant} (applicationId: ${appId})`,
     };
-  } else if (appoStatus === 2) {
-    return {
-      status: "payment_required",
-      applicationId: appId,
-      pendingAppoStatus: 2,
-      primaryApplicant: applicant,
-      message: `Formulaire complet — paiement MRV (185$) non encore effectué par ${applicant}`,
-    };
-  } else {
-    return {
-      status: "no_request",
-      applicationId: appId,
-      pendingAppoStatus: appoStatus,
-      primaryApplicant: applicant,
-      message: `Aucune demande de RDV soumise (pendingAppoStatus: ${appoStatus})`,
-    };
   }
+
+  // Status 2, 3 ou tout autre valeur non nulle = paiement effectué, scan pour créneau
+  return {
+    status: "pending",
+    applicationId: appId,
+    pendingAppoStatus: appoStatus,
+    primaryApplicant: applicant,
+    message: `Paiement confirmé (status=${appoStatus}) — scan créneaux pour ${applicant}`,
+  };
 }
 
 export async function getUsaAppointmentRequests(session: UsaSession): Promise<UsaAppointmentRequest[]> {
@@ -485,16 +505,6 @@ export async function runUsaApiSession(job: HunterJob): Promise<SessionResult> {
     return "not_found";
   }
 
-  if (requestStatus.status === "payment_required") {
-    console.warn(`[usa] 💳 ${requestStatus.message}`);
-    await sendHeartbeat({
-      applicationId: job.id,
-      result: "payment_required",
-      errorMessage: requestStatus.message,
-    });
-    return "payment_required";
-  }
-
   if (requestStatus.status === "scheduled") {
     console.log(`[usa] ✅ Créneau déjà attribué : ${requestStatus.message}`);
     try {
@@ -508,7 +518,7 @@ export async function runUsaApiSession(job: HunterJob): Promise<SessionResult> {
     return "slot_found";
   }
 
-  console.log(`[usa] Paiement confirmé (pendingAppoStatus=1) — lancement scan créneaux via API directe...`);
+  console.log(`[usa] ${requestStatus.message} — lancement scan créneaux via API directe...`);
 
   const slotResult = await scanUsaSlotsViaAPI(job, session);
   return slotResult;
@@ -565,6 +575,87 @@ function authHeaders(accessToken: string): Record<string, string> {
   };
 }
 
+/**
+ * Variante enrichie avec les cookies de session lus par le serveur sur les endpoints de slot.
+ * Le bundle Angular envoie `APP_ID_TOBE={applicationId}; missionId=323` sur toutes les requêtes
+ * de slot — sans ces cookies, le serveur peut rejeter la requête ou la traiter comme suspecte.
+ */
+function sessionHeaders(accessToken: string, applicationId: string, missionId = USA_MISSION_ID): Record<string, string> {
+  return {
+    ...authHeaders(accessToken),
+    "Cookie": `APP_ID_TOBE=${applicationId}; missionId=${missionId}`,
+  };
+}
+
+/**
+ * Warm-up : appelé par le portail Angular dès l'ouverture du tableau de bord.
+ * Reproduire cet appel rend le robot indiscernable d'un utilisateur légitime.
+ * Erreurs ignorées silencieusement (non bloquant).
+ */
+async function callLandingPage(session: UsaSession): Promise<void> {
+  if (!session.applicationId) return;
+  try {
+    const res = await fetch(USA_LANDING_PAGE_URL, {
+      method: "GET",
+      headers: sessionHeaders(session.accessToken, session.applicationId),
+    });
+    console.log(`[usa] getLandingPageDeatils → HTTP ${res.status}`);
+  } catch (err) {
+    console.warn("[usa] getLandingPageDeatils ignoré :", err);
+  }
+}
+
+/**
+ * Sanity check : POST /visaintegrationapi/visa/sanitycheck/{appId}?stepType=slotBooking
+ * Appelé par le portail Angular à chaque init de page de booking.
+ * Fire-and-forget (n'attend pas la réponse pour continuer).
+ */
+async function callSanityCheck(session: UsaSession): Promise<void> {
+  if (!session.applicationId) return;
+  const url = USA_SANITY_CHECK_URL(session.applicationId);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: sessionHeaders(session.accessToken, session.applicationId),
+      body: null,
+    });
+    console.log(`[usa] sanityCheck(slotBooking) → HTTP ${res.status}`);
+  } catch (err) {
+    console.warn("[usa] sanityCheck ignoré :", err);
+  }
+}
+
+/**
+ * Vérification du paiement FCS : GET /visapaymentapi/v1/feecollection/checkFcs/{appId}
+ * Appelé par le portail avant la réservation de créneau.
+ * Retourne true si le paiement est confirmé côté FCS.
+ * En cas d'erreur réseau, on laisse le scan continuer (bénéfice du doute).
+ */
+async function checkFcsPayment(session: UsaSession): Promise<boolean> {
+  if (!session.applicationId) return true; // laisser passer si pas d'appId
+  const url = USA_FCS_CHECK_URL(session.applicationId);
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      headers: sessionHeaders(session.accessToken, session.applicationId),
+    });
+    if (!res.ok) {
+      console.warn(`[usa] checkFcs → HTTP ${res.status} — scan maintenu par prudence`);
+      return true; // scan quand même
+    }
+    const data = await res.json() as { fcsStatus?: string; isPaid?: boolean; paymentStatus?: string };
+    const paid = data.isPaid === true
+      || data.fcsStatus === "1"
+      || data.fcsStatus === "paid"
+      || data.paymentStatus === "paid";
+    console.log(`[usa] checkFcs → ${JSON.stringify(data)} → paid=${paid}`);
+    return paid !== false; // tolérant si le format change
+  } catch (err) {
+    console.warn("[usa] checkFcs erreur réseau — scan maintenu :", err);
+    return true;
+  }
+}
+
 function toYMD(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
@@ -602,9 +693,12 @@ async function getUsaApplicationDetails(
  * GET /visaadministrationapi/v1/ofcuser/ofclist/{missionId}
  */
 async function getUsaOfcList(session: UsaSession, missionId: number): Promise<UsaOfc[]> {
+  const hdrs = session.applicationId
+    ? sessionHeaders(session.accessToken, session.applicationId, missionId)
+    : authHeaders(session.accessToken);
   try {
     const res = await fetch(USA_OFC_LIST_URL(missionId), {
-      headers: authHeaders(session.accessToken),
+      headers: hdrs,
     });
     if (!res.ok) {
       console.warn(`[usa] getOfcList HTTP ${res.status}`);
@@ -648,12 +742,15 @@ async function findFirstSlotForOfc(
     applicationId: appDetails.applicationId,
   };
 
+  // Toutes les requêtes de slot incluent les cookies APP_ID_TOBE + missionId
+  const hdrs = sessionHeaders(session.accessToken, appDetails.applicationId);
+
   // 1. Premier mois disponible
   let firstMonth: UsaFirstAvailableMonthResponse;
   try {
     const res = await fetch(USA_FIRST_AVAILABLE_MONTH_URL, {
       method: "POST",
-      headers: authHeaders(session.accessToken),
+      headers: hdrs,
       body: JSON.stringify(basePayload),
     });
     if (!res.ok) {
@@ -686,7 +783,7 @@ async function findFirstSlotForOfc(
   try {
     const res = await fetch(USA_SLOT_DATES_URL, {
       method: "POST",
-      headers: authHeaders(session.accessToken),
+      headers: hdrs,
       body: JSON.stringify({ ...basePayload, fromDate, toDate }),
     });
     if (!res.ok) {
@@ -713,7 +810,7 @@ async function findFirstSlotForOfc(
   try {
     const res = await fetch(USA_SLOT_TIMES_URL, {
       method: "POST",
-      headers: authHeaders(session.accessToken),
+      headers: hdrs,
       body: JSON.stringify({ ...basePayload, fromDate, toDate, selectedDate: targetDate }),
     });
     if (!res.ok) {
@@ -810,7 +907,7 @@ async function bookUsaSlot(
   try {
     const res = await fetch(USA_SCHEDULE_URL, {
       method: "PUT",
-      headers: authHeaders(session.accessToken),
+      headers: sessionHeaders(session.accessToken, payload.applicationId),
       body: JSON.stringify(payload),
     });
 
@@ -904,6 +1001,32 @@ async function scanUsaSlotsViaAPI(job: HunterJob, session: UsaSession): Promise<
     await sendHeartbeat({ applicationId: job.id, result: "error", errorMessage: "applicationId manquant" });
     return "error";
   }
+
+  // ── Anti-détection : reproduire le flux exact du portail Angular ────────────
+  // Le portail appelle ces 3 endpoints à chaque ouverture de la page de booking.
+  // Les omettre rend les requêtes de slot anormalement isolées → risque de ban.
+
+  // a) Warm-up dashboard (getLandingPageDeatils) — navigation normale
+  await callLandingPage(session);
+  await randomDelay(400, 800);
+
+  // b) Sanity check — vérifie l'état du workflow côté portail
+  await callSanityCheck(session);
+  await randomDelay(300, 600);
+
+  // c) Vérification paiement FCS — confirmation avant booking
+  const fcsOk = await checkFcsPayment(session);
+  if (!fcsOk) {
+    console.warn("[usa] checkFcs indique paiement non confirmé — scan interrompu");
+    await sendHeartbeat({
+      applicationId: job.id,
+      result: "payment_required",
+      errorMessage: "FCS payment check failed — paiement non confirmé côté serveur",
+    });
+    return "payment_required";
+  }
+  await randomDelay(300, 700);
+  // ────────────────────────────────────────────────────────────────────────────
 
   // 1. Récupérer les détails de la demande (applicantId, visaType, visaClass)
   const appDetails = await getUsaApplicationDetails(session, session.applicationId);
