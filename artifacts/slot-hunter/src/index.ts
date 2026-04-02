@@ -213,6 +213,14 @@ function syncAdminResets(freshJobs: HunterJob[]): void {
   const freshJobIds = new Set(freshJobs.map((j) => j.id));
 
   for (const jobId of pausedJobs) {
+    if (!freshJobIds.has(jobId)) {
+      // Job supprimé de Convex — nettoyer toutes les structures pour éviter une fuite mémoire.
+      pausedJobs.delete(jobId);
+      consecutiveLoginFailures.delete(jobId);
+      consecutiveErrors.delete(jobId);
+      scheduledNextDue.delete(jobId);
+      continue;
+    }
     const freshJob = freshJobs.find((j) => j.id === jobId);
     if (freshJob && freshJob.hunterConfig.isActive) {
       log("INFO", `[${freshJob.applicantName}] Admin reset détecté — reprise`);
@@ -333,7 +341,14 @@ async function checkPortalBundleKey(activeJobs: HunterJob[]): Promise<void> {
 
   log("INFO", "🔍 Vérification bundle portail USA (quotidienne)...");
 
-  const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+  // UA aligné sur Chrome/135 — cohérent avec le reste du robot.
+  // Chrome/120 était stale (2023) et pouvait être refusé par un WAF moderne.
+  const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36";
+  // IMPORTANT : lastBundleCheckAt est positionné ici (avant les appels réseau)
+  // pour éviter que deux boucles parallèles lancent la vérification simultanément.
+  // En cas d'erreur réseau transitoire, on retente dans BUNDLE_CHECK_RETRY_MS (30 min)
+  // plutôt que 24h en repositionnant lastBundleCheckAt dans le catch.
+  const BUNDLE_CHECK_RETRY_MS = 30 * 60 * 1000;
 
   try {
     // 1. Trouver le nom du bundle Angular actuel (hash content-based)
@@ -343,7 +358,8 @@ async function checkPortalBundleKey(activeJobs: HunterJob[]): Promise<void> {
     const html = await htmlRes.text();
     const match = html.match(/src="(main\.[a-f0-9]+\.js)"/);
     if (!match) {
-      log("WARN", "🔍 Bundle check : impossible de trouver le nom du bundle — skip");
+      log("WARN", "🔍 Bundle check : impossible de trouver le nom du bundle — retry dans 30 min");
+      lastBundleCheckAt = now - BUNDLE_CHECK_INTERVAL_MS + BUNDLE_CHECK_RETRY_MS;
       return;
     }
     const bundleName = match[1];
@@ -356,7 +372,8 @@ async function checkPortalBundleKey(activeJobs: HunterJob[]): Promise<void> {
       },
     });
     if (!bundleRes.ok) {
-      log("WARN", `🔍 Bundle check : téléchargement échoué (HTTP ${bundleRes.status}) — skip`);
+      log("WARN", `🔍 Bundle check : téléchargement échoué (HTTP ${bundleRes.status}) — retry dans 30 min`);
+      lastBundleCheckAt = now - BUNDLE_CHECK_INTERVAL_MS + BUNDLE_CHECK_RETRY_MS;
       return;
     }
     const bundleText = await bundleRes.text();
@@ -392,7 +409,9 @@ async function checkPortalBundleKey(activeJobs: HunterJob[]): Promise<void> {
       }
     }
   } catch (err) {
-    log("WARN", `🔍 Bundle check : erreur réseau — skip (${err})`);
+    // Erreur réseau transitoire — retry dans 30 min (pas dans 24h)
+    lastBundleCheckAt = now - BUNDLE_CHECK_INTERVAL_MS + BUNDLE_CHECK_RETRY_MS;
+    log("WARN", `🔍 Bundle check : erreur réseau — retry dans 30 min (${err})`);
   }
 }
 

@@ -1112,7 +1112,9 @@ async function bookUsaSlot(
   try {
     const res = await fetch(USA_SCHEDULE_URL, {
       method: "PUT",
-      headers: sessionHeaders(session.accessToken, payload.applicationId),
+      // session.missionId (valeur serveur) — doit correspondre au cookie Cookie: missionId=X
+      // du navigateur Angular. Même correction que pour les autres appels sessionHeaders.
+      headers: sessionHeaders(session.accessToken, payload.applicationId, session.missionId),
       body: JSON.stringify(payload),
     });
 
