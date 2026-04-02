@@ -1,5 +1,6 @@
 import { createCipheriv, pbkdf2Sync, randomBytes } from "crypto";
-import { randomDelay } from "./browser.js";
+import { ProxyAgent } from "undici";
+import { randomDelay, proxyPool } from "./browser.js";
 import { reportSlotFound, sendHeartbeat, uploadFile, type HunterJob } from "./convexClient.js";
 
 type SessionResult = "slot_found" | "not_found" | "captcha" | "error" | "login_failed" | "payment_required";
@@ -130,12 +131,12 @@ function isCachedTokenValid(cached: CachedToken): boolean {
 async function refreshUsaToken(cached: CachedToken): Promise<CachedToken | null> {
   console.log("[usa] Renouvellement token via refresh token...");
   try {
-    const res = await fetch(USA_REFRESH_URL, {
+    const res = await usaFetch(USA_REFRESH_URL, {
       method: "POST",
       // Le refresh est appelé depuis la session active — referer = dashboard
       // Content-Type obligatoire car le body est du JSON
       headers: {
-        ...BROWSER_HEADERS,
+        ...getBrowserHeaders(),
         "Content-Type": "application/json",
         "Referer": REFERER_DASHBOARD,
       },
@@ -219,25 +220,93 @@ const REFERER_DASHBOARD  = "https://www.usvisaappt.com/visaapplicantui/home/dash
 const REFERER_REQUESTS   = "https://www.usvisaappt.com/visaapplicantui/home/dashboard/requests";
 const REFERER_CREATE_APT = "https://www.usvisaappt.com/visaapplicantui/home/dashboard/create-appointment";
 
-// Headers d'un vrai navigateur Chrome 135 sur Windows — identiques à ceux capturés par DevTools.
-// Version alignée sur browser.ts (USER_AGENTS pool, avril 2026 : Chrome 134-136).
+// ─── Pool UA Chrome/Edge pour les appels API USA ─────────────────────────────
+// Le portail Angular envoie des requêtes depuis Chrome uniquement → pas de Firefox/Safari ici.
+// Sec-CH-UA doit correspondre exactement à la version Chrome dans le User-Agent (cohérence).
 // IMPORTANT : ne jamais inclure de headers CORS côté requête (Access-Control-Allow-*) —
 // ce sont des headers de RÉPONSE que seul le serveur envoie, jamais le navigateur.
-const BROWSER_HEADERS: Record<string, string> = {
-  "Accept":             "application/json, text/plain, */*",
-  "Accept-Language":    "fr-CD,fr;q=0.9,en-US;q=0.6,en;q=0.5",
-  "Cache-Control":      "no-cache",
-  "Pragma":             "no-cache",
-  "Origin":             "https://www.usvisaappt.com",
-  "Referer":            REFERER_LOGIN,  // referer par défaut = page de login, surchargé par authHeaders()
-  "Sec-CH-UA":          '"Chromium";v="135", "Google Chrome";v="135", "Not-A.Brand";v="8"',
-  "Sec-CH-UA-Mobile":   "?0",
-  "Sec-CH-UA-Platform": '"Windows"',
-  "Sec-Fetch-Dest":     "empty",
-  "Sec-Fetch-Mode":     "cors",
-  "Sec-Fetch-Site":     "same-origin",
-  "User-Agent":         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
-};
+const USA_UA_POOL: ReadonlyArray<{ ua: string; chUa: string; platform: string }> = [
+  {
+    ua:       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+    chUa:     '"Chromium";v="136", "Google Chrome";v="136", "Not-A.Brand";v="8"',
+    platform: '"Windows"',
+  },
+  {
+    ua:       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+    chUa:     '"Chromium";v="135", "Google Chrome";v="135", "Not-A.Brand";v="8"',
+    platform: '"Windows"',
+  },
+  {
+    ua:       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+    chUa:     '"Chromium";v="134", "Google Chrome";v="134", "Not-A.Brand";v="8"',
+    platform: '"Windows"',
+  },
+  {
+    ua:       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+    chUa:     '"Chromium";v="136", "Google Chrome";v="136", "Not-A.Brand";v="8"',
+    platform: '"macOS"',
+  },
+  {
+    ua:       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+    chUa:     '"Chromium";v="135", "Google Chrome";v="135", "Not-A.Brand";v="8"',
+    platform: '"macOS"',
+  },
+  {
+    ua:       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 Edg/136.0.0.0",
+    chUa:     '"Chromium";v="136", "Microsoft Edge";v="136", "Not-A.Brand";v="8"',
+    platform: '"Windows"',
+  },
+];
+
+// UA actif pour la session courante — changé à chaque appel de runUsaApiSession()
+let _sessionUa = USA_UA_POOL[1]; // Chrome/135 Windows par défaut
+
+function pickSessionUa(): void {
+  _sessionUa = USA_UA_POOL[Math.floor(Math.random() * USA_UA_POOL.length)];
+  console.log(`[usa] UA session: ${_sessionUa.ua.match(/Chrome\/[\d.]+/)?.[0] ?? _sessionUa.ua.slice(0, 60)}`);
+}
+
+function getBrowserHeaders(): Record<string, string> {
+  return {
+    "Accept":             "application/json, text/plain, */*",
+    "Accept-Language":    "fr-CD,fr;q=0.9,en-US;q=0.6,en;q=0.5",
+    "Cache-Control":      "no-cache",
+    "Pragma":             "no-cache",
+    "Origin":             "https://www.usvisaappt.com",
+    "Referer":            REFERER_LOGIN,
+    "Sec-CH-UA":          _sessionUa.chUa,
+    "Sec-CH-UA-Mobile":   "?0",
+    "Sec-CH-UA-Platform": _sessionUa.platform,
+    "Sec-Fetch-Dest":     "empty",
+    "Sec-Fetch-Mode":     "cors",
+    "Sec-Fetch-Site":     "same-origin",
+    "User-Agent":         _sessionUa.ua,
+  };
+}
+
+// ─── Proxy résidentiel pour les appels API USA ────────────────────────────────
+// Le proxyPool Playwright est 2captcha résidentiel — on l'injecte aussi dans fetch()
+// via undici ProxyAgent pour que le portail USA voie une IP résidentielle, pas Railway.
+// setUsaSessionProxy() est appelé au début de runUsaApiSession() et réinitialisé à la fin.
+let _usaProxyAgent: ProxyAgent | undefined;
+
+function setUsaSessionProxy(proxyUrl: string | undefined): void {
+  if (proxyUrl) {
+    _usaProxyAgent = new ProxyAgent(proxyUrl);
+    const masked = proxyUrl.replace(/:([^:@]+)@/, ":***@");
+    console.log(`[usa] Proxy résidentiel actif: ${masked}`);
+  } else {
+    _usaProxyAgent = undefined;
+  }
+}
+
+async function usaFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  if (_usaProxyAgent) {
+    // @ts-expect-error — dispatcher est une option interne undici non présente dans RequestInit standard
+    return fetch(url, { ...options, dispatcher: _usaProxyAgent });
+  }
+  return fetch(url, options);
+}
 
 
 export async function getUsaSession(
@@ -334,10 +403,10 @@ export async function logoutUsaPortal(username: string): Promise<void> {
   if (cached) {
     console.log(`[usa] Déconnexion de ${username} du portail...`);
     try {
-      const res = await fetch(USA_LOGOUT_URL, {
+      const res = await usaFetch(USA_LOGOUT_URL, {
         method: "POST",
         headers: {
-          ...BROWSER_HEADERS,
+          ...getBrowserHeaders(),
           Authorization: `Bearer ${cached.accessToken}`,
         },
         body: null,
@@ -371,12 +440,12 @@ export async function loginUsaPortal(
 
   let response: Response;
   try {
-    response = await fetch(USA_LOGIN_URL, {
+    response = await usaFetch(USA_LOGIN_URL, {
       method: "POST",
       // Content-Type obligatoire : body JSON. Referer = page de login (le formulaire poste vers lui-même).
       // authHeaders() ne convient pas ici car on n'a pas encore de token.
       headers: {
-        ...BROWSER_HEADERS,
+        ...getBrowserHeaders(),
         "Content-Type": "application/json",
         "Referer": REFERER_LOGIN,
       },
@@ -465,7 +534,7 @@ export async function checkUsaAppointmentRequestStatus(session: UsaSession): Pro
   let data: UsaAppointmentRequest | null = null;
 
   try {
-    const res = await fetch(USA_PAYMENT_STATUS_URL, { method: "GET", headers });
+    const res = await usaFetch(USA_PAYMENT_STATUS_URL, { method: "GET", headers });
     if (!res.ok) {
       console.error(`[usa] Appointment status HTTP ${res.status}`);
       // 403/401 : le compte peut être bloqué ou le token invalide juste après le login —
@@ -549,7 +618,7 @@ export async function getUsaAppointmentRequests(session: UsaSession): Promise<Us
   const headers = authHeaders(session.accessToken, REFERER_REQUESTS, false);
 
   try {
-    const res = await fetch(USA_APPT_REQUESTS_URL, { method: "GET", headers });
+    const res = await usaFetch(USA_APPT_REQUESTS_URL, { method: "GET", headers });
     if (!res.ok) {
       console.error(`[usa] Appointment requests HTTP ${res.status}`);
       return [];
@@ -570,6 +639,15 @@ export async function runUsaApiSession(job: HunterJob): Promise<SessionResult> {
     console.error("[usa] Identifiants portail manquants dans hunterConfig");
     return "error";
   }
+
+  // ── Anti-détection : UA rotatif + proxy résidentiel ──────────────────────
+  pickSessionUa();
+  const sessionProxy = await proxyPool.getProxy();
+  setUsaSessionProxy(sessionProxy);
+  if (!sessionProxy) {
+    console.warn("[usa] ⚠️ Aucun proxy résidentiel disponible — appels API via IP Railway directe");
+  }
+  // ──────────────────────────────────────────────────────────────────────────
 
   let session: UsaSession | null = null;
   try {
@@ -637,8 +715,12 @@ export async function runUsaApiSession(job: HunterJob): Promise<SessionResult> {
 
   console.log(`[usa] ${requestStatus.message} — lancement scan créneaux via API directe...`);
 
-  const slotResult = await scanUsaSlotsViaAPI(job, session);
-  return slotResult;
+  try {
+    const slotResult = await scanUsaSlotsViaAPI(job, session);
+    return slotResult;
+  } finally {
+    setUsaSessionProxy(undefined);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -698,7 +780,7 @@ function authHeaders(
   withBody = true
 ): Record<string, string> {
   const h: Record<string, string> = {
-    ...BROWSER_HEADERS,
+    ...getBrowserHeaders(),
     "Authorization": `Bearer ${accessToken}`,
     "Referer": referer,
   };
@@ -734,7 +816,7 @@ async function callLandingPage(session: UsaSession): Promise<void> {
   // GET depuis le dashboard — pas de Content-Type, Referer = dashboard parent
   const headers = sessionHeaders(session.accessToken, session.applicationId, session.missionId, REFERER_DASHBOARD, false);
   try {
-    const res = await fetch(USA_LANDING_PAGE_URL, { method: "GET", headers });
+    const res = await usaFetch(USA_LANDING_PAGE_URL, { method: "GET", headers });
     console.log(`[usa] getLandingPageDeatils → HTTP ${res.status}`);
   } catch (err) {
     console.warn("[usa] getLandingPageDeatils ignoré :", err);
@@ -752,7 +834,7 @@ async function callSanityCheck(session: UsaSession): Promise<void> {
   // POST sans corps — le portail envoie Content-Type mais pas de body
   const headers = sessionHeaders(session.accessToken, session.applicationId, session.missionId, REFERER_CREATE_APT, true);
   try {
-    const res = await fetch(url, { method: "POST", headers });
+    const res = await usaFetch(url, { method: "POST", headers });
     console.log(`[usa] sanityCheck(slotBooking) → HTTP ${res.status}`);
   } catch (err) {
     console.warn("[usa] sanityCheck ignoré :", err);
@@ -771,7 +853,7 @@ async function checkFcsPayment(session: UsaSession): Promise<boolean> {
   // GET — pas de Content-Type
   const headers = sessionHeaders(session.accessToken, session.applicationId, session.missionId, REFERER_CREATE_APT, false);
   try {
-    const res = await fetch(url, { method: "GET", headers });
+    const res = await usaFetch(url, { method: "GET", headers });
     if (!res.ok) {
       console.warn(`[usa] checkFcs → HTTP ${res.status} — scan maintenu par prudence`);
       return true; // scan quand même
@@ -808,7 +890,7 @@ async function getUsaApplicationDetails(
   const url = USA_APP_DETAILS_URL(applicationId, session.userID);
   try {
     // GET — pas de Content-Type, Referer = page de création de RDV
-    const res = await fetch(url, {
+    const res = await usaFetch(url, {
       headers: sessionHeaders(session.accessToken, applicationId, session.missionId, REFERER_CREATE_APT, false),
     });
     if (!res.ok) {
@@ -834,7 +916,7 @@ async function getUsaOfcList(session: UsaSession, missionId: number): Promise<Us
     ? sessionHeaders(session.accessToken, session.applicationId, missionId, REFERER_CREATE_APT, false)
     : authHeaders(session.accessToken, REFERER_CREATE_APT, false);
   try {
-    const res = await fetch(USA_OFC_LIST_URL(missionId), { headers: hdrs });
+    const res = await usaFetch(USA_OFC_LIST_URL(missionId), { headers: hdrs });
     if (res.status === 429) {
       const retryAfter = parseInt(res.headers.get("retry-after") ?? "60", 10);
       throw new RateLimitError("getOfcList", retryAfter * 1000);
@@ -926,7 +1008,7 @@ async function findFirstSlotForOfc(
   // 1. Premier mois disponible
   let firstMonth: UsaFirstAvailableMonthResponse;
   try {
-    const res = await fetch(USA_FIRST_AVAILABLE_MONTH_URL, {
+    const res = await usaFetch(USA_FIRST_AVAILABLE_MONTH_URL, {
       method: "POST",
       headers: hdrs,
       body: JSON.stringify(basePayload),
@@ -981,7 +1063,7 @@ async function findFirstSlotForOfc(
 
   let slotDates: UsaSlotDate[];
   try {
-    const res = await fetch(USA_SLOT_DATES_URL, {
+    const res = await usaFetch(USA_SLOT_DATES_URL, {
       method: "POST",
       headers: hdrs,
       body: JSON.stringify({ ...basePayload, fromDate, toDate }),
@@ -1019,7 +1101,7 @@ async function findFirstSlotForOfc(
   const targetDate = slotDates[0].date;
   let timeSlots: UsaTimeSlot[];
   try {
-    const res = await fetch(USA_SLOT_TIMES_URL, {
+    const res = await usaFetch(USA_SLOT_TIMES_URL, {
       method: "POST",
       headers: hdrs,
       body: JSON.stringify({ ...basePayload, fromDate, toDate, slotDate: targetDate }),
@@ -1133,7 +1215,7 @@ async function bookUsaSlot(
       ...sessionHeaders(session.accessToken, payload.applicationId, session.missionId),
       "CookieName": `XSRF-TOKEN=${session.csrfToken}`,
     };
-    const res = await fetch(USA_SCHEDULE_URL, {
+    const res = await usaFetch(USA_SCHEDULE_URL, {
       method: "PUT",
       headers: bookingHeaders,
       body: JSON.stringify(payload),
@@ -1217,7 +1299,7 @@ export async function downloadUsaConfirmationPdf(
   if (session.applicationId) {
     const sanityUrl = USA_SANITY_CHECK_URL(session.applicationId);
     const sanityHeaders = sessionHeaders(session.accessToken, session.applicationId, session.missionId, REFERER_CREATE_APT, true);
-    fetch(sanityUrl + "?stepType=appointmentLetter", { method: "POST", headers: sanityHeaders })
+    usaFetch(sanityUrl + "?stepType=appointmentLetter", { method: "POST", headers: sanityHeaders })
       .then(r => console.log(`[usa] sanityCheck(appointmentLetter) → HTTP ${r.status}`))
       .catch(e => console.warn("[usa] sanityCheck(appointmentLetter) ignoré:", e));
   }
@@ -1231,7 +1313,7 @@ export async function downloadUsaConfirmationPdf(
   if (appointmentId !== undefined) letterPayload.appointmentId = appointmentId;
 
   try {
-    const res = await fetch(USA_CONFIRMATION_LETTER_URL, {
+    const res = await usaFetch(USA_CONFIRMATION_LETTER_URL, {
       method: "POST",
       // sessionHeaders inclut les cookies APP_ID_TOBE + missionId.
       // Accept: application/pdf écrase le "application/json" de sessionHeaders.

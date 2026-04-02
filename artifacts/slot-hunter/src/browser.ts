@@ -24,7 +24,9 @@ class ProxyPool {
   private lastRefresh = 0;
   private serverIp: string | null = null;
   private whitelistError = false;
+  private whitelistErrorAt: number | null = null;
   private readonly REFRESH_MS = 25 * 60_000; // 25 min (IPs ~30 min de validité)
+  private readonly WHITELIST_RETRY_MS = 30 * 60_000; // retry whitelist après 30 min sans redémarrage
   private readonly POOL_SIZE = 50;
 
   /** Appelé au démarrage par index.ts après détection de l'IP publique */
@@ -37,7 +39,18 @@ class ProxyPool {
   }
 
   async getProxy(): Promise<string | undefined> {
-    if (!this.isConfigured || this.whitelistError) return undefined;
+    if (!this.isConfigured) return undefined;
+
+    if (this.whitelistError) {
+      if (this.whitelistErrorAt !== null && Date.now() - this.whitelistErrorAt > this.WHITELIST_RETRY_MS) {
+        console.log(`[ProxyPool] ⏱ 30 min écoulées depuis erreur whitelist — nouvelle tentative automatique...`);
+        this.whitelistError = false;
+        this.whitelistErrorAt = null;
+        this.pool = [];
+      } else {
+        return undefined;
+      }
+    }
 
     if (this.pool.length < 5 || Date.now() - this.lastRefresh > this.REFRESH_MS) {
       await this.refresh();
@@ -67,6 +80,7 @@ class ProxyPool {
         console.log(`[ProxyPool] ✅ ${this.pool.length} IPs résidentielles 2captcha chargées`);
       } else if (json.request?.includes("IP_NOT_WHITELISTED") || json.request?.includes("NOT_WHITELISTED")) {
         this.whitelistError = true;
+        this.whitelistErrorAt = Date.now();
         console.error(`[ProxyPool] ❌ IP ${ip} non whitelistée dans 2captcha!`);
         console.error(`[ProxyPool] → Allez sur 2captcha.com/proxy → "IP whitelist" → Ajoutez: ${ip}`);
         console.error(`[ProxyPool] → Proxy désactivé jusqu'au prochain redémarrage`);
@@ -189,7 +203,6 @@ export async function launchBrowser(): Promise<{ browser: Browser; context: Brow
 
   await context.addInitScript(() => {
     Object.defineProperty(navigator, "webdriver", { get: () => undefined });
-    Object.defineProperty(navigator, "plugins", { get: () => [1, 2, 3, 4, 5] });
     Object.defineProperty(navigator, "languages", { get: () => ["fr-FR", "fr", "en-US", "en"] });
     (window as unknown as Record<string, unknown>).chrome = { runtime: {} };
   });
