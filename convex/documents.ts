@@ -227,6 +227,34 @@ export const listByApplication = query({
   },
 });
 
+/**
+ * Retourne l'URL de téléchargement de la lettre de confirmation d'ambassade (PDF).
+ * Accessible uniquement après paiement de la prime de succès (isSuccessFeePaid === true).
+ * Les clients non-payants reçoivent null. Les admins reçoivent toujours l'URL.
+ */
+export const getConfirmationLetterUrl = query({
+  args: { applicationId: v.id("applications") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+
+    const app = await ctx.db.get(args.applicationId);
+    if (!app) return null;
+
+    const isAdmin = getRole(identity as Record<string, unknown>) === "admin";
+
+    if (!isAdmin && app.userId !== identity.subject) return null;
+
+    const successFeePaid = app.priceDetails?.isSuccessFeePaid ?? false;
+    if (!isAdmin && !successFeePaid) return null;
+
+    const storageId = app.appointmentDetails?.screenshotStorageId;
+    if (!storageId) return null;
+
+    return ctx.storage.getUrl(storageId as Id<"_storage">);
+  },
+});
+
 export const getPaymentProofUrls = query({
   args: { applicationId: v.id("applications") },
   handler: async (ctx, args) => {

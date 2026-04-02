@@ -95,7 +95,7 @@ function Countdown({ targetTs }: { targetTs: number }) {
   return <span className="font-mono font-bold text-red-700">{parts.join(" ")}</span>;
 }
 
-function InterviewKit({ app }: { app: Application }) {
+function InterviewKit({ app, confirmationLetterUrl }: { app: Application; confirmationLetterUrl?: string | null }) {
   const pricing = VISA_PRICING[app.destination as keyof typeof VISA_PRICING];
   const details = app.appointmentDetails;
 
@@ -105,9 +105,18 @@ function InterviewKit({ app }: { app: Application }) {
         <h2 className="text-xl font-bold text-primary flex items-center gap-2">
           <Download className="w-5 h-5 text-secondary" /> Kit d'Entretien Consulaire
         </h2>
-        <Button onClick={() => window.print()} variant="outline" size="sm" className="print:hidden gap-2">
-          <Download className="w-4 h-4" /> Télécharger PDF
-        </Button>
+        <div className="flex items-center gap-2 print:hidden flex-wrap">
+          {confirmationLetterUrl && (
+            <a href={confirmationLetterUrl} target="_blank" rel="noopener noreferrer" download="lettre_confirmation_ambassade.pdf">
+              <Button variant="default" size="sm" className="gap-2 bg-green-700 hover:bg-green-800">
+                <Download className="w-4 h-4" /> Lettre de convocation
+              </Button>
+            </a>
+          )}
+          <Button onClick={() => window.print()} variant="outline" size="sm" className="gap-2">
+            <Download className="w-4 h-4" /> Kit complet (PDF)
+          </Button>
+        </div>
       </div>
 
       <div id="interview-kit" className="border border-slate-200 rounded-xl p-6 text-sm space-y-5 print:border-0">
@@ -362,6 +371,10 @@ export default function ClientApplicationDetail() {
   const markAsRead = useMutation(api.messages.markAsRead);
   const visaDocUrl = useQuery(
     api.admin.getVisaDocumentUrl,
+    appId ? { applicationId: appId } : "skip"
+  );
+  const confirmationLetterUrl = useQuery(
+    api.documents.getConfirmationLetterUrl,
     appId ? { applicationId: appId } : "skip"
   );
 
@@ -648,7 +661,7 @@ export default function ClientApplicationDetail() {
       )}
 
       {/* Interview kit — only when completed, appointment model, not dossier_only */}
-      {isCompleted && !isEvisaModel && !isDossierOnly && <InterviewKit app={app} />}
+      {isCompleted && !isEvisaModel && !isDossierOnly && <InterviewKit app={app} confirmationLetterUrl={confirmationLetterUrl} />}
 
       {/* Visa PDF delivery — evisa model */}
       {isCompleted && isEvisaModel && !isDossierOnly && (
