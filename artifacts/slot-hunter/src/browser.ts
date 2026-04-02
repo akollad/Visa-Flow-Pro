@@ -10,23 +10,34 @@ const PROXY_URL = process.env.PROXY_URL;
 const DRY_RUN = process.env.DRY_RUN === "true";
 
 // ─── 2Captcha Proxy Pool ─────────────────────────────────────────────────────
-// Mode whitelist : le serveur Railway appelle l'API 2captcha avec sa propre IP
-// (whitelistée dans le dashboard) → reçoit N IPs résidentielles réelles → les
-// utilise en rotation. Aucun credential dans l'URL proxy.
-// Prérequis : TWOCAPTCHA_API_KEY + TWOCAPTCHA_WHITELIST_IP définis.
-// Fallback automatique sur PROXY_URL ou connexion directe si non configuré.
+// Mode whitelist : le serveur détecte sa propre IP au démarrage → appelle l'API
+// 2captcha avec cette IP → reçoit N IPs résidentielles réelles → rotation.
+//
+// Prérequis (Railway) :
+//   1. TWOCAPTCHA_API_KEY  → clé API 2captcha (variable Railway)
+//   2. IP du serveur whitelistée dans le dashboard 2captcha (manuellement, une fois)
+//      Si l'IP Railway change → re-whitelister la nouvelle IP (visible dans les logs)
+//
+// Fallback automatique : PROXY_URL statique → connexion directe (aucun crash).
 class ProxyPool {
   private pool: string[] = [];
   private lastRefresh = 0;
+  private serverIp: string | null = null;
+  private whitelistError = false;
   private readonly REFRESH_MS = 25 * 60_000; // 25 min (IPs ~30 min de validité)
   private readonly POOL_SIZE = 50;
 
+  /** Appelé au démarrage par index.ts après détection de l'IP publique */
+  setServerIp(ip: string): void {
+    this.serverIp = ip;
+  }
+
   get isConfigured(): boolean {
-    return !!(process.env.TWOCAPTCHA_API_KEY && process.env.TWOCAPTCHA_WHITELIST_IP);
+    return !!(process.env.TWOCAPTCHA_API_KEY && this.serverIp);
   }
 
   async getProxy(): Promise<string | undefined> {
-    if (!this.isConfigured) return undefined;
+    if (!this.isConfigured || this.whitelistError) return undefined;
 
     if (this.pool.length < 5 || Date.now() - this.lastRefresh > this.REFRESH_MS) {
       await this.refresh();
@@ -34,7 +45,6 @@ class ProxyPool {
 
     if (this.pool.length === 0) return undefined;
 
-    // Round-robin mélangé : tête → file → queue
     const proxy = this.pool.shift()!;
     this.pool.push(proxy);
     return `http://${proxy}`;
@@ -43,17 +53,23 @@ class ProxyPool {
   private async refresh(): Promise<void> {
     try {
       const key = process.env.TWOCAPTCHA_API_KEY!;
-      const ip  = process.env.TWOCAPTCHA_WHITELIST_IP!;
+      const ip  = this.serverIp!;
       const url = `https://api.2captcha.com/proxy/generate_white_list_connections` +
         `?key=${key}&protocol=http&connection_count=${this.POOL_SIZE}&ip=${encodeURIComponent(ip)}`;
 
       const res  = await fetch(url, { signal: AbortSignal.timeout(15_000) });
-      const json = await res.json() as { status: string; data?: string[] };
+      const json = await res.json() as { status: string; request?: string; data?: string[] };
 
       if (json.status === "OK" && Array.isArray(json.data) && json.data.length > 0) {
         this.pool = [...json.data].sort(() => Math.random() - 0.5);
         this.lastRefresh = Date.now();
-        console.log(`[ProxyPool] ✅ ${this.pool.length} IPs résidentielles fraîches chargées (2captcha)`);
+        this.whitelistError = false;
+        console.log(`[ProxyPool] ✅ ${this.pool.length} IPs résidentielles 2captcha chargées`);
+      } else if (json.request?.includes("IP_NOT_WHITELISTED") || json.request?.includes("NOT_WHITELISTED")) {
+        this.whitelistError = true;
+        console.error(`[ProxyPool] ❌ IP ${ip} non whitelistée dans 2captcha!`);
+        console.error(`[ProxyPool] → Allez sur 2captcha.com/proxy → "IP whitelist" → Ajoutez: ${ip}`);
+        console.error(`[ProxyPool] → Proxy désactivé jusqu'au prochain redémarrage`);
       } else {
         console.error(`[ProxyPool] ❌ Refresh échoué: ${JSON.stringify(json)}`);
       }

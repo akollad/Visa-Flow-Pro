@@ -406,19 +406,22 @@ async function main(): Promise<void> {
   log("INFO", `Convex: ${convexUrl ? "configuré" : "MANQUANT"}`);
   log("INFO", `Hunter API Key: ${hunterKey ? "configurée" : "MANQUANTE"}`);
 
-  // Détection IP serveur — nécessaire pour whitelist 2captcha
+  // Détection IP serveur — utilisée automatiquement par le ProxyPool 2captcha
   const serverIp = await detectServerIp();
   if (serverIp) {
+    proxyPool.setServerIp(serverIp);
     log("INFO", `IP serveur (Railway): ${serverIp}`);
-    if (!process.env.TWOCAPTCHA_WHITELIST_IP) {
-      log("WARN", `⚠️ Proxy 2captcha inactif — ajoutez ${serverIp} dans la whitelist 2captcha, puis définissez TWOCAPTCHA_WHITELIST_IP=${serverIp}`);
+    if (process.env.TWOCAPTCHA_API_KEY) {
+      log("INFO", `Proxy 2captcha: TWOCAPTCHA_API_KEY ✅ — IP ${serverIp} doit être whitelistée sur 2captcha.com/proxy`);
+    } else {
+      log("WARN", `⚠️ TWOCAPTCHA_API_KEY absente de Railway — ajoutez-la dans les variables Railway pour activer le proxy résidentiel`);
     }
   } else {
     log("WARN", "IP serveur: indéterminée (ipify.org inaccessible)");
   }
 
   const proxyStatus = proxyPool.isConfigured
-    ? "2captcha résidentiel rotatif ✅"
+    ? `2captcha résidentiel rotatif ✅ (IP: ${serverIp})`
     : process.env.PROXY_URL
       ? "statique (PROXY_URL)"
       : "aucun ⚠️ — IP fixe Railway exposée";
