@@ -324,7 +324,90 @@ Suite de l'audit du bundle. **5 bugs supplémentaires trouvés et corrigés** :
 
 ---
 
-## 10. Historique des Checks
+## 10. Infrastructure d'Analyse Bundle (2026-04-02)
+
+### Structure des fichiers
+
+```
+bundle-analysis/
+  bundle.js                       # Bundle Angular local (2MB, gitignore)
+  extract-bundle.ts               # Extraction bundle → 20 sections JSON
+  extract-bot.ts                  # Extraction bot → 16 sections JSON
+  compare.ts                      # Comparaison bundle ↔ bot → rapport MD + JSON
+  sections/                       # 20 JSON sections du bundle (gitignore)
+  bot-sections/                   # 16 JSON sections du bot (gitignore)
+  reports/
+    bundle-summary.md             # Rapport d'extraction bundle complet
+    comparison.md                 # Rapport de comparaison final
+    divergences.json              # Divergences critiques en JSON
+```
+
+### Comment regénérer l'analyse complète
+
+```bash
+# 1. Télécharger le bundle (si changement de hash)
+cd artifacts/slot-hunter
+FULL_CHECK=true npx tsx src/securityCheck.ts
+cp /tmp/bundle.js bundle-analysis/bundle.js
+
+# 2. Extraire les sections
+npx tsx bundle-analysis/extract-bundle.ts
+npx tsx bundle-analysis/extract-bot.ts
+
+# 3. Générer le rapport de comparaison
+npx tsx bundle-analysis/compare.ts
+```
+
+### Résultats de l'analyse 2026-04-02
+
+| Statut | Nombre | Endpoints |
+|--------|--------|-----------|
+| ✅ Conforme | 48 | Tous |
+| ⚠️ Mineure | 6 | login, paymentStatus, ofcList |
+| ❌ Critique | **0** | — |
+| ❓ Non vérifié | 0 | — |
+
+**Bot actuellement 100% sans divergences critiques.**
+
+### Warnings en cours (non-bloquants)
+
+| # | Endpoint | Warning | Action |
+|---|---------|---------|--------|
+| W1 | login | 4 headers CORS non-standard non envoyés (serveur les ignore) | Ajouter si fingerprint problème |
+| W2 | login | `sessionStorage.clear()` vs tokenCache en mémoire | Comportement équivalent — aucune action |
+| W3 | paymentStatus | `appointmentId`/`applicantUUID` sourced depuis `getApplicationDetails` (confirmé) | ✅ Correct |
+| W4 | ofcList | Endpoint `/ofcuser/ofclist` vs `/lookupcdt/wizard/getpost` en booking | À investiguer si 0 créneaux retournés |
+| W5 | ofcList | `officeType === "OFC"` filtre implémenté | ✅ OK |
+| W6 | ofcList | Filtre OFCs autorisés par le compte (`loggedInApplicantUser.ofc`) | À implémenter si 403 sur OFCs non autorisés |
+
+### Sections couvertes par l'analyse
+
+| ID | Endpoint | Méthode | URL |
+|----|---------|---------|-----|
+| 01 | login | POST | `/identity/user/login` |
+| 02 | verifyMfa | POST | `/identity/verifyMfa` |
+| 03 | refreshToken | POST | `/identity/refreshToken` |
+| 04 | logout | POST | `/identity/logout` |
+| 05 | paymentStatus | GET | `/workflow/getUserHistoryApplicantPaymentStatus` |
+| 06 | getApplicationDetails | GET | `/appointments/getApplicationDetails?applicationId=&applicantId=` |
+| 07 | getLandingPage | GET | `/appointment/getLandingPageDeatils` |
+| 08 | ofcList | GET | `/ofcuser/ofclist/{missionId}` |
+| 09 | getFirstAvailableMonth | POST | `/modifyslot/getFirstAvailableMonth` |
+| 10 | getSlotDates | POST | `/modifyslot/getSlotDates` |
+| 11 | getSlotTime | POST | `/modifyslot/getSlotTime` |
+| 12 | bookSlot | PUT | `/appointments/schedule` |
+| 13 | rescheduleAppointment | PUT | `/appointments/reschedule` |
+| 14 | httpInterceptor | ALL | Intercepteur global |
+| 15 | sanityCheck | GET | FCS + workflow check |
+| 16 | appointmentLetter | POST | `/template/appointmentLetter` |
+| 17 | csrfAndCookies | N/A | Mécanique XSRF-TOKEN |
+| 18 | cryptoEncryption | N/A | AES-256-CBC |
+| 19 | bookSlotPayloadConstruction | N/A | Construction payload |
+| 20 | tokenStorage | N/A | SessionStorage |
+
+---
+
+## 11. Historique des Checks
 
 | Date | Bundle Hash | AES Key | CAPTCHA Key | Résultat |
 |------|------------|---------|-------------|---------|

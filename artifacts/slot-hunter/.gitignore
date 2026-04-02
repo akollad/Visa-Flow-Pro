@@ -1,0 +1,7 @@
+dist/
+node_modules/
+# Bundle Angular (2MB — regénéré via securityCheck.ts FULL_CHECK=true)
+bundle-analysis/bundle.js
+# Sections extraites (regénérées par extract-bundle.ts / extract-bot.ts)
+bundle-analysis/sections/
+bundle-analysis/bot-sections/
