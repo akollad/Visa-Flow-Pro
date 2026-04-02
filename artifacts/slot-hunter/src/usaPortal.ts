@@ -199,6 +199,9 @@ export interface UsaSession {
   fullName: string;
   applicationId: string | null;
   pendingAppoStatus: number | null;
+  /** missionId retourné par le serveur (cookie "missionId" dans le portail Angular).
+   * Priorité sur USA_MISSION_ID si présent — garantit qu'on utilise la valeur serveur. */
+  missionId: number;
 }
 
 // Referers spécifiques à chaque étape de navigation du portail Angular.
@@ -248,6 +251,7 @@ export async function getUsaSession(
         fullName: cached.fullName,
         applicationId: null,
         pendingAppoStatus: null,
+        missionId: USA_MISSION_ID,
       };
     }
 
@@ -262,6 +266,7 @@ export async function getUsaSession(
         fullName: refreshed.fullName,
         applicationId: null,
         pendingAppoStatus: null,
+        missionId: USA_MISSION_ID,
       };
     }
     console.log("[usa] Refresh échoué — reconnexion complète");
@@ -427,6 +432,7 @@ export async function loginUsaPortal(
     fullName: data.fullName,
     applicationId: null,
     pendingAppoStatus: null,
+    missionId: USA_MISSION_ID,
   };
 }
 
@@ -436,6 +442,8 @@ export async function checkUsaAppointmentRequestStatus(session: UsaSession): Pro
   pendingAppoStatus: number | null;
   primaryApplicant: string | null;
   message: string;
+  /** missionId tel que retourné par le serveur — à propager dans session.missionId */
+  missionId: number;
 }> {
   const headers = authHeaders(session.accessToken, REFERER_REQUESTS, false);
   let data: UsaAppointmentRequest | null = null;
@@ -455,20 +463,20 @@ export async function checkUsaAppointmentRequestStatus(session: UsaSession): Pro
           tokenCache.delete(cacheKey);
         }
       }
-      return { status: "error", applicationId: null, pendingAppoStatus: null, primaryApplicant: null, message: `HTTP ${res.status}` };
+      return { status: "error", applicationId: null, pendingAppoStatus: null, primaryApplicant: null, message: `HTTP ${res.status}`, missionId: USA_MISSION_ID };
     }
     const raw = await res.json();
     if (!raw || typeof raw !== "object") {
-      return { status: "no_request", applicationId: null, pendingAppoStatus: null, primaryApplicant: null, message: "Aucune demande de RDV trouvée" };
+      return { status: "no_request", applicationId: null, pendingAppoStatus: null, primaryApplicant: null, message: "Aucune demande de RDV trouvée", missionId: USA_MISSION_ID };
     }
     // Le portail peut renvoyer un objet unique ou un tableau à un seul élément.
     data = (Array.isArray(raw) ? raw[0] : raw) as UsaAppointmentRequest;
     if (!data) {
-      return { status: "no_request", applicationId: null, pendingAppoStatus: null, primaryApplicant: null, message: "Tableau vide — aucune demande de RDV" };
+      return { status: "no_request", applicationId: null, pendingAppoStatus: null, primaryApplicant: null, message: "Tableau vide — aucune demande de RDV", missionId: USA_MISSION_ID };
     }
   } catch (err) {
     console.error("[usa] Erreur appel appointment status:", err);
-    return { status: "error", applicationId: null, pendingAppoStatus: null, primaryApplicant: null, message: String(err) };
+    return { status: "error", applicationId: null, pendingAppoStatus: null, primaryApplicant: null, message: String(err), missionId: USA_MISSION_ID };
   }
 
   const appId = data.applicationId ?? null;
@@ -483,6 +491,11 @@ export async function checkUsaAppointmentRequestStatus(session: UsaSession): Pro
   //   2, 3, etc.  → paiement fait, en attente de créneau (portal: aller à l'appointment create)
   // Le bundle confirme : "0 !== pendingAppoStatus" → toujours redirigé vers la création de RDV.
 
+  // missionId retourné par le serveur (dans la réponse JSON) — fait office de cookie "missionId" du portail.
+  const serverMissionId = typeof data.missionId === "number" && data.missionId > 0
+    ? data.missionId
+    : USA_MISSION_ID;
+
   if (appoStatus === 0 || appoStatus === null) {
     return {
       status: "no_request",
@@ -490,6 +503,7 @@ export async function checkUsaAppointmentRequestStatus(session: UsaSession): Pro
       pendingAppoStatus: appoStatus,
       primaryApplicant: applicant,
       message: `Aucune demande active ou paiement non confirmé (pendingAppoStatus: ${appoStatus})`,
+      missionId: serverMissionId,
     };
   }
 
@@ -500,6 +514,7 @@ export async function checkUsaAppointmentRequestStatus(session: UsaSession): Pro
       pendingAppoStatus: 1,
       primaryApplicant: applicant,
       message: `Créneau déjà attribué pour ${applicant} (applicationId: ${appId})`,
+      missionId: serverMissionId,
     };
   }
 
@@ -510,6 +525,7 @@ export async function checkUsaAppointmentRequestStatus(session: UsaSession): Pro
     pendingAppoStatus: appoStatus,
     primaryApplicant: applicant,
     message: `Paiement confirmé (status=${appoStatus}) — scan créneaux pour ${applicant}`,
+    missionId: serverMissionId,
   };
 }
 
@@ -567,6 +583,8 @@ export async function runUsaApiSession(job: HunterJob): Promise<SessionResult> {
   const requestStatus = await checkUsaAppointmentRequestStatus(session);
   session.applicationId = requestStatus.applicationId;
   session.pendingAppoStatus = requestStatus.pendingAppoStatus;
+  // Priorité au missionId serveur (équivalent au cookie "missionId" que le portail Angular lit).
+  session.missionId = requestStatus.missionId;
 
   if (requestStatus.status === "error") {
     console.error(`[usa] Erreur lecture statut demande : ${requestStatus.message}`);
@@ -595,7 +613,7 @@ export async function runUsaApiSession(job: HunterJob): Promise<SessionResult> {
         applicationId: job.id,
         date: "Créneau déjà attribué",
         time: "",
-        location: `Ambassade USA Kinshasa (Mission ${USA_MISSION_ID})`,
+        location: `Ambassade USA Kinshasa (Mission ${session.missionId})`,
       });
     } catch { /* ignore */ }
     return "slot_found";
@@ -698,7 +716,7 @@ function sessionHeaders(
 async function callLandingPage(session: UsaSession): Promise<void> {
   if (!session.applicationId) return;
   // GET depuis le dashboard — pas de Content-Type, Referer = dashboard parent
-  const headers = sessionHeaders(session.accessToken, session.applicationId, USA_MISSION_ID, REFERER_DASHBOARD, false);
+  const headers = sessionHeaders(session.accessToken, session.applicationId, session.missionId, REFERER_DASHBOARD, false);
   try {
     const res = await fetch(USA_LANDING_PAGE_URL, { method: "GET", headers });
     console.log(`[usa] getLandingPageDeatils → HTTP ${res.status}`);
@@ -716,7 +734,7 @@ async function callSanityCheck(session: UsaSession): Promise<void> {
   if (!session.applicationId) return;
   const url = USA_SANITY_CHECK_URL(session.applicationId);
   // POST sans corps — le portail envoie Content-Type mais pas de body
-  const headers = sessionHeaders(session.accessToken, session.applicationId, USA_MISSION_ID, REFERER_CREATE_APT, true);
+  const headers = sessionHeaders(session.accessToken, session.applicationId, session.missionId, REFERER_CREATE_APT, true);
   try {
     const res = await fetch(url, { method: "POST", headers });
     console.log(`[usa] sanityCheck(slotBooking) → HTTP ${res.status}`);
@@ -735,7 +753,7 @@ async function checkFcsPayment(session: UsaSession): Promise<boolean> {
   if (!session.applicationId) return true; // laisser passer si pas d'appId
   const url = USA_FCS_CHECK_URL(session.applicationId);
   // GET — pas de Content-Type
-  const headers = sessionHeaders(session.accessToken, session.applicationId, USA_MISSION_ID, REFERER_CREATE_APT, false);
+  const headers = sessionHeaders(session.accessToken, session.applicationId, session.missionId, REFERER_CREATE_APT, false);
   try {
     const res = await fetch(url, { method: "GET", headers });
     if (!res.ok) {
@@ -775,7 +793,7 @@ async function getUsaApplicationDetails(
   try {
     // GET — pas de Content-Type, Referer = page de création de RDV
     const res = await fetch(url, {
-      headers: sessionHeaders(session.accessToken, applicationId, USA_MISSION_ID, REFERER_CREATE_APT, false),
+      headers: sessionHeaders(session.accessToken, applicationId, session.missionId, REFERER_CREATE_APT, false),
     });
     if (!res.ok) {
       console.warn(`[usa] getApplicationDetails HTTP ${res.status}`);
@@ -861,7 +879,7 @@ async function findFirstSlotForOfc(
   };
 
   // Toutes les requêtes de slot incluent les cookies APP_ID_TOBE + missionId (POST avec body)
-  const hdrs = sessionHeaders(session.accessToken, appDetails.applicationId, USA_MISSION_ID, REFERER_CREATE_APT, true);
+  const hdrs = sessionHeaders(session.accessToken, appDetails.applicationId, session.missionId, REFERER_CREATE_APT, true);
 
   /**
    * Vérifie le status HTTP et lève une erreur circuit-breaker si critique.
@@ -1168,7 +1186,7 @@ export async function downloadUsaConfirmationPdf(
       // Referer = page de scheduling (le PDF est téléchargé immédiatement après confirmation).
       // Accept = application/pdf : overwrite "application/json" de authHeaders.
       headers: {
-        ...sessionHeaders(session.accessToken, applicationId, USA_MISSION_ID, REFERER_CREATE_APT),
+        ...sessionHeaders(session.accessToken, applicationId, session.missionId, REFERER_CREATE_APT),
         "Accept": "application/pdf",
       },
       body: JSON.stringify({ applicationId }),
@@ -1252,7 +1270,7 @@ async function scanUsaSlotsViaAPI(job: HunterJob, session: UsaSession): Promise<
   // 2. Récupérer la liste des OFCs pour la mission
   let ofcList: UsaOfc[];
   try {
-    ofcList = await getUsaOfcList(session, USA_MISSION_ID);
+    ofcList = await getUsaOfcList(session, session.missionId);
   } catch (err) {
     if (err instanceof RateLimitError) {
       await sendHeartbeat({ applicationId: job.id, result: "error", errorMessage: `Rate limit (429) sur getOfcList` });
@@ -1271,7 +1289,7 @@ async function scanUsaSlotsViaAPI(job: HunterJob, session: UsaSession): Promise<
     await sendHeartbeat({
       applicationId: job.id,
       result: "not_found",
-      errorMessage: `Aucun OFC disponible pour mission ${USA_MISSION_ID}`,
+      errorMessage: `Aucun OFC disponible pour mission ${session.missionId}`,
     });
     return "not_found";
   }
