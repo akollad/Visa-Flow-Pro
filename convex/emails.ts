@@ -52,7 +52,7 @@ function destLabel(destination: string): string {
   return map[destination] ?? destination;
 }
 
-const LOGO_URL = `${APP_URL}/images/logo.png`;
+const LOGO_URL = `${APP_URL}/icon.png`;
 
 function htmlWrapper(title: string, body: string): string {
   return `<!DOCTYPE html>

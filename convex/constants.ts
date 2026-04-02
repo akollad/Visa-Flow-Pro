@@ -13,7 +13,7 @@ export const VISA_PRICING = {
       { key: "proof_of_funds", label: "Relevés bancaires (3 derniers mois)", required: true },
       { key: "employment_letter", label: "Attestation de travail / RCCM", required: true },
       { key: "ds160_confirmation", label: "Confirmation DS-160", required: true },
-      { key: "mrv_receipt", label: "Reçu paiement MRV (185$)", required: true },
+      { key: "mrv_receipt", label: "Reçu paiement MRV (265$)", required: true },
     ],
     embassyAddress: "502 Gombe, Kinshasa, Ambassade des États-Unis",
     portalUrl: "https://www.usvisaappt.com/visaapplicantui/login",
@@ -40,7 +40,7 @@ export const VISA_PRICING = {
       clientCtaBody: "Joventy a verrouillé un rendez-vous à l'ambassade. Réglez la prime de succès pour recevoir le PDF de confirmation officiel (indispensable pour l'entretien).",
       completedNote: "Téléchargez votre kit d'entretien complet ci-dessous.",
     },
-    notes: "Les frais consulaires MRV (185$) sont payés séparément par le client directement à la banque.",
+    notes: "Les frais consulaires MRV (265$) sont payés séparément par le client directement à la banque.",
   },
   dubai: {
     label: "Dubaï (EAU)",

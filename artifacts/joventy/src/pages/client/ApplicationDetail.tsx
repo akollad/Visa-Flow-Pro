@@ -95,6 +95,23 @@ function Countdown({ targetTs }: { targetTs: number }) {
   return <span className="font-mono font-bold text-red-700">{parts.join(" ")}</span>;
 }
 
+function printKitOnly() {
+  const el = document.getElementById("interview-kit");
+  if (!el) return;
+  const styleSheets = Array.from(document.querySelectorAll<HTMLElement>("style, link[rel='stylesheet']"))
+    .map((n) => n.outerHTML)
+    .join("\n");
+  const w = window.open("", "_blank", "width=820,height=960");
+  if (!w) { window.print(); return; }
+  w.document.write(
+    `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">` +
+    `<title>Kit d'Entretien Consulaire — Joventy</title>${styleSheets}</head>` +
+    `<body class="bg-white p-8">${el.outerHTML}</body></html>`
+  );
+  w.document.close();
+  setTimeout(() => { w.focus(); w.print(); }, 600);
+}
+
 function InterviewKit({ app, confirmationLetterUrl }: { app: Application; confirmationLetterUrl?: string | null }) {
   const pricing = VISA_PRICING[app.destination as keyof typeof VISA_PRICING];
   const details = app.appointmentDetails;
@@ -113,7 +130,7 @@ function InterviewKit({ app, confirmationLetterUrl }: { app: Application; confir
               </Button>
             </a>
           )}
-          <Button onClick={() => window.print()} variant="outline" size="sm" className="gap-2">
+          <Button onClick={printKitOnly} variant="outline" size="sm" className="gap-2">
             <Download className="w-4 h-4" /> Kit complet (PDF)
           </Button>
         </div>

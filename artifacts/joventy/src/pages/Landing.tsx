@@ -20,7 +20,7 @@ const DESTINATIONS = [
     engagement: 150,
     success: 450,
     model: "appointment",
-    note: "Frais MRV 185$ non inclus",
+    note: "Frais MRV 265$ non inclus",
   },
   {
     flag: "🇦🇪",
@@ -328,7 +328,7 @@ export default function Landing() {
                 {[
                   { text: "Joventy n'est pas un consulat et ne délivre pas de visas", note: "La décision d'accord ou de refus appartient exclusivement à l'ambassade ou au gouvernement étranger." },
                   { text: "Joventy ne garantit pas l'approbation finale du visa", note: "Nous garantissons uniquement le service : si nous ne trouvons pas de créneau ou si l'e-Visa est refusé, vous ne payez pas la prime de succès." },
-                  { text: "Les frais consulaires et annexes ne sont pas inclus dans nos tarifs", note: "MRV USA (185$), frais VFS Turquie (100-300$), e-Visa EAU (~90$), e-Visa Inde (~25-80$), assurance voyage, réservations d'hôtel et de billets d'avion restent à la charge du client et sont payés directement aux organismes concernés." },
+                  { text: "Les frais consulaires et annexes ne sont pas inclus dans nos tarifs", note: "MRV USA (265$), frais VFS Turquie (100-300$), e-Visa EAU (~90$), e-Visa Inde (~25-80$), assurance voyage, réservations d'hôtel et de billets d'avion restent à la charge du client et sont payés directement aux organismes concernés." },
                 ].map((item) => (
                   <li key={item.text} className="flex items-start gap-3">
                     <XCircle className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />

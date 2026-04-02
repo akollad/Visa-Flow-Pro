@@ -108,7 +108,7 @@ export default function Remboursement() {
         cas vous les rembourser :
       </p>
       <ul>
-        <li>Frais MRV (ambassade des États-Unis) : 185 $ ou 265 $ selon le visa</li>
+        <li>Frais MRV (ambassade des États-Unis) : 265 $ (montant standard)</li>
         <li>Frais SEVIS (visa F1 USA) : 350 $</li>
         <li>Frais consulaires et de service VFS (Turquie) : 100 $ à 480 $ selon la formule</li>
         <li>Frais d'assurance maladie (Turquie) : 65 $ à 110 $</li>

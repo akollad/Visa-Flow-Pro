@@ -86,7 +86,7 @@ function getPackageInfo(
         label: "Créneau Ambassade",
         tagline: "Rendez-vous uniquement",
         description: "Vos formulaires sont remplis et vos frais MRV acquittés ? Joventy se concentre uniquement sur la capture d'un créneau disponible à l'ambassade américaine.",
-        slotNote: "Prérequis : DS-160 soumis. Frais MRV (185 $) requis — le reçu peut être fourni ultérieurement.",
+        slotNote: "Prérequis : DS-160 soumis. Frais MRV (265 $) requis — le reçu peut être fourni ultérieurement.",
       };
     }
     if (destination === "turkey") {
@@ -596,7 +596,7 @@ export default function NewApplication() {
                         value={slotRefs.mrvReceiptNumber}
                         onChange={(e) => updateRef("mrvReceiptNumber", e.target.value)}
                       />
-                      <p className="text-[10px] text-muted-foreground">Reçu généré après paiement des frais MRV (185 $ ou 205 $). Si non disponible, notre équipe peut le compléter ultérieurement.</p>
+                      <p className="text-[10px] text-muted-foreground">Reçu généré après paiement des frais MRV (265 $). Si non disponible, notre équipe peut le compléter ultérieurement.</p>
                     </div>
                     {isStudentExchange && (
                       <div className="space-y-1.5 sm:col-span-2">
