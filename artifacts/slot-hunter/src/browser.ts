@@ -9,20 +9,31 @@ playwrightChromium.use(StealthPlugin());
 const PROXY_URL = process.env.PROXY_URL;
 const DRY_RUN = process.env.DRY_RUN === "true";
 
-// UAs desktop uniquement — les portails consulaires sont desktop-only.
-// Les UAs mobiles (iPhone/Android) combinés à un viewport desktop (1280+px)
-// sont immédiatement détectés comme bots par le fingerprinting UA+viewport.
+// ─── User-Agents desktop uniquement ─────────────────────────────────────────
+// Règle : UA desktop exclusivement. UA mobile + viewport desktop = détection bot
+// immédiate par fingerprinting UA+viewport.
+// Versions alignées sur avril 2026 : Chrome 134-136, Edge 134, Firefox 136,
+// Safari 18, Opera 120. Profils variés : Windows/macOS/Linux, navigateurs différents.
+// ⚠️ À mettre à jour environ tous les 6 mois quand Chrome dépasse +10 versions.
 const USER_AGENTS = [
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0",
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 OPR/107.0.0.0",
+  // Chrome sur Windows 10/11
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+  // Edge sur Windows
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 Edg/136.0.0.0",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36 Edg/134.0.0.0",
+  // Chrome sur macOS (Chromium rapporte toujours 10_15_7 sur toutes versions macOS — comportement normal)
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+  // Safari sur macOS Sequoia
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Safari/605.1.15",
+  // Firefox sur Windows
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:136.0) Gecko/20100101 Firefox/136.0",
+  // Opera sur Windows
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36 OPR/120.0.0.0",
+  // Chrome sur Linux (type bureau Ubuntu)
+  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
 ];
 
 const VIEWPORTS = [
@@ -33,8 +44,32 @@ const VIEWPORTS = [
   { width: 1536, height: 864 },
 ];
 
+// ─── Rotation UA sans répétition consécutive ─────────────────────────────────
+// Utilise un "deck mélangé" : chaque UA est utilisé une fois par cycle avant
+// de recommencer. Garantit qu'on ne tombe jamais deux fois de suite sur le même UA.
+class UaRotator {
+  private queue: string[] = [];
+  private lastUsed: string | null = null;
+
+  next(): string {
+    if (this.queue.length === 0) {
+      // Recharger et mélanger le deck
+      this.queue = [...USER_AGENTS].sort(() => Math.random() - 0.5);
+    }
+    // Si la tête du deck est le même UA que le précédent, on le déplace en fin
+    if (this.lastUsed && this.queue[0] === this.lastUsed && this.queue.length > 1) {
+      this.queue.push(this.queue.shift()!);
+    }
+    const ua = this.queue.shift()!;
+    this.lastUsed = ua;
+    return ua;
+  }
+}
+
+const uaRotator = new UaRotator();
+
 export function randomUserAgent(): string {
-  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+  return uaRotator.next();
 }
 
 export function randomViewport() {
