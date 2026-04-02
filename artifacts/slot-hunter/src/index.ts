@@ -3,6 +3,7 @@ dotenv.config();
 
 import { getActiveJobs, sendHeartbeat, getPendingBotTest, type HunterJob } from "./convexClient.js";
 import { runHunterSession, runBotTestSession, type SessionResult } from "./navigator.js";
+import { USA_ENC_SEC_KEY } from "./usaPortal.js";
 
 // ─── Tier intervals : temps MINIMUM entre deux checks du MÊME dossier ──────
 const URGENCY_INTERVAL: Record<string, { min: number; max: number }> = {
@@ -31,6 +32,13 @@ const MAX_LOGIN_FAILURES = 3;
 // Auto-pause après N erreurs transitoires consécutives (429/403/réseau) sur le même dossier.
 // Évite d'harceler le portail en boucle si le compte est rate-limité ou bloqué.
 const MAX_CONSECUTIVE_ERRORS = 5;
+
+// ─── Vérification bundle portail USA (clé AES) ───────────────────────────────
+// Une fois par jour : télécharge le bundle Angular du portail et vérifie que
+// la clé AES hardcodée est toujours présente. Si elle a changé, pause tous les
+// jobs USA et logue une alerte claire pour correction manuelle.
+const BUNDLE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
+let lastBundleCheckAt = 0; // 0 = jamais vérifié → s'exécute au démarrage
 
 const consecutiveLoginFailures = new Map<string, number>();
 const consecutiveErrors = new Map<string, number>();
@@ -245,6 +253,82 @@ async function handleResult(job: HunterJob, result: SessionResult): Promise<void
   log("INFO", `[${job.applicantName}] Prochain check dans ${formatMs(intervalMs)} (${new Date(nextDue).toLocaleTimeString("fr-CD")})`);
 }
 
+/**
+ * Vérifie une fois par jour que la clé AES du portail USA n'a pas changé.
+ * Si la clé est absente du bundle actuel : pause immédiate de tous les jobs USA
+ * et alerte dans les logs — la correction reste manuelle (remplacer USA_ENC_SEC_KEY
+ * dans usaPortal.ts puis rebuild + redéployer le container).
+ */
+async function checkPortalBundleKey(activeJobs: HunterJob[]): Promise<void> {
+  const now = Date.now();
+  if (now - lastBundleCheckAt < BUNDLE_CHECK_INTERVAL_MS) return;
+  lastBundleCheckAt = now;
+
+  log("INFO", "🔍 Vérification bundle portail USA (quotidienne)...");
+
+  const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
+  try {
+    // 1. Trouver le nom du bundle Angular actuel (hash content-based)
+    const htmlRes = await fetch("https://www.usvisaappt.com/visaapplicantui/", {
+      headers: { "User-Agent": UA, "Accept": "text/html" },
+    });
+    const html = await htmlRes.text();
+    const match = html.match(/src="(main\.[a-f0-9]+\.js)"/);
+    if (!match) {
+      log("WARN", "🔍 Bundle check : impossible de trouver le nom du bundle — skip");
+      return;
+    }
+    const bundleName = match[1];
+
+    // 2. Télécharger le bundle
+    const bundleRes = await fetch(`https://www.usvisaappt.com/visaapplicantui/${bundleName}`, {
+      headers: {
+        "User-Agent": UA,
+        "Referer": "https://www.usvisaappt.com/visaapplicantui/login",
+      },
+    });
+    if (!bundleRes.ok) {
+      log("WARN", `🔍 Bundle check : téléchargement échoué (HTTP ${bundleRes.status}) — skip`);
+      return;
+    }
+    const bundleText = await bundleRes.text();
+
+    // 3. Vérifier si la clé actuelle est toujours présente
+    if (bundleText.includes(USA_ENC_SEC_KEY)) {
+      log("INFO", `🔍 Bundle check ✅ — clé AES inchangée (bundle: ${bundleName})`);
+      return;
+    }
+
+    // 4. Clé absente → alerte + pause de tous les jobs USA actifs
+    log("ERROR", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    log("ERROR", "🔴 ALERTE BUNDLE : la clé AES du portail USA a changé !");
+    log("ERROR", `   Bundle actuel  : ${bundleName}`);
+    log("ERROR", `   Clé en code    : ${USA_ENC_SEC_KEY}`);
+    log("ERROR", "   ACTION REQUISE : exécuter check-portal-bundle.sh,");
+    log("ERROR", "   mettre à jour USA_ENC_SEC_KEY dans usaPortal.ts,");
+    log("ERROR", "   puis rebuild + redéployer le container Docker.");
+    log("ERROR", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+    const usaJobs = activeJobs.filter((j) => j.destination === "usa");
+    for (const job of usaJobs) {
+      try {
+        await sendHeartbeat({
+          applicationId: job.id,
+          result: "error",
+          errorMessage: `⚠️ Clé AES du portail USA changée (bundle: ${bundleName}). Mise à jour manuelle requise. Robot mis en pause automatiquement.`,
+          shouldPause: true,
+        });
+        log("WARN", `[${job.applicantName}] Mis en pause — clé AES périmée`);
+      } catch (err) {
+        log("WARN", `[${job.applicantName}] Erreur envoi pause heartbeat: ${err}`);
+      }
+    }
+  } catch (err) {
+    log("WARN", `🔍 Bundle check : erreur réseau — skip (${err})`);
+  }
+}
+
 async function main(): Promise<void> {
   const dryRun = process.env.DRY_RUN === "true";
   const convexUrl = process.env.CONVEX_SITE_URL;
@@ -291,6 +375,9 @@ async function main(): Promise<void> {
     }
 
     syncAdminResets(jobs);
+
+    // Vérification quotidienne du bundle portail USA (non bloquante)
+    await checkPortalBundleKey(jobs);
 
     const due = findNextDueJob(jobs);
 
