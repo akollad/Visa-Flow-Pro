@@ -4,6 +4,20 @@ dotenv.config();
 import { getActiveJobs, sendHeartbeat, getPendingBotTest, type HunterJob } from "./convexClient.js";
 import { runHunterSession, runBotTestSession, type SessionResult } from "./navigator.js";
 import { USA_ENC_SEC_KEY } from "./usaPortal.js";
+import { proxyPool } from "./browser.js";
+
+// ─── Auto-détection IP publique du serveur ───────────────────────────────────
+async function detectServerIp(): Promise<string | null> {
+  try {
+    const res = await fetch("https://api.ipify.org?format=json", {
+      signal: AbortSignal.timeout(8_000),
+    });
+    const data = await res.json() as { ip: string };
+    return data.ip ?? null;
+  } catch {
+    return null;
+  }
+}
 
 // ─── Tier intervals : temps MINIMUM entre deux checks du MÊME dossier ──────
 // tres_urgent : 3-5 min hors rush, 1-2 min pendant les rush hours.
@@ -391,7 +405,24 @@ async function main(): Promise<void> {
   log("INFO", `Mode: ${dryRun ? "DRY RUN" : "PRODUCTION"}`);
   log("INFO", `Convex: ${convexUrl ? "configuré" : "MANQUANT"}`);
   log("INFO", `Hunter API Key: ${hunterKey ? "configurée" : "MANQUANTE"}`);
-  log("INFO", `Proxy: ${process.env.PROXY_URL ? "configuré" : "aucun"}`);
+
+  // Détection IP serveur — nécessaire pour whitelist 2captcha
+  const serverIp = await detectServerIp();
+  if (serverIp) {
+    log("INFO", `IP serveur (Railway): ${serverIp}`);
+    if (!process.env.TWOCAPTCHA_WHITELIST_IP) {
+      log("WARN", `⚠️ Proxy 2captcha inactif — ajoutez ${serverIp} dans la whitelist 2captcha, puis définissez TWOCAPTCHA_WHITELIST_IP=${serverIp}`);
+    }
+  } else {
+    log("WARN", "IP serveur: indéterminée (ipify.org inaccessible)");
+  }
+
+  const proxyStatus = proxyPool.isConfigured
+    ? "2captcha résidentiel rotatif ✅"
+    : process.env.PROXY_URL
+      ? "statique (PROXY_URL)"
+      : "aucun ⚠️ — IP fixe Railway exposée";
+  log("INFO", `Proxy: ${proxyStatus}`);
   log("INFO", "Intervalles tier — tres_urgent:3-5m (rush:1-2m)  urgent:15-20m  prioritaire:25-35m  standard:45-60m");
   log("INFO", `Silence radio: normal ${formatMs(SILENCE_RADIO_MIN_MS)}–${formatMs(SILENCE_RADIO_MAX_MS)} | rush ${formatMs(RUSH_SILENCE_MIN_MS)}–${formatMs(RUSH_SILENCE_MAX_MS)}`);
   log("INFO", `Rush windows Kinshasa (UTC+1): 00h-02h | 07h-09h | 12h-14h — actif maintenant: ${isRushHour() ? "OUI ⚡" : "non"}`);

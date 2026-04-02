@@ -9,6 +9,62 @@ playwrightChromium.use(StealthPlugin());
 const PROXY_URL = process.env.PROXY_URL;
 const DRY_RUN = process.env.DRY_RUN === "true";
 
+// ─── 2Captcha Proxy Pool ─────────────────────────────────────────────────────
+// Mode whitelist : le serveur Railway appelle l'API 2captcha avec sa propre IP
+// (whitelistée dans le dashboard) → reçoit N IPs résidentielles réelles → les
+// utilise en rotation. Aucun credential dans l'URL proxy.
+// Prérequis : TWOCAPTCHA_API_KEY + TWOCAPTCHA_WHITELIST_IP définis.
+// Fallback automatique sur PROXY_URL ou connexion directe si non configuré.
+class ProxyPool {
+  private pool: string[] = [];
+  private lastRefresh = 0;
+  private readonly REFRESH_MS = 25 * 60_000; // 25 min (IPs ~30 min de validité)
+  private readonly POOL_SIZE = 50;
+
+  get isConfigured(): boolean {
+    return !!(process.env.TWOCAPTCHA_API_KEY && process.env.TWOCAPTCHA_WHITELIST_IP);
+  }
+
+  async getProxy(): Promise<string | undefined> {
+    if (!this.isConfigured) return undefined;
+
+    if (this.pool.length < 5 || Date.now() - this.lastRefresh > this.REFRESH_MS) {
+      await this.refresh();
+    }
+
+    if (this.pool.length === 0) return undefined;
+
+    // Round-robin mélangé : tête → file → queue
+    const proxy = this.pool.shift()!;
+    this.pool.push(proxy);
+    return `http://${proxy}`;
+  }
+
+  private async refresh(): Promise<void> {
+    try {
+      const key = process.env.TWOCAPTCHA_API_KEY!;
+      const ip  = process.env.TWOCAPTCHA_WHITELIST_IP!;
+      const url = `https://api.2captcha.com/proxy/generate_white_list_connections` +
+        `?key=${key}&protocol=http&connection_count=${this.POOL_SIZE}&ip=${encodeURIComponent(ip)}`;
+
+      const res  = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+      const json = await res.json() as { status: string; data?: string[] };
+
+      if (json.status === "OK" && Array.isArray(json.data) && json.data.length > 0) {
+        this.pool = [...json.data].sort(() => Math.random() - 0.5);
+        this.lastRefresh = Date.now();
+        console.log(`[ProxyPool] ✅ ${this.pool.length} IPs résidentielles fraîches chargées (2captcha)`);
+      } else {
+        console.error(`[ProxyPool] ❌ Refresh échoué: ${JSON.stringify(json)}`);
+      }
+    } catch (err) {
+      console.error(`[ProxyPool] ❌ Erreur réseau: ${err}`);
+    }
+  }
+}
+
+export const proxyPool = new ProxyPool();
+
 // ─── User-Agents desktop uniquement ─────────────────────────────────────────
 // Règle : UA desktop exclusivement. UA mobile + viewport desktop = détection bot
 // immédiate par fingerprinting UA+viewport.
@@ -80,9 +136,11 @@ export async function launchBrowser(): Promise<{ browser: Browser; context: Brow
   const ua = randomUserAgent();
   const viewport = randomViewport();
 
-  const proxyConfig = PROXY_URL
-    ? { server: PROXY_URL }
-    : undefined;
+  // Priorité : 2captcha pool résidentiel > PROXY_URL statique > connexion directe
+  const proxyAddress = proxyPool.isConfigured
+    ? await proxyPool.getProxy()
+    : PROXY_URL;
+  const proxyConfig = proxyAddress ? { server: proxyAddress } : undefined;
 
   const launchArgs: string[] = [
     "--no-sandbox",
