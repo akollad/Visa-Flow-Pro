@@ -176,12 +176,12 @@
   11. POST `/appointmentLetter`
 - **Statut :** ✅ COUVERT — ordre respecté dans `runUsaApiSession()`.
 
-### 5.6 Analyse Bundle → Bot (audit complet 2026-04-02)
+### 5.6 Analyse Bundle → Bot (audit complet 2026-04-02, session 1)
 Analyse exhaustive du bundle Angular (`main.dc91e3f7b5f67caa.js`) comparée au code du bot. **3 bugs trouvés et corrigés** :
 
 | # | Composante | Bug | Correction |
 |---|---|---|---|
-| B1 | `getSlotTime` payload | Bot envoyait `fromDate`+`toDate` absents du bundle (bundle: `{postUserId, applicantId, slotDate, visaType, visaClass, applicationId}` uniquement) | `slotTimePayload` dédié — sans `fromDate`/`toDate` |
+| B1 | `getSlotTime` payload | Bot envoyait `fromDate`+`toDate` absents du bundle (bundle: `{postUserId, applicantId, slotDate, visaType, visaClass, applicationId}` uniquement) | `slotTimePayload` déduit — sans `fromDate`/`toDate` |
 | B2 | `getallbyuser` URL | `?type=GROUPREQUEST` manquant (bundle: `"/appointmentrequest/getallbyuser?type=GROUPREQUEST"`) | Param ajouté à `USA_APPT_REQUESTS_URL` |
 | B3 | `getApplicationDetails` param `applicantId=` | Bot envoyait `session.userID` (ID login) au lieu de l'`applicantId` interne. Bundle: paramètre = `selectedSlotDetails.applicantId` | `session.applicantId` propagé depuis `getUserHistoryApplicantPaymentStatus`; fallback `userID` si absent |
 
@@ -193,6 +193,27 @@ Analyse exhaustive du bundle Angular (`main.dc91e3f7b5f67caa.js`) comparée au c
 - `getSlotDates` payload = `{...base, fromDate, toDate}` ✅
 - PUT `/appointments/schedule` = `bookSlot(h)` ✅
 - `locationType: "OFC"` forcé dans payload ✅
+
+### 5.7 Analyse Bundle → Bot (audit complet 2026-04-02, session 2)
+Suite de l'audit du bundle. **5 bugs supplémentaires trouvés et corrigés** :
+
+| # | Composante | Bug | Correction |
+|---|---|---|---|
+| B4 | `getSlotTime` payload (correction session 1 erronée) | La session 1 avait **retiré** `fromDate`/`toDate` de `getSlotTime` — le bundle confirme qu'ils sont **présents** (`filterSlots() → let Oe = {fromDate, toDate, slotDate, ...}`). De plus, `locationType` était inclus à tort (uniquement dans `getSlotDates`). | Payload reconstruit : `{fromDate, toDate, postUserId, applicantId, slotDate, visaType, visaClass, applicationId}` — sans `locationType` |
+| B5 | Détection MFA login | `UsaLoginResponse` ne contenait pas le champ `mfa`. Si le serveur retourne `mfa: 1`, le bot continue avec un token invalide. | `mfa?: number \| boolean` ajouté à l'interface; throw `MFA error` si truthy avant validation `isActive` |
+| B6 | Détection `firstTimeLogin` | `UsaLoginResponse` ne contenait pas `firstTimeLogin`. Si présent, le portail force un changement de mot de passe. | `firstTimeLogin?: boolean` ajouté; throw erreur explicite |
+| B7 | `getApplicationDetails` — réponse tableau non parsée | Le bot lisait la réponse comme un objet unique (`as UsaAppDetails`) alors que le bundle confirme que c'est un **tableau**. Angular filtre par `appointmentStatus === "NEW"` et prend `[0]`. | Parse `raw` en tableau, filtre sur `"NEW"`, `fallback` au premier si aucun "NEW" |
+| B8 | `appointmentId`/`applicantUUID` — mauvaise source | Ces champs viennent de `getApplicationDetails` (bundle: `selectedSlotDetails = relatedAppList[0]`), pas de `getUserHistoryApplicantPaymentStatus`. Interface `UsaAppDetails` manquait `appointmentId`. | Ajout `appointmentId?`, `appointmentStatus?`, `appointmentLocationType?` dans `UsaAppDetails`; propagation vers `session.appointmentId`/`session.applicantUUID` après `getUsaApplicationDetails()` |
+
+**Points confirmés conformes au bundle (session 2) :**
+- Login body = `{authorization: "Basic <AES_encrypted>"}` en JSON (pas dans les headers) ✅
+- Login headers = 4 headers CORS-like non-standard (`Access-Control-Allow-*` envoyés en request) — serveur les ignore; bas risque ✅
+- `userID` (majuscule D) = champ exact dans la réponse login body ✅
+- `loginUser()` : `window.sessionStorage.clear()` avant login — compatible avec le reset de session du bot ✅
+- `getApplicationDetails` URL = `?applicationId={appId}&applicantId={applicantId}` (applicationId EN PREMIER) ✅
+- `getFirstAvailableMonth` payload = sans `fromDate`/`toDate` — uniquement `{postUserId, applicantId, visaType, visaClass, locationType, applicationId}` ✅
+- `getSlotDates` payload = avec `locationType` + `fromDate`/`toDate` ✅
+- OFC list items ont les champs `postUserId`, `ofcName`, `officeType` ✅
 
 ### 5.2 Délais inter-requêtes
 - **Statut :** ✅ COUVERT — `randomDelay()` avec paramètres min/max variables entre chaque appel.

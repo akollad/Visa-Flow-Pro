@@ -209,6 +209,11 @@ interface UsaLoginResponse {
   refreshToken: string | null;
   idToken: string | null;
   msg: string | null;
+  /** MFA requis : 1 (ou truthy) si le compte a l'authentification à 2 facteurs activée.
+   * Dans ce cas, le token renvoyé est invalide et le bot doit avorter le login. */
+  mfa?: number | boolean;
+  /** Premier login forcé à changer le mot de passe — le bot ne gère pas ce cas. */
+  firstTimeLogin?: boolean;
 }
 
 interface UsaAppointmentRequest {
@@ -558,6 +563,25 @@ export async function loginUsaPortal(
     throw new Error(`Portail: ${data.msg}`);
   }
 
+  // Détection MFA — bundle: "1 == j.body?.mfa ? (this.mfaMsg = j.body?.msg, ...) : ..."
+  // Si mfa est truthy (1 ou true), le portail demande un OTP — le bot ne supporte pas ce cas.
+  // Le token renvoyé dans ce cas serait invalide, donc on avorte proprement.
+  if (data.mfa) {
+    console.error(`[usa] Compte avec MFA activé — message portail: ${data.msg ?? "none"}`);
+    throw new Error(
+      `Compte MFA activé (mfa=${data.mfa}) — authentification à 2 facteurs non supportée par le bot. ` +
+      `Désactivez le MFA sur votre compte usvisaappt.com pour utiliser Joventy.`
+    );
+  }
+
+  // Détection "firstTimeLogin" — le portail force un changement de mot de passe
+  if (data.firstTimeLogin) {
+    console.error(`[usa] Premier login — le portail exige un changement de mot de passe.`);
+    throw new Error(
+      `Premier login détecté — connectez-vous une fois manuellement sur usvisaappt.com pour changer votre mot de passe avant d'utiliser Joventy.`
+    );
+  }
+
   // Comparaison insensible à la casse — le serveur peut renvoyer "active", "Active" ou "ACTIVE"
   if ((data.isActive ?? "").toUpperCase() !== "ACTIVE") {
     console.warn(`[usa] Compte inactif: isActive=${data.isActive}, msg=${data.msg}`);
@@ -881,8 +905,16 @@ interface UsaAppDetails {
   visaType: string;
   visaClass: string;
   locationType?: string;
-  /** UUID de l'applicant — inclus dans le payload de booking (bundle Angular : applicationDetails.applicantUUID) */
-  applicantUUID?: string;
+  /** appointmentStatus — bundle Angular filtre sur "NEW" pour obtenir selectedSlotDetails. */
+  appointmentStatus?: string;
+  /** appointmentLocationType — "OFC" | "POST" */
+  appointmentLocationType?: string;
+  /** appointmentId — obligatoire dans le payload de booking (bundle Angular : selectedSlotDetails.appointmentId).
+   * Vient de la réponse tableau de getApplicationDetails, filtrée sur appointmentStatus === "NEW". */
+  appointmentId?: number;
+  /** UUID de l'applicant — inclus dans le payload de booking (bundle Angular : selectedSlotDetails.applicantUUID).
+   * Peut être string (sessionStorage) ou number (parseInt). On stocke string, parseInt au booking. */
+  applicantUUID?: string | number;
 }
 
 interface UsaFirstAvailableMonthResponse {
@@ -1050,8 +1082,25 @@ async function getUsaApplicationDetails(
       console.warn(`[usa] getApplicationDetails HTTP ${res.status}`);
       return null;
     }
-    const data = await res.json() as UsaAppDetails;
-    console.log(`[usa] App details: applicantId=${data.applicantId}, visaType=${data.visaType}, visaClass=${data.visaClass} (param applicantId=${applicantIdParam})`);
+    // Bundle Angular : la réponse est un TABLEAU d'objets UsaAppDetails.
+    // Angular fait : let z = [...Ee] puis filtre sur "NEW" == B.appointmentStatus.
+    // selectedSlotDetails = relatedAppList[0] (premier item avec appointmentStatus "NEW").
+    // appointmentId et applicantUUID viennent de ce même objet.
+    const raw = await res.json();
+    const list: UsaAppDetails[] = Array.isArray(raw) ? raw : [raw];
+    // Filtrer pour obtenir uniquement les demandes en statut "NEW" (en attente de créneau)
+    const newItems = list.filter(item => item.appointmentStatus === "NEW");
+    const data = newItems.length > 0 ? newItems[0] : list[0];  // fallback au premier si pas de "NEW"
+    if (!data) {
+      console.warn(`[usa] getApplicationDetails: réponse vide ou inattendue (longueur=${list.length})`);
+      return null;
+    }
+    console.log(
+      `[usa] App details: applicantId=${data.applicantId}, visaType=${data.visaType}, visaClass=${data.visaClass}` +
+      `${data.appointmentId !== undefined ? `, appointmentId=${data.appointmentId}` : ""}` +
+      `${data.applicantUUID !== undefined ? `, applicantUUID=${data.applicantUUID}` : ""}` +
+      ` (param applicantId=${applicantIdParam}, status=${data.appointmentStatus}, total=${list.length})`
+    );
     return data;
   } catch (err) {
     console.warn(`[usa] getApplicationDetails erreur: ${err}`);
@@ -1256,17 +1305,26 @@ async function findFirstSlotForOfc(
   const targetDate = slotDates[0].date;
   let timeSlots: UsaTimeSlot[];
   try {
-    // Bundle Angular : le payload getSlotTime est {postUserId, applicantId, slotDate, visaType, visaClass, applicationId}
-    // SANS fromDate/toDate (contrairement à getSlotDates).
-    // Envoyer fromDate/toDate ici est un écart détectable par rapport au vrai portail.
+    // Bundle Angular (filterSlots) — payload getSlotTime : 8 champs.
+    // Source : Oe = {fromDate, toDate, postUserId, applicantId, slotDate, visaType, visaClass, applicationId}
+    //
+    // DIFFÉRENCES CLÉS vs getSlotDates :
+    //   ✅ getSlotTime inclut "slotDate" (la date précise pour laquelle on veut les horaires)
+    //   ✅ getSlotTime inclut fromDate et toDate (même fenêtre que getSlotDates)
+    //   ❌ getSlotTime N'inclut PAS "locationType" (uniquement dans getSlotDates)
+    //
+    // Le champ "locationType" est dans getSlotDates via basePayload.locationType = "OFC".
+    // Il n'est PAS envoyé dans getSlotTime — différence subtile mais vérifiable côté serveur.
     const slotTimePayload = {
+      fromDate,
+      toDate,
       postUserId: basePayload.postUserId,
       applicantId: basePayload.applicantId,
+      slotDate: targetDate,
       visaType: basePayload.visaType,
       visaClass: basePayload.visaClass,
-      locationType: basePayload.locationType,
       applicationId: basePayload.applicationId,
-      slotDate: targetDate,
+      // NB : pas de "locationType" ici (uniquement dans getSlotDates/getFirstAvailableMonth)
     };
     const res = await usaFetch(USA_SLOT_TIMES_URL, {
       method: "POST",
@@ -1346,19 +1404,31 @@ function formatUItime(startTime: string): string {
 // Types & fonction de booking automatique
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * Payload exact envoyé par Angular dans PUT /appointments/schedule (OFC individuel).
+ * 10 champs — ni plus, ni moins.  Source : bundle Angular, méthode bookSlot() + initBookSlot().
+ *
+ * Champs du bundle :
+ *   se = { appointmentId, applicantUUID, appointmentLocationType, appointmentStatus,
+ *           slotId, appointmentDt, appointmentTime }       ← 7 champs base (bookSlot())
+ *   + De.postUserId = this.selectedOfc                     ← ajouté par initBookSlot()
+ *   + De.applicantId = selectedSlotDetails.applicantId     ← ajouté par initBookSlot()
+ *   + De.applicationId = this.applicationId                ← ajouté par initBookSlot()
+ *
+ * NE PAS inclure : visaType, visaClass, locationType, startTime, endTime, date, time.
+ * Ces champs sont dans les payloads getSlotDates/getSlotTime/getFirstAvailableMonth, PAS dans le booking.
+ */
 interface UsaBookingPayload {
+  appointmentId: number | undefined;
+  applicantUUID: number | undefined;
+  appointmentLocationType: "OFC" | "POST";
+  appointmentStatus: "SCHEDULED";
+  slotId: number;
+  appointmentDt: string;
+  appointmentTime: string;
   postUserId: number;
   applicantId: number;
   applicationId: string;
-  visaType: string;
-  visaClass: string;
-  locationType: "OFC" | "POST";
-  appointmentLocationType: "OFC" | "POST";
-  slotId: number;
-  date: string;
-  startTime: string;
-  endTime: string;
-  [key: string]: unknown;
 }
 
 interface UsaBookingEntry {
@@ -1391,36 +1461,48 @@ async function bookUsaSlot(
   session: UsaSession,
   found: { slot: UsaTimeSlot; bookingBase: Record<string, unknown>; date: string; time: string }
 ): Promise<UsaBookingResult> {
-  // Le bundle Angular construit le payload en ajoutant explicitement :
-  //   appointmentId        → this.selectedSlotDetails.appointmentId (ID interne de la demande)
-  //   applicantUUID        → this.selectedSlotDetails.applicantUUID (UUID interne du dossier)
-  //   appointmentDt        → slot.slotDate
-  //   appointmentTime      → slot.UItime (format 12h AM/PM via setUItime(), ex. "9:00 AM")
-  //   appointmentStatus    → "SCHEDULED"
-  const slotDate = (found.slot as Record<string, unknown>).slotDate as string | undefined ?? found.date;
-  // CRITIQUE : UItime format — le portail envoie "9:00 AM" et non "09:00".
-  // formatUItime() reproduit exactement setUItime() du bundle Angular.
+  // ─── Reconstruction du payload PUT /appointments/schedule (10 champs exacts du bundle) ───
+  //
+  // Le bundle Angular (bookSlot() + initBookSlot()) construit le payload en deux étapes :
+  //
+  // Étape 1 — bookSlot() : objet `se` avec 7 champs
+  //   se = {
+  //     appointmentId:          selectedSlotDetails.appointmentId || parseInt(sessionStorage("appointmentId")),
+  //     applicantUUID:          selectedSlotDetails.applicantUUID || parseInt(sessionStorage("applicantUUID")),
+  //     appointmentLocationType: this.ofcOrPost,             // "OFC"
+  //     appointmentStatus:       "SCHEDULED",
+  //     slotId:                  this.selectedSlot.slotId,
+  //     appointmentDt:           this.selectedSlot.slotDate, // pas "date", pas "startTime"
+  //     appointmentTime:         this.selectedSlot.UItime,   // "9:00 AM" (pas "09:00")
+  //   }
+  //
+  // Étape 2 — initBookSlot(se) : 3 champs ajoutés par mutation directe sur se
+  //   se.postUserId    = this.selectedOfc              (postUserId du bureau OFC sélectionné)
+  //   se.applicantId   = selectedSlotDetails.applicantId
+  //   se.applicationId = this.applicationId
+  //
+  // Total : 10 champs. PAS de visaType, visaClass, locationType, startTime, endTime, date, time.
+  // Ces champs sont UNIQUEMENT dans les payloads getSlotDates/getSlotTime, JAMAIS dans le booking.
+
+  const slotRaw = found.slot as Record<string, unknown>;
+  const slotDate = slotRaw.slotDate as string | undefined ?? found.date;
   const appointmentTime = formatUItime(found.slot.startTime ?? found.time);
 
-  const payload = {
-    ...found.bookingBase,
-    ...found.slot,                  // slotId + tous les champs bruts de l'API
-    // Rétablir explicitement après le spread de found.slot pour éviter qu'un champ
-    // locationType retourné par l'API getSlotTime n'écrase notre valeur "OFC".
-    locationType: "OFC" as const,
-    appointmentLocationType: "OFC" as const,
-    appointmentStatus: "SCHEDULED" as const,
-    appointmentDt: slotDate,        // nom attendu par le portail (slotDate de l'API)
-    appointmentTime,                // format 12h AM/PM (UItime côté Angular), ex. "9:00 AM"
-    // appointmentId : OBLIGATOIRE — identifie la demande de RDV à planifier.
-    // Bundle : this.selectedSlotDetails.appointmentId ?? parseInt(sessionStorage("appointmentId"))
-    // Propagé depuis getUserHistoryApplicantPaymentStatus via session.appointmentId.
-    ...(session.appointmentId !== undefined ? { appointmentId: session.appointmentId } : {}),
-    // applicantUUID : requis dans le payload de booking.
-    // Si déjà présent dans found.bookingBase (via appDetails.applicantUUID), il est conservé.
-    // Ici on s'assure de la présence depuis session si found.bookingBase ne l'a pas retourné.
-    ...(session.applicantUUID !== undefined ? { applicantUUID: session.applicantUUID } : {}),
-  } as unknown as UsaBookingPayload;
+  const payload: UsaBookingPayload = {
+    // ── 7 champs de bookSlot() ──
+    appointmentId:          session.appointmentId,
+    applicantUUID:          session.applicantUUID,
+    appointmentLocationType: "OFC",
+    appointmentStatus:       "SCHEDULED",
+    slotId:                  found.slot.slotId,
+    appointmentDt:           slotDate,
+    appointmentTime,          // format 12h AM/PM via formatUItime() = setUItime() Angular
+
+    // ── 3 champs ajoutés par initBookSlot() ──
+    postUserId:    found.bookingBase.postUserId   as number,
+    applicantId:   found.bookingBase.applicantId  as number,
+    applicationId: found.bookingBase.applicationId as string,
+  };
 
   console.log(
     `[usa] 📝 Tentative de booking — slotId=${payload.slotId}, appointmentDt=${slotDate}, ` +
@@ -1608,7 +1690,7 @@ async function scanUsaSlotsViaAPI(job: HunterJob, session: UsaSession): Promise<
   await randomDelay(300, 700);
   // ────────────────────────────────────────────────────────────────────────────
 
-  // 1. Récupérer les détails de la demande (applicantId, visaType, visaClass)
+  // 1. Récupérer les détails de la demande (applicantId, visaType, visaClass, appointmentId, applicantUUID)
   const appDetails = await getUsaApplicationDetails(session, session.applicationId);
   if (!appDetails) {
     console.warn("[usa] getApplicationDetails échoué — tentative avec userID comme applicantId");
@@ -1621,6 +1703,26 @@ async function scanUsaSlotsViaAPI(job: HunterJob, session: UsaSession): Promise<
     visaClass: "200",   // classe standard
     locationType: "OFC",
   };
+
+  // Propager appointmentId et applicantUUID depuis getApplicationDetails → session.
+  // Source bundle : selectedSlotDetails = relatedAppList[0] (filtrée "NEW")
+  //   selectedSlotDetails.appointmentId → appointmentId dans bookSlot()
+  //   selectedSlotDetails.applicantUUID → applicantUUID dans bookSlot()
+  // Ces champs peuvent aussi venir de getUserHistoryApplicantPaymentStatus (propagés plus tôt).
+  // On préfère la valeur de getApplicationDetails car c'est ce que le portail Angular utilise en priorité.
+  if (appDetails?.appointmentId !== undefined) {
+    console.log(`[usa] appointmentId depuis getApplicationDetails : ${appDetails.appointmentId}${session.appointmentId !== undefined ? ` (remplace session.appointmentId=${session.appointmentId})` : ""}`);
+    session.appointmentId = appDetails.appointmentId;
+  }
+  if (appDetails?.applicantUUID !== undefined) {
+    const uuidNum = typeof appDetails.applicantUUID === "number"
+      ? appDetails.applicantUUID
+      : parseInt(String(appDetails.applicantUUID), 10);
+    if (!isNaN(uuidNum)) {
+      console.log(`[usa] applicantUUID depuis getApplicationDetails : ${uuidNum}${session.applicantUUID !== undefined ? ` (remplace session.applicantUUID=${session.applicantUUID})` : ""}`);
+      session.applicantUUID = uuidNum;
+    }
+  }
 
   // 2. Récupérer la liste des OFCs pour la mission
   let ofcList: UsaOfc[];
