@@ -642,7 +642,8 @@ interface UsaSlotDate {
 
 interface UsaTimeSlot {
   slotId: number;
-  date: string;        // "YYYY-MM-DD"
+  date?: string;       // peut être absent si l'API retourne slotDate à la place
+  slotDate?: string;   // champ retourné par getSlotTime (utilisé comme appointmentDt au booking)
   startTime: string;   // "HH:mm" ou "YYYY-MM-DDTHH:mm:ss"
   endTime: string;
   slotsAvailable?: number;
@@ -990,7 +991,7 @@ async function findFirstSlotForOfc(
     const res = await fetch(USA_SLOT_TIMES_URL, {
       method: "POST",
       headers: hdrs,
-      body: JSON.stringify({ ...basePayload, fromDate, toDate, selectedDate: targetDate }),
+      body: JSON.stringify({ ...basePayload, fromDate, toDate, slotDate: targetDate }),
     });
     if (!checkSlotResponse(res, "getSlotTime")) return null;
     const raw = await res.json();
@@ -1068,17 +1069,26 @@ interface UsaBookingResult {
  */
 async function bookUsaSlot(
   session: UsaSession,
-  found: { slot: UsaTimeSlot; bookingBase: Record<string, unknown> }
+  found: { slot: UsaTimeSlot; bookingBase: Record<string, unknown>; date: string; time: string }
 ): Promise<UsaBookingResult> {
+  // Le bundle Angular construit le payload en ajoutant explicitement
+  // appointmentDt (= slot.slotDate) et appointmentTime (= slot.UItime = HH:mm)
+  // ainsi que appointmentStatus: "SCHEDULED"
+  const slotDate = (found.slot as Record<string, unknown>).slotDate as string | undefined ?? found.date;
+  const appointmentTime = found.time; // HH:mm extrait de slot.startTime
+
   const payload = {
     ...found.bookingBase,
-    ...found.slot,          // slotId, date, startTime, endTime + champs extra du portail
+    ...found.slot,                  // slotId + tous les champs bruts de l'API
     appointmentLocationType: "OFC" as const,
-  } as UsaBookingPayload;
+    appointmentStatus: "SCHEDULED" as const,
+    appointmentDt: slotDate,        // nom attendu par le portail (slotDate de l'API)
+    appointmentTime,                // HH:mm attendu par le portail (UItime côté Angular)
+  } as unknown as UsaBookingPayload;
 
   console.log(
-    `[usa] 📝 Tentative de booking — slotId=${payload.slotId}, date=${payload.date}, ` +
-    `OFC postUserId=${payload.postUserId}`
+    `[usa] 📝 Tentative de booking — slotId=${payload.slotId}, appointmentDt=${slotDate}, ` +
+    `appointmentTime=${appointmentTime}, OFC postUserId=${payload.postUserId}`
   );
 
   try {
