@@ -102,20 +102,32 @@ function printKitOnly() {
   const styleSheets = Array.from(document.querySelectorAll<HTMLElement>("style, link[rel='stylesheet']"))
     .map((n) => n.outerHTML)
     .join("\n");
+  const base = `<base href="${window.location.origin}/">`;
   const w = window.open("", "_blank", "width=820,height=960");
   if (!w) { window.print(); return; }
   w.document.write(
-    `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">` +
+    `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">${base}` +
     `<title>Kit d'Entretien Consulaire — Joventy</title>${styleSheets}</head>` +
     `<body class="bg-white p-8">${el.outerHTML}</body></html>`
   );
   w.document.close();
-  setTimeout(() => { w.focus(); w.print(); }, 600);
+  setTimeout(() => { w.focus(); w.print(); }, 800);
 }
 
-function InterviewKit({ app, confirmationLetterUrl }: { app: Application; confirmationLetterUrl?: string | null }) {
+type KitDoc = { _id: string; docKey: string; label: string; url: string | null; verifiedByAdmin: boolean; isAdminUpload?: boolean };
+
+function InterviewKit({ app, confirmationLetterUrl, docs }: {
+  app: Application;
+  confirmationLetterUrl?: string | null;
+  docs: KitDoc[];
+}) {
   const pricing = VISA_PRICING[app.destination as keyof typeof VISA_PRICING];
   const details = app.appointmentDetails;
+  const uploadDocs = getUploadDocs(app.destination, app.visaType);
+
+  const clientDocByKey: Record<string, KitDoc> = {};
+  docs.filter(d => !d.isAdminUpload).forEach(d => { clientDocByKey[d.docKey] = d; });
+  const adminDocs = docs.filter(d => d.isAdminUpload);
 
   return (
     <div className="bg-white rounded-2xl border-2 border-green-300 shadow-sm p-6 sm:p-8 space-y-4">
@@ -132,71 +144,145 @@ function InterviewKit({ app, confirmationLetterUrl }: { app: Application; confir
             </a>
           )}
           <Button onClick={printKitOnly} variant="outline" size="sm" className="gap-2">
-            <Download className="w-4 h-4" /> Kit complet (PDF)
+            <Download className="w-4 h-4" /> Imprimer / PDF
           </Button>
         </div>
       </div>
 
       <div id="interview-kit" className="border border-slate-200 rounded-xl p-6 text-sm space-y-5 print:border-0">
-        <div className="text-center border-b border-slate-200 pb-4">
-          <h3 className="text-xl font-bold text-primary">JOVENTY — Kit d'Entretien Consulaire</h3>
-          <p className="text-muted-foreground text-xs mt-1">Document confidentiel · Ref : JOV-{app._id.slice(-5).toUpperCase()}</p>
+
+        {/* Header with logo */}
+        <div className="text-center border-b border-slate-200 pb-5">
+          <img src="/icon.png" alt="Joventy" className="h-12 mx-auto mb-3" />
+          <h3 className="text-xl font-bold text-primary">Kit d'Entretien Consulaire</h3>
+          <p className="text-muted-foreground text-xs mt-1">
+            Réf : JOV-{app._id.slice(-6).toUpperCase()} · Généré le {new Date().toLocaleDateString("fr-FR")}
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Appointment info grid */}
+        <div className="grid grid-cols-2 gap-x-6 gap-y-3">
           <div>
-            <p className="text-xs text-muted-foreground uppercase font-semibold mb-1">Demandeur</p>
-            <p className="font-bold">{app.applicantName}</p>
-            <p className="text-xs text-slate-500">Passeport : {app.passportNumber || "—"}</p>
+            <p className="text-[10px] text-muted-foreground uppercase font-semibold mb-0.5">Demandeur</p>
+            <p className="font-bold text-sm">{app.applicantName}</p>
+            <p className="text-xs text-slate-500">N° passeport : {app.passportNumber || "—"}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground uppercase font-semibold mb-1">Destination</p>
-            <p className="font-bold">{app.destination.toUpperCase()}</p>
+            <p className="text-[10px] text-muted-foreground uppercase font-semibold mb-0.5">Visa demandé</p>
+            <p className="font-bold text-sm">{app.destination.toUpperCase()}</p>
             <p className="text-xs text-slate-500">{app.visaType}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground uppercase font-semibold mb-1">Date du rendez-vous</p>
-            <p className="font-bold">{details?.date ? formatDateOnly(details.date) : "—"}</p>
-            <p className="text-xs text-slate-500">{details?.time ?? ""}</p>
+            <p className="text-[10px] text-muted-foreground uppercase font-semibold mb-0.5">Date du rendez-vous</p>
+            <p className="font-bold text-sm">{details?.date ? formatDateOnly(details.date) : "À confirmer"}</p>
+            {details?.time && <p className="text-xs text-slate-500">{details.time}</p>}
           </div>
           <div>
-            <p className="text-xs text-muted-foreground uppercase font-semibold mb-1">Lieu</p>
-            <p className="font-bold text-xs">{details?.location ?? (pricing?.embassyAddress ?? "À confirmer")}</p>
+            <p className="text-[10px] text-muted-foreground uppercase font-semibold mb-0.5">Lieu</p>
+            <p className="font-bold text-xs leading-snug">{details?.location ?? pricing?.embassyAddress ?? "À confirmer"}</p>
             {details?.confirmationCode && (
               <p className="text-xs font-mono text-primary mt-0.5">Code : {details.confirmationCode}</p>
             )}
           </div>
         </div>
 
-        {/* Required documents */}
-        {pricing && (
+        {/* Documents du client */}
+        <div>
+          <p className="text-[10px] text-muted-foreground uppercase font-semibold mb-2 border-b border-slate-100 pb-1">
+            Mes documents uploadés
+          </p>
+          <div className="divide-y divide-slate-100">
+            {uploadDocs.map((doc) => {
+              const uploaded = clientDocByKey[doc.key];
+              return (
+                <div key={doc.key} className="flex items-center justify-between py-2 gap-3">
+                  <div className="flex items-start gap-2 min-w-0">
+                    {uploaded?.url
+                      ? <CheckCircle2 className="w-3.5 h-3.5 text-green-600 flex-shrink-0 mt-0.5" />
+                      : <XCircle className="w-3.5 h-3.5 text-slate-300 flex-shrink-0 mt-0.5" />
+                    }
+                    <span className={`text-xs leading-snug ${!uploaded?.url ? "text-slate-400" : ""}`}>
+                      {doc.label}{!doc.required && <span className="text-slate-400"> (optionnel)</span>}
+                    </span>
+                  </div>
+                  {uploaded?.url ? (
+                    <a
+                      href={uploaded.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="print:hidden shrink-0 text-[11px] text-blue-600 hover:underline flex items-center gap-1 font-medium"
+                    >
+                      <Download className="w-3 h-3" /> Télécharger
+                    </a>
+                  ) : (
+                    <span className="print:hidden shrink-0 text-[11px] text-slate-400">Non fourni</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Documents officiels Joventy */}
+        {(confirmationLetterUrl || adminDocs.length > 0) && (
           <div>
-            <p className="text-xs text-muted-foreground uppercase font-semibold mb-2">Documents à uploader</p>
-            <ul className="space-y-1">
-              {getUploadDocs(app.destination, app.visaType).map((doc) => (
-                <li key={doc.key} className="flex items-center gap-2 text-xs">
-                  <CheckCircle2 className={`w-3.5 h-3.5 flex-shrink-0 ${doc.required ? "text-green-600" : "text-slate-400"}`} />
-                  <span>{doc.label}{!doc.required && " (optionnel)"}</span>
-                </li>
+            <p className="text-[10px] text-muted-foreground uppercase font-semibold mb-2 border-b border-slate-100 pb-1">
+              Documents officiels &amp; Joventy
+            </p>
+            <div className="divide-y divide-slate-100">
+              {confirmationLetterUrl && (
+                <div className="flex items-center justify-between py-2 gap-3">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />
+                    <span className="text-xs font-semibold">Lettre de confirmation de rendez-vous (Ambassade)</span>
+                  </div>
+                  <a
+                    href={confirmationLetterUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    download="lettre_confirmation.pdf"
+                    className="print:hidden shrink-0 text-[11px] text-blue-600 hover:underline flex items-center gap-1 font-medium"
+                  >
+                    <Download className="w-3 h-3" /> Télécharger
+                  </a>
+                </div>
+              )}
+              {adminDocs.map((doc) => (
+                <div key={doc._id} className="flex items-center justify-between py-2 gap-3">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />
+                    <span className="text-xs">{doc.label || doc.docKey}</span>
+                  </div>
+                  {doc.url && (
+                    <a
+                      href={doc.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="print:hidden shrink-0 text-[11px] text-blue-600 hover:underline flex items-center gap-1 font-medium"
+                    >
+                      <Download className="w-3 h-3" /> Télécharger
+                    </a>
+                  )}
+                </div>
               ))}
-            </ul>
+            </div>
           </div>
         )}
 
+        {/* Notes */}
         {details?.notes && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900">
             <strong>Notes importantes :</strong> {details.notes}
           </div>
         )}
-
         {pricing?.notes && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-900">
             <strong>Informations consulaires :</strong> {pricing.notes}
           </div>
         )}
 
-        <div className="border-t border-slate-200 pt-4 text-xs text-slate-400 text-center">
-          Généré par Joventy · joventy.cd · Assistance visa premium pour la RDC
+        <div className="border-t border-slate-200 pt-4 text-[10px] text-slate-400 text-center">
+          Généré par Joventy · joventy.cd · Assistance visa premium pour la RDC · Document confidentiel
         </div>
       </div>
     </div>
@@ -679,7 +765,7 @@ export default function ClientApplicationDetail() {
       )}
 
       {/* Interview kit — only when completed, appointment model, not dossier_only */}
-      {isCompleted && !isEvisaModel && !isDossierOnly && <InterviewKit app={app} confirmationLetterUrl={confirmationLetterUrl} />}
+      {isCompleted && !isEvisaModel && !isDossierOnly && <InterviewKit app={app} confirmationLetterUrl={confirmationLetterUrl} docs={docs as KitDoc[]} />}
 
       {/* Visa PDF delivery — evisa model */}
       {isCompleted && isEvisaModel && !isDossierOnly && (
