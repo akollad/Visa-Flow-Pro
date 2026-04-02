@@ -200,13 +200,23 @@ export const sendEngagementValidatedClient = internalAction({
     applicantName: v.string(),
     destination: v.string(),
     applicationId: v.string(),
+    servicePackage: v.optional(v.string()),
   },
   handler: async (_ctx, args) => {
+    const isSlotOnly = args.servicePackage === "slot_only";
+    const isDossierOnly = args.servicePackage === "dossier_only";
+
+    const nextStepText = isSlotOnly
+      ? "Notre système de surveillance va maintenant rechercher un créneau de rendez-vous à l'ambassade. Vous serez alerté dès qu'un créneau est disponible — restez connecté à votre espace Joventy."
+      : isDossierOnly
+        ? "L'équipe Joventy va maintenant préparer et vérifier vos formulaires officiels. Nous vous contacterons via la messagerie de votre espace client."
+        : "L'équipe Joventy va maintenant examiner votre dossier. Préparez vos documents et uploadez-les dans votre espace client — nous vous contacterons pour la suite.";
+
     const body = `
       <p style="margin:0 0 4px;color:#64748b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;">Paiement validé</p>
       <h2 style="margin:0 0 16px;color:#1e293b;font-size:22px;">Votre paiement a été confirmé ✅</h2>
       <p style="color:#475569;font-size:15px;line-height:1.7;">Excellent ! Vos frais d'engagement pour le visa <strong>${destLabel(args.destination)}</strong> de <strong>${args.applicantName}</strong> ont été validés par notre équipe. Votre dossier est maintenant <strong>actif</strong>.</p>
-      <p style="color:#475569;font-size:15px;line-height:1.7;">L'équipe Joventy va maintenant examiner votre dossier. Préparez vos documents — nous vous contacterons via la messagerie de votre espace client.</p>
+      <p style="color:#475569;font-size:15px;line-height:1.7;">${nextStepText}</p>
       ${cta(`${APP_URL}/dashboard`, "Voir mon dossier")}
     `;
     await sendEmail({

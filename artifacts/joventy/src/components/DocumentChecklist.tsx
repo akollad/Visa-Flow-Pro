@@ -4,6 +4,7 @@ import { CheckCircle2, Upload, ShieldCheck, Landmark, AlertCircle, CreditCard } 
 interface DocumentChecklistProps {
   destination: string;
   visaType: string;
+  servicePackage?: string;
 }
 
 const CATEGORY_CONFIG: Record<DocCategory, {
@@ -63,8 +64,22 @@ const CATEGORY_CONFIG: Record<DocCategory, {
   },
 };
 
-export function DocumentChecklist({ destination, visaType }: DocumentChecklistProps) {
-  const groups = getVisaDocGroups(destination.toLowerCase(), visaType);
+export function DocumentChecklist({ destination, visaType, servicePackage }: DocumentChecklistProps) {
+  const isSlotOnly = servicePackage === "slot_only";
+  const rawGroups = getVisaDocGroups(destination.toLowerCase(), visaType);
+
+  // Pour slot_only : le client gère lui-même son dossier, Joventy ne fait que réserver le créneau.
+  // On filtre les services Joventy pour n'afficher que la réservation du créneau.
+  // Les uploads ne sont pas requis de Joventy non plus.
+  const groups = isSlotOnly
+    ? rawGroups
+        .map((g) =>
+          g.category === "joventy"
+            ? { ...g, docs: g.docs.filter((d) => /créneau|rendez-vous|réservation/i.test(d.label)) }
+            : g
+        )
+        .filter((g) => g.category !== "upload" && g.docs.length > 0)
+    : rawGroups;
 
   if (groups.length === 0) {
     return (

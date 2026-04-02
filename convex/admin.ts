@@ -165,7 +165,11 @@ export const validateEngagementPayment = mutation({
       logs: [
         ...(app.logs ?? []),
         makeLog(
-          `✅ Frais d'engagement (${priceDetails.engagementFee}$) validés. Dossier activé — envoi des documents requis.`,
+          app.servicePackage === "slot_only"
+            ? `✅ Frais d'engagement (${priceDetails.engagementFee}$) validés. Dossier activé — recherche de créneaux en cours.`
+            : app.servicePackage === "dossier_only"
+              ? `✅ Frais d'engagement (${priceDetails.engagementFee}$) validés. Dossier activé — préparation des formulaires.`
+              : `✅ Frais d'engagement (${priceDetails.engagementFee}$) validés. Dossier activé — en attente des documents client.`,
           "admin"
         ),
       ],
@@ -178,6 +182,7 @@ export const validateEngagementPayment = mutation({
         applicantName: app.applicantName,
         destination: app.destination,
         applicationId: args.applicationId,
+        servicePackage: app.servicePackage,
       });
     }
 

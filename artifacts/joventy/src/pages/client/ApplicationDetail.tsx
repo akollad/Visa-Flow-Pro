@@ -22,13 +22,21 @@ import {
 type Application = Doc<"applications">;
 type LogEntry = NonNullable<Application["logs"]>[number];
 
-function getSteps(isEvisaModel: boolean, isDossierOnly: boolean) {
+function getSteps(isEvisaModel: boolean, isDossierOnly: boolean, isSlotOnly: boolean) {
   if (isDossierOnly) {
     return [
       { key: "awaiting_engagement_payment", label: "Paiement d'engagement", icon: CreditCard },
       { key: "documents_pending", label: "Documents requis", icon: FileText },
       { key: "in_review_slot_hunting", label: "Vérification & Formulaires", icon: Search },
       { key: "completed", label: "Formulaires complétés", icon: CheckCircle2 },
+    ];
+  }
+  if (isSlotOnly) {
+    return [
+      { key: "awaiting_engagement_payment", label: "Paiement d'engagement", icon: CreditCard },
+      { key: "in_review_slot_hunting", label: "Traitement & Recherche créneau", icon: Search },
+      { key: "slot_found_awaiting_success_fee", label: "Créneau trouvé !", icon: Star },
+      { key: "completed", label: "Dossier complété", icon: CheckCircle2 },
     ];
   }
   return [
@@ -44,6 +52,14 @@ function getStepIndexDossierOnly(status: string): number {
   if (status === "awaiting_engagement_payment") return 0;
   if (status === "documents_pending") return 1;
   if (status === "in_review" || status === "slot_hunting") return 2;
+  if (status === "completed") return 3;
+  return -1;
+}
+
+function getStepIndexSlotOnly(status: string): number {
+  if (status === "awaiting_engagement_payment" || status === "documents_pending") return 0;
+  if (status === "in_review" || status === "slot_hunting") return 1;
+  if (status === "slot_found_awaiting_success_fee") return 2;
   if (status === "completed") return 3;
   return -1;
 }
@@ -394,9 +410,14 @@ export default function ClientApplicationDetail() {
   const isEvisaModel = successModel === "evisa";
   const servicePackage = (app as { servicePackage?: string }).servicePackage ?? "full_service";
   const isDossierOnly = servicePackage === "dossier_only";
+  const isSlotOnly = servicePackage === "slot_only";
   const successCopy = pricing?.successCopy;
-  const STEPS = getSteps(isEvisaModel, isDossierOnly);
-  const stepIndex = isDossierOnly ? getStepIndexDossierOnly(app.status) : getStepIndex(app.status);
+  const STEPS = getSteps(isEvisaModel, isDossierOnly, isSlotOnly);
+  const stepIndex = isDossierOnly
+    ? getStepIndexDossierOnly(app.status)
+    : isSlotOnly
+      ? getStepIndexSlotOnly(app.status)
+      : getStepIndex(app.status);
 
   // Appointment details are only shown AFTER success fee is paid (completed state), for appointment model
   const showAppointmentDetails = isCompleted && isSuccessFeePaid && !isEvisaModel;
@@ -786,7 +807,7 @@ export default function ClientApplicationDetail() {
                     <p className="text-xs text-muted-foreground mb-4">
                       Ce guide liste tous les documents par catégorie : ce que vous devez uploader ici, ce que Joventy prépare, et les frais que vous réglez directement.
                     </p>
-                    <DocumentChecklist destination={app.destination} visaType={app.visaType} />
+                    <DocumentChecklist destination={app.destination} visaType={app.visaType} servicePackage={servicePackage} />
                   </div>
                 )}
               </div>
@@ -834,7 +855,7 @@ export default function ClientApplicationDetail() {
               <p className="text-sm text-muted-foreground mb-5">
                 Voici l'ensemble des documents nécessaires pour votre dossier, classés par catégorie.
               </p>
-              <DocumentChecklist destination={app.destination} visaType={app.visaType} />
+              <DocumentChecklist destination={app.destination} visaType={app.visaType} servicePackage={servicePackage} />
             </div>
           )}
 
