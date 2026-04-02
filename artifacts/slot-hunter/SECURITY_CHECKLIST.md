@@ -259,14 +259,16 @@
 ## 9. Actions Recommandées (Priorité)
 
 ### Critique (blocker)
-- [ ] Configurer `TWOCAPTCHA_API_KEY` sur Railway si pas encore fait
+- [x] ~~Configurer `TWOCAPTCHA_API_KEY` sur Railway~~ ✅ configuré
+- [x] ~~Configurer `CONVEX_SITE_URL` sur Railway~~ ✅ configuré
+- [x] ~~Configurer `HUNTER_API_KEY` sur Railway~~ ✅ configuré
 - [ ] Whitélister l'IP Railway sur 2captcha.com/proxy
 
 ### Haute priorité (amélioration sécurité)
-- [x] ~~Add `Accept-Encoding: gzip, deflate, br, zstd`~~ (corrigé)
-- [x] ~~Add `LanguageId: 1`~~ (corrigé)
-- [ ] Ajouter `X-XSRF-TOKEN: {csrfToken}` aux headers PUT si 403 observés
-- [ ] Ajouter jitter ±5 min sur `TOKEN_REFRESH_BUFFER_MS`
+- [x] ~~Add `Accept-Encoding: gzip, deflate, br, zstd`~~ ✅ corrigé
+- [x] ~~Add `LanguageId: 1`~~ ✅ corrigé
+- [x] ~~Ajouter `X-XSRF-TOKEN: {csrfToken}` aux headers PUT~~ ✅ corrigé — `bookUsaSlot()` envoie maintenant `CookieName` + `X-XSRF-TOKEN`
+- [x] ~~Ajouter jitter ±5 min sur `TOKEN_REFRESH_BUFFER_MS`~~ ✅ corrigé — `CachedToken.jitterMs` [−300s, +300s] par compte
 
 ### Surveillance régulière (mensuel)
 - [ ] Mettre à jour Chrome dans `USA_UA_POOL` (max +10 versions derrière stable)
