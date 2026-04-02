@@ -1,7 +1,7 @@
 import { createCipheriv, pbkdf2Sync, randomBytes } from "crypto";
 import { ProxyAgent } from "undici";
 import { randomDelay, proxyPool } from "./browser.js";
-import { reportSlotFound, sendHeartbeat, uploadFile, type HunterJob } from "./convexClient.js";
+import { reportSlotFound, sendHeartbeat, uploadFile, botLog, type HunterJob } from "./convexClient.js";
 
 type SessionResult = "slot_found" | "not_found" | "captcha" | "error" | "login_failed" | "payment_required";
 
@@ -857,6 +857,7 @@ export async function runUsaApiSession(job: HunterJob): Promise<SessionResult> {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[usa] getUsaSession échoué: ${msg}`);
+    botLog({ applicationId: job.id, step: "login", status: "fail", data: { username, error: msg.slice(0, 300) } });
     await sendHeartbeat({
       applicationId: job.id,
       result: "error",
@@ -865,6 +866,7 @@ export async function runUsaApiSession(job: HunterJob): Promise<SessionResult> {
     return "login_failed";
   }
   if (!session) {
+    botLog({ applicationId: job.id, step: "login", status: "fail", data: { username, error: "Identifiants incorrects ou portail indisponible" } });
     await sendHeartbeat({
       applicationId: job.id,
       result: "error",
@@ -942,6 +944,17 @@ export async function runUsaApiSession(job: HunterJob): Promise<SessionResult> {
   }
 
   console.log(`[usa] ${requestStatus.message} — lancement scan créneaux via API directe...`);
+  botLog({
+    applicationId: job.id,
+    step: "login",
+    status: "ok",
+    data: {
+      username,
+      applicationId: session.applicationId,
+      missionId: session.missionId,
+      allowedOfcs: session.allowedOfcs?.map((o) => o.postName) ?? [],
+    },
+  });
 
   try {
     const slotResult = await scanUsaSlotsViaAPI(job, session);
@@ -1928,12 +1941,25 @@ async function scanUsaSlotsViaAPI(job: HunterJob, session: UsaSession): Promise<
       session.stateCode,
       ofcPriority,
     );
+    botLog({
+      applicationId: job.id,
+      step: "ofc_list",
+      status: "ok",
+      data: {
+        count: ofcList.length,
+        offices: ofcList.map((o) => ({ name: o.postName, postUserId: o.postUserId })),
+        visaClass: effectiveDetails.visaClass,
+        visaType: effectiveDetails.visaType,
+      },
+    });
   } catch (err) {
     if (err instanceof RateLimitError) {
+      botLog({ applicationId: job.id, step: "rate_limit", status: "fail", data: { endpoint: "getOfcList", retryAfterMs: err.retryAfterMs } });
       await sendHeartbeat({ applicationId: job.id, result: "error", errorMessage: `Rate limit (429) sur getOfcList` });
       return "error";
     }
     if (err instanceof AccountBlockedError || err instanceof TokenExpiredError) {
+      botLog({ applicationId: job.id, step: err instanceof AccountBlockedError ? "blocked" : "error", status: "fail", data: { error: (err as Error).message } });
       const cacheKey = job.hunterConfig.embassyUsername?.toLowerCase() ?? "";
       if (cacheKey) tokenCache.delete(cacheKey);
       await sendHeartbeat({ applicationId: job.id, result: "error", errorMessage: err.message });
@@ -1943,6 +1969,7 @@ async function scanUsaSlotsViaAPI(job: HunterJob, session: UsaSession): Promise<
   }
   if (ofcList.length === 0) {
     console.warn("[usa] Aucun OFC trouvé — vérifier missionId ou droits d'accès");
+    botLog({ applicationId: job.id, step: "ofc_list", status: "warn", data: { count: 0, missionId: session.missionId } });
     await sendHeartbeat({
       applicationId: job.id,
       result: "not_found",
@@ -1971,6 +1998,7 @@ async function scanUsaSlotsViaAPI(job: HunterJob, session: UsaSession): Promise<
       if (err instanceof RateLimitError) {
         const waitSec = Math.round((err.retryAfterMs ?? 60000) / 1000);
         console.error(`[usa] ⛔ RATE LIMIT détecté — scan interrompu (retry-after: ${waitSec}s)`);
+        botLog({ applicationId: job.id, step: "rate_limit", status: "fail", data: { endpoint: `findFirstSlotForOfc/${ofc.postName}`, retryAfterMs: err.retryAfterMs, waitSec } });
         await sendHeartbeat({
           applicationId: job.id,
           result: "error",
@@ -1980,7 +2008,7 @@ async function scanUsaSlotsViaAPI(job: HunterJob, session: UsaSession): Promise<
       }
       if (err instanceof AccountBlockedError) {
         console.error(`[usa] ⛔ COMPTE POTENTIELLEMENT BLOQUÉ — ${err.message}`);
-        // Vider le cache pour forcer une reconnexion au prochain cycle
+        botLog({ applicationId: job.id, step: "blocked", status: "fail", data: { endpoint: `findFirstSlotForOfc/${ofc.postName}`, error: (err as Error).message } });
         const cacheKey = job.hunterConfig.embassyUsername?.toLowerCase() ?? "";
         if (cacheKey) tokenCache.delete(cacheKey);
         await sendHeartbeat({
@@ -1992,6 +2020,7 @@ async function scanUsaSlotsViaAPI(job: HunterJob, session: UsaSession): Promise<
       }
       if (err instanceof TokenExpiredError) {
         console.error(`[usa] ⛔ TOKEN EXPIRÉ en cours de scan — arrêt, reconnexion au prochain cycle`);
+        botLog({ applicationId: job.id, step: "error", status: "fail", data: { error: "Token JWT expiré", ofc: ofc.postName } });
         const cacheKey = job.hunterConfig.embassyUsername?.toLowerCase() ?? "";
         if (cacheKey) tokenCache.delete(cacheKey);
         await sendHeartbeat({
@@ -2002,14 +2031,34 @@ async function scanUsaSlotsViaAPI(job: HunterJob, session: UsaSession): Promise<
         return "error";
       }
       // Erreur inattendue — loguer et continuer sur le prochain OFC
+      const unexpectedMsg = err instanceof Error ? err.message : String(err);
       console.error(`[usa] Erreur inattendue sur OFC ${ofc.postName}: ${err}`);
+      botLog({ applicationId: job.id, step: "error", status: "fail", data: { ofc: ofc.postName, error: unexpectedMsg.slice(0, 300) } });
       continue;
     }
     if (found) {
+      botLog({
+        applicationId: job.id,
+        step: "slots_found",
+        status: "ok",
+        data: {
+          ofc: found.ofcName,
+          date: found.date,
+          time: found.time,
+          slotId: found.slotId,
+        },
+      });
+
       // Le booking et le téléchargement du PDF sont dans un try/catch séparé :
       // les erreurs circuit-breaker (RateLimit, Blocked, TokenExpired) doivent
       // stopper le scan et déclencher un heartbeat d'alerte, pas crasher silencieusement.
       let booking: UsaBookingResult;
+      botLog({
+        applicationId: job.id,
+        step: "booking_attempt",
+        status: "ok",
+        data: { ofc: found.ofcName, date: found.date, time: found.time, slotId: found.slotId },
+      });
       try {
         // ── 1. Booking automatique ────────────────────────────
         booking = await bookUsaSlot(session, found);
@@ -2017,6 +2066,7 @@ async function scanUsaSlotsViaAPI(job: HunterJob, session: UsaSession): Promise<
         if (bookErr instanceof RateLimitError) {
           const waitSec = Math.round((bookErr.retryAfterMs ?? 60000) / 1000);
           console.error(`[usa] ⛔ RATE LIMIT lors du booking — scan interrompu (retry: ${waitSec}s)`);
+          botLog({ applicationId: job.id, step: "rate_limit", status: "fail", data: { endpoint: "booking", retryAfterMs: bookErr.retryAfterMs, waitSec } });
           await sendHeartbeat({
             applicationId: job.id,
             result: "error",
@@ -2026,6 +2076,7 @@ async function scanUsaSlotsViaAPI(job: HunterJob, session: UsaSession): Promise<
         }
         if (bookErr instanceof AccountBlockedError) {
           console.error(`[usa] ⛔ COMPTE BLOQUÉ lors du booking — ${bookErr.message}`);
+          botLog({ applicationId: job.id, step: "blocked", status: "fail", data: { endpoint: "booking", error: (bookErr as Error).message } });
           const cacheKey = job.hunterConfig.embassyUsername?.toLowerCase() ?? "";
           if (cacheKey) tokenCache.delete(cacheKey);
           await sendHeartbeat({ applicationId: job.id, result: "error", errorMessage: `Compte bloqué (403) lors du booking` });
@@ -2033,6 +2084,7 @@ async function scanUsaSlotsViaAPI(job: HunterJob, session: UsaSession): Promise<
         }
         if (bookErr instanceof TokenExpiredError) {
           console.error(`[usa] ⛔ TOKEN EXPIRÉ lors du booking — reconnexion au prochain cycle`);
+          botLog({ applicationId: job.id, step: "error", status: "fail", data: { error: "Token JWT expiré lors du booking" } });
           const cacheKey = job.hunterConfig.embassyUsername?.toLowerCase() ?? "";
           if (cacheKey) tokenCache.delete(cacheKey);
           await sendHeartbeat({ applicationId: job.id, result: "error", errorMessage: `Token JWT expiré lors du booking` });
@@ -2041,6 +2093,7 @@ async function scanUsaSlotsViaAPI(job: HunterJob, session: UsaSession): Promise<
         // Erreur réseau inattendue — traiter comme booking échoué et continuer
         const msg = bookErr instanceof Error ? bookErr.message : String(bookErr);
         console.error(`[usa] Erreur inattendue lors du booking: ${msg}`);
+        botLog({ applicationId: job.id, step: "booking_fail", status: "fail", data: { error: msg.slice(0, 300), ofc: found.ofcName, date: found.date } });
         booking = { success: false, error: msg };
       }
 
@@ -2050,6 +2103,7 @@ async function scanUsaSlotsViaAPI(job: HunterJob, session: UsaSession): Promise<
       // Ne pas signaler le slot comme trouvé (on ne l'a pas obtenu) — scanner le prochain OFC.
       if (!booking.success && booking.statusCode === 409) {
         console.log("[usa] Conflit 409 — le créneau a été pris avant nous. Poursuite du scan...");
+        botLog({ applicationId: job.id, step: "booking_fail", status: "warn", data: { reason: "Conflit 409 — créneau pris par un autre utilisateur", ofc: found.ofcName, date: found.date } });
         continue;
       }
 
@@ -2057,6 +2111,18 @@ async function scanUsaSlotsViaAPI(job: HunterJob, session: UsaSession): Promise<
       // Uniquement si le booking a réussi : le portail ne génère la lettre que sur un RDV confirmé.
       let pdfStorageId: string | undefined;
       if (booking.success) {
+        botLog({
+          applicationId: job.id,
+          step: "booking_success",
+          status: "ok",
+          data: {
+            ofc: found.ofcName,
+            date: found.date,
+            time: found.time,
+            appointmentId: booking.appointmentId,
+            responseMsg: booking.responseMsg,
+          },
+        });
         const pdf = await downloadUsaConfirmationPdf(session, session.applicationId, booking.appointmentId);
         if (pdf) {
           console.log(`[usa] 📄 Confirmation PDF (${pdf.length} bytes) — upload vers Convex...`);
@@ -2064,8 +2130,21 @@ async function scanUsaSlotsViaAPI(job: HunterJob, session: UsaSession): Promise<
           pdfStorageId = (await uploadFile(b64, "application/pdf")) ?? undefined;
           if (pdfStorageId) {
             console.log(`[usa] ✅ PDF uploadé → storageId: ${pdfStorageId}`);
+            botLog({
+              applicationId: job.id,
+              step: "confirmation_letter",
+              status: "ok",
+              data: { pdfSizeBytes: pdf.length, storageId: pdfStorageId, appointmentId: booking.appointmentId },
+            });
           }
         }
+      } else {
+        botLog({
+          applicationId: job.id,
+          step: "booking_fail",
+          status: "fail",
+          data: { ofc: found.ofcName, date: found.date, statusCode: booking.statusCode, error: booking.error },
+        });
       }
 
       // ── 3. Rapport vers Convex ──────────────────────────────
@@ -2087,6 +2166,7 @@ async function scanUsaSlotsViaAPI(job: HunterJob, session: UsaSession): Promise<
   }
 
   console.log(`[usa] Aucun créneau disponible sur ${ofcList.length} OFC(s)`);
+  botLog({ applicationId: job.id, step: "not_found", status: "warn", data: { ofcCount: ofcList.length, offices: ofcList.map((o) => o.postName) } });
   await sendHeartbeat({ applicationId: job.id, result: "not_found" });
   return "not_found";
 }

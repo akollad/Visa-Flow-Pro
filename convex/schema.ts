@@ -183,4 +183,14 @@ export default defineSchema({
   })
     .index("by_application", ["applicationId"])
     .index("by_application_key", ["applicationId", "docKey"]),
+
+  botLogs: defineTable({
+    applicationId: v.id("applications"),
+    ts: v.number(),
+    step: v.string(),
+    status: v.union(v.literal("ok"), v.literal("warn"), v.literal("fail")),
+    data: v.optional(v.string()),
+  })
+    .index("by_application", ["applicationId"])
+    .index("by_ts", ["ts"]),
 });

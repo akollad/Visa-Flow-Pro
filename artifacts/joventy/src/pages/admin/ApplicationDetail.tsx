@@ -339,6 +339,7 @@ export default function AdminApplicationDetail() {
   const messages = useQuery(api.messages.list, appId ? { applicationId: appId } : "skip") ?? [];
   const proofUrls = useQuery(api.documents.getPaymentProofUrls, appId ? { applicationId: appId } : "skip");
   const docs = useQuery(api.documents.listByApplication, appId ? { applicationId: appId } : "skip") ?? [];
+  const botLogs = useQuery(api.botLogs.listByApplication, appId ? { applicationId: appId } : "skip") ?? [];
 
   const sendMessage = useMutation(api.messages.send);
   const markAsRead = useMutation(api.messages.markAsRead);
@@ -1509,6 +1510,100 @@ export default function AdminApplicationDetail() {
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {formatDate(log.time)} · {log.author ?? "système"}
                     </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ===== BOT LOG TIMELINE ===== */}
+        {botLogs.length > 0 && (
+          <div className="bg-white rounded-2xl border border-border shadow-sm p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Bot className="w-4 h-4 text-purple-600" />
+              <h2 className="font-bold text-primary text-base">Journal du Bot</h2>
+              <span className="ml-auto text-xs text-muted-foreground">{botLogs.length} événement{botLogs.length > 1 ? "s" : ""}</span>
+            </div>
+            <div className="relative border-l-2 border-slate-100 ml-3 space-y-4 pb-2">
+              {botLogs.map((log) => {
+                const stepLabels: Record<string, string> = {
+                  login: "Connexion au portail",
+                  ofc_list: "Liste des bureaux consulaires",
+                  slots_found: "Créneau trouvé",
+                  booking_attempt: "Tentative de réservation",
+                  booking_success: "Réservation confirmée",
+                  booking_fail: "Réservation échouée",
+                  confirmation_letter: "Lettre de confirmation",
+                  not_found: "Aucun créneau disponible",
+                  rate_limit: "Rate limit (429)",
+                  blocked: "Compte potentiellement bloqué",
+                  error: "Erreur",
+                };
+                const stepIcons: Record<string, string> = {
+                  login: "🔑",
+                  ofc_list: "🏛️",
+                  slots_found: "📅",
+                  booking_attempt: "📝",
+                  booking_success: "✅",
+                  booking_fail: "❌",
+                  confirmation_letter: "📄",
+                  not_found: "🔍",
+                  rate_limit: "⛔",
+                  blocked: "🚫",
+                  error: "⚠️",
+                };
+                const dotColors: Record<string, string> = {
+                  ok: "bg-green-500",
+                  warn: "bg-amber-400",
+                  fail: "bg-red-500",
+                };
+                const badgeColors: Record<string, string> = {
+                  ok: "bg-green-50 text-green-700 border-green-200",
+                  warn: "bg-amber-50 text-amber-700 border-amber-200",
+                  fail: "bg-red-50 text-red-700 border-red-200",
+                };
+                const badgeLabels: Record<string, string> = {
+                  ok: "OK",
+                  warn: "Attention",
+                  fail: "Erreur",
+                };
+
+                let parsedData: Record<string, unknown> | null = null;
+                try {
+                  if (log.data) parsedData = JSON.parse(log.data) as Record<string, unknown>;
+                } catch { /* ignore */ }
+
+                return (
+                  <div key={log._id} className="relative pl-6 group">
+                    <div className={`absolute -left-[7px] top-1.5 w-3 h-3 rounded-full ${dotColors[log.status] ?? "bg-slate-400"} border-2 border-white`} />
+                    <div className="flex items-start gap-2 flex-wrap">
+                      <span className="text-sm font-medium text-slate-800">
+                        {stepIcons[log.step] ?? "•"} {stepLabels[log.step] ?? log.step}
+                      </span>
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${badgeColors[log.status] ?? ""}`}>
+                        {badgeLabels[log.status] ?? log.status}
+                      </span>
+                    </div>
+
+                    {parsedData && (
+                      <div className="mt-1.5 text-xs text-slate-600 bg-slate-50 rounded-lg px-3 py-2 space-y-0.5 border border-slate-100">
+                        {Object.entries(parsedData).map(([k, v]) => (
+                          <div key={k} className="flex gap-1.5 flex-wrap">
+                            <span className="text-slate-400 font-medium shrink-0">{k}:</span>
+                            <span className="text-slate-700 break-all">
+                              {Array.isArray(v)
+                                ? (v as unknown[]).join(", ")
+                                : typeof v === "object" && v !== null
+                                ? JSON.stringify(v)
+                                : String(v)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <p className="text-xs text-muted-foreground mt-1">{formatDate(log.ts)}</p>
                   </div>
                 );
               })}

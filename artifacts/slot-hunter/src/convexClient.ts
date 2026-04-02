@@ -213,6 +213,29 @@ export async function uploadScreenshot(base64: string): Promise<string | null> {
 }
 
 /**
+ * Log fire-and-forget d'un événement du cycle de vie du bot.
+ * N'attend jamais la réponse — ne bloque pas le chemin critique.
+ */
+export function botLog(payload: {
+  applicationId: string;
+  step: string;
+  status: "ok" | "warn" | "fail";
+  data?: Record<string, unknown>;
+}): void {
+  const url = `${CONVEX_SITE_URL}/hunter/log`;
+  fetch(url, {
+    method: "POST",
+    headers: {
+      "X-Hunter-Key": HUNTER_API_KEY,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  }).catch((err) =>
+    console.warn("[convexClient] botLog fire-and-forget error:", err)
+  );
+}
+
+/**
  * Uploade n'importe quel fichier (image, PDF, etc.) vers Convex Storage.
  * @param base64 — contenu encodé en base64
  * @param contentType — ex: "image/png", "application/pdf"

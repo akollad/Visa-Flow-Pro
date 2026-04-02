@@ -288,6 +288,52 @@ http.route({
 });
 
 http.route({
+  path: "/hunter/log",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const err = requireHunterKey(request);
+    if (err) return err;
+
+    let body: {
+      applicationId: string;
+      step: string;
+      status: "ok" | "warn" | "fail";
+      data?: Record<string, unknown>;
+    };
+
+    try {
+      body = await request.json() as typeof body;
+    } catch {
+      return new Response("Invalid JSON", { status: 400 });
+    }
+
+    if (!body.applicationId || !body.step || !body.status) {
+      return new Response("Missing required fields: applicationId, step, status", { status: 400 });
+    }
+
+    try {
+      await ctx.runMutation(internal.botLogs.add, {
+        applicationId: body.applicationId as Id<"applications">,
+        step: body.step,
+        status: body.status,
+        data: body.data ? JSON.stringify(body.data) : undefined,
+      });
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      console.error("hunter/log error:", msg);
+      return new Response(JSON.stringify({ ok: false, error: msg }), {
+        status: 422,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  }),
+});
+
+http.route({
   path: "/hunter/test-result",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
