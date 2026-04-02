@@ -569,7 +569,7 @@ export default function NewApplication() {
                     <p className="text-xs text-muted-foreground">
                       Vous devez avoir complété le DS-160 avant de soumettre.
                       Ces références permettent à Joventy de réserver le créneau en votre nom.
-                      Le reçu MRV peut être renseigné plus tard par vous ou automatiquement par notre robot.
+                      Le reçu MRV peut être renseigné plus tard par vous ou par notre équipe.
                     </p>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -596,7 +596,7 @@ export default function NewApplication() {
                         value={slotRefs.mrvReceiptNumber}
                         onChange={(e) => updateRef("mrvReceiptNumber", e.target.value)}
                       />
-                      <p className="text-[10px] text-muted-foreground">Reçu généré après paiement des frais MRV (185 $ ou 205 $). Si non disponible, notre robot peut le renseigner automatiquement.</p>
+                      <p className="text-[10px] text-muted-foreground">Reçu généré après paiement des frais MRV (185 $ ou 205 $). Si non disponible, notre équipe peut le compléter ultérieurement.</p>
                     </div>
                     {isStudentExchange && (
                       <div className="space-y-1.5 sm:col-span-2">
