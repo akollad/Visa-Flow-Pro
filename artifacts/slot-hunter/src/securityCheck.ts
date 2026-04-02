@@ -251,11 +251,12 @@ async function checkHeaders(): Promise<void> {
     "Défini dans usaFetch() pour toutes les requêtes avec body", false);
 
   // 3h. X-XSRF-TOKEN — Angular HttpClient l'envoie depuis le cookie XSRF-TOKEN
-  // Notre bot envoie CookieName: XSRF-TOKEN=... (custom interceptor) mais PAS X-XSRF-TOKEN
-  // Le serveur check potentiellement les deux. À vérifier si 403 sur PUT.
-  record("H_XSRF", "X-XSRF-TOKEN header sur PUT (Angular built-in CSRF)", "headers", "WARN",
-    "Notre bot envoie 'CookieName: XSRF-TOKEN=…' (custom interceptor) mais pas 'X-XSRF-TOKEN'. " +
-    "Si PUT /schedule retourne 403 sans raison, ajouter 'X-XSRF-TOKEN': csrfToken dans le header PUT.", false);
+  // CORRIGÉ : bookUsaSlot() envoie maintenant les deux headers CSRF Angular :
+  //   CookieName: XSRF-TOKEN=…  (custom interceptor — localStorage["CSRFTOKEN"])
+  //   X-XSRF-TOKEN: …           (HttpClientXsrfModule built-in — depuis cookie XSRF-TOKEN)
+  record("H_XSRF", "X-XSRF-TOKEN header sur PUT (Angular built-in CSRF)", "headers", "PASS",
+    "CORRIGÉ — bookUsaSlot() envoie CookieName + X-XSRF-TOKEN sur le PUT /schedule, " +
+    "reproduisant fidèlement les deux mécanismes CSRF d'Angular.", false);
 
   // 3i. Authorization header format
   record("H_AUTH", "Authorization: Bearer {token} correct", "headers", "PASS",
@@ -365,11 +366,11 @@ async function checkBehaviouralPatterns(): Promise<void> {
   record("P_MULTI", "Isolation multi-comptes (token cache par username)", "behaviour", "PASS",
     "tokenCache keyed by username.toLowerCase() — chaque compte a son propre JWT, proxy et UA", true);
 
-  // 5h. Login à heure fixe = détectable (pas de dispersion)
-  record("P_LOGIN_TIME", "Dispersion temporelle des logins (pas de pattern horaire fixe)", "behaviour", "WARN",
-    "Les logins surviennent à l'expiration du JWT (~55 min). " +
-    "Si le bot démarre toujours à la même heure, les logins apparaissent à intervalles fixes de 55 min. " +
-    "À mitiger en ajoutant un jitter de ±5 min sur le TOKEN_REFRESH_BUFFER_MS.", false);
+  // 5h. Login à heure fixe = détectable — CORRIGÉ avec jitter ±5 min par compte
+  record("P_LOGIN_TIME", "Dispersion temporelle des logins (jitter ±5 min par compte)", "behaviour", "PASS",
+    "CORRIGÉ — CachedToken.jitterMs calculé aléatoirement au login [−300s, +300s], " +
+    "conservé sur tout le cycle de refresh. isCachedTokenValid() l'applique sur TOKEN_REFRESH_BUFFER_MS. " +
+    "Chaque compte a sa propre cadence de reconnexion — le pattern 55 min fixe est cassé.", false);
 }
 
 // ════════════════════════════════════════════════════════════════════════════════

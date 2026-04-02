@@ -110,6 +110,10 @@ interface CachedToken {
   /** Proxy résidentiel assigné lors du login — réutilisé pour toute la durée du JWT.
    * Un même JWT vu depuis des IPs différentes est détectable côté serveur. */
   proxyUrl?: string;
+  /** Jitter aléatoire ±5 min (en ms) appliqué sur TOKEN_REFRESH_BUFFER_MS.
+   * Évite un pattern de login prédictible à intervalle fixe de ~55 min.
+   * Calculé une fois au login — conservé lors des refreshs pour une dispersion cohérente. */
+  jitterMs: number;
 }
 
 const tokenCache = new Map<string, CachedToken>();
@@ -133,7 +137,10 @@ function parseJwtExpiry(token: string): number {
 }
 
 function isCachedTokenValid(cached: CachedToken): boolean {
-  return Date.now() < cached.expiresAt - TOKEN_REFRESH_BUFFER_MS;
+  // Le jitter ±5 min est fixé au moment du login et conservé tout au long du JWT.
+  // Résultat : chaque compte se reconnecte à un moment légèrement différent,
+  // ce qui brise le pattern "login toutes les 55 min pile" détectable par le portail.
+  return Date.now() < cached.expiresAt - TOKEN_REFRESH_BUFFER_MS - cached.jitterMs;
 }
 
 async function refreshUsaToken(cached: CachedToken, username: string): Promise<CachedToken | null> {
@@ -181,6 +188,9 @@ async function refreshUsaToken(cached: CachedToken, username: string): Promise<C
       // Proxy + UA hérités du token précédent — sticky pour toute la chaîne de refresh.
       uaIndex: cached.uaIndex,
       proxyUrl: cached.proxyUrl,
+      // Jitter conservé du login initial — la dispersion temporelle reste cohérente
+      // sur toute la chaîne de refreshs d'un même compte.
+      jitterMs: cached.jitterMs,
     };
   } catch (err) {
     console.warn("[usa] Erreur lors du refresh:", err);
@@ -394,6 +404,10 @@ export async function getUsaSession(
     if (!session) return null;
 
     const expiresAt = parseJwtExpiry(session.accessToken) || Date.now() + 55 * 60 * 1000;
+    // Jitter ±5 min calculé une fois au login. Valeur aléatoire en ms dans [-300_000, +300_000].
+    // Appliqué dans isCachedTokenValid() pour décaler l'expiration perçue de chaque compte,
+    // évitant le pattern "login toutes les 55 min pile" corrélable entre comptes.
+    const jitterMs = Math.floor((Math.random() * 2 - 1) * 5 * 60 * 1000);
     // uaIndex et proxyUrl sont volontairement absents ici — runUsaApiSession les injecte
     // immédiatement après (il connaît le proxy + UA assignés pour ce nouveau token).
     tokenCache.set(cacheKey, {
@@ -403,6 +417,7 @@ export async function getUsaSession(
       expiresAt,
       userID: session.userID,
       fullName: session.fullName,
+      jitterMs,
     });
 
     return session;
@@ -1271,12 +1286,14 @@ async function bookUsaSlot(
   );
 
   try {
-    // L'intercepteur Angular ajoute sur TOUS les PUT :
-    //   CookieName: XSRF-TOKEN={csrfToken}   (localStorage["CSRFTOKEN"] côté portail)
-    // Source : bundle Angular, intercepteur HTTP, clause "PUT"==v.method.
+    // L'intercepteur Angular ajoute sur TOUS les PUT deux mécanismes CSRF :
+    //   1. CookieName: XSRF-TOKEN={csrfToken}  (localStorage["CSRFTOKEN"] — custom interceptor Angular)
+    //   2. X-XSRF-TOKEN: {csrfToken}           (cookie XSRF-TOKEN → HttpClient built-in Angular)
+    // Source : bundle Angular, intercepteur HTTP, clause "PUT"==v.method + HttpClientXsrfModule.
     const bookingHeaders = {
       ...sessionHeaders(session.accessToken, payload.applicationId, session.missionId),
       "CookieName": `XSRF-TOKEN=${session.csrfToken}`,
+      "X-XSRF-TOKEN": session.csrfToken,
     };
     const res = await usaFetch(USA_SCHEDULE_URL, {
       method: "PUT",
