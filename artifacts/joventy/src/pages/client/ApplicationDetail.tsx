@@ -677,17 +677,26 @@ export default function ClientApplicationDetail() {
               <p className="text-sm text-slate-600 mb-4">
                 Félicitations ! Votre visa a été accordé. Téléchargez votre document officiel ci-dessous.
               </p>
-              {visaDocUrl ? (
-                <Button asChild className="bg-primary hover:bg-primary/90 text-white font-bold gap-2 h-11">
-                  <a href={visaDocUrl} target="_blank" rel="noopener noreferrer" download>
-                    <Download className="w-4 h-4" /> Télécharger mon visa
-                  </a>
-                </Button>
-              ) : (
-                <div className="flex items-center gap-2 text-amber-700 text-sm">
-                  <Clock className="w-4 h-4" /> Document en cours de préparation...
-                </div>
-              )}
+              <div className="flex flex-wrap gap-3 items-center">
+                {visaDocUrl ? (
+                  <Button asChild className="bg-primary hover:bg-primary/90 text-white font-bold gap-2 h-11">
+                    <a href={visaDocUrl} target="_blank" rel="noopener noreferrer" download>
+                      <Download className="w-4 h-4" /> Télécharger mon visa
+                    </a>
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-2 text-amber-700 text-sm">
+                    <Clock className="w-4 h-4" /> Document en cours de préparation...
+                  </div>
+                )}
+                {confirmationLetterUrl && (
+                  <Button asChild variant="outline" size="sm" className="gap-2 border-green-600 text-green-700 hover:bg-green-50">
+                    <a href={confirmationLetterUrl} target="_blank" rel="noopener noreferrer" download="confirmation_soumission_evisa.pdf">
+                      <FileText className="w-4 h-4" /> Confirmation de soumission
+                    </a>
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </div>
