@@ -32,8 +32,10 @@ const USA_CONFIRMATION_LETTER_URL = `${USA_NOTIFICATION_URL}/template/appointmen
 const USA_SCHEDULE_URL = `${USA_APPOINTMENT_URL}/appointments/schedule`;
 // Anti-détection : endpoints que le vrai portail appelle dans son flux normal
 const USA_LANDING_PAGE_URL = `${USA_APPOINTMENT_URL}/appointment/getLandingPageDeatils`;
-const USA_SANITY_CHECK_URL = (applicationId: string) =>
-  `${USA_INTEGRATION_URL}/visa/sanitycheck/${applicationId}?stepType=slotBooking`;
+// Retourne l'URL de base du sanity check — le stepType est ajouté en query param par l'appelant.
+// Bundle Angular : this.sanityCheckUrl+`/visa/sanitycheck/${f}`,null,E?{params:{stepType:E}}:{}
+const USA_SANITY_CHECK_URL = (applicationId: string, stepType: "slotBooking" | "appointmentLetter") =>
+  `${USA_INTEGRATION_URL}/visa/sanitycheck/${applicationId}?stepType=${stepType}`;
 const USA_FCS_CHECK_URL = (applicationId: string) =>
   `${USA_PAYMENT_URL}/feecollection/checkFcs/${applicationId}`;
 
@@ -128,9 +130,11 @@ function isCachedTokenValid(cached: CachedToken): boolean {
   return Date.now() < cached.expiresAt - TOKEN_REFRESH_BUFFER_MS;
 }
 
-async function refreshUsaToken(cached: CachedToken): Promise<CachedToken | null> {
+async function refreshUsaToken(cached: CachedToken, username: string): Promise<CachedToken | null> {
   console.log("[usa] Renouvellement token via refresh token...");
   try {
+    // Bundle Angular : http.post(authURL+"/refreshToken", {refreshToken, username}, {observe:"response"})
+    // Les deux champs sont requis — le portail vérifie la cohérence refreshToken↔compte.
     const res = await usaFetch(USA_REFRESH_URL, {
       method: "POST",
       // Le refresh est appelé depuis la session active — referer = dashboard
@@ -140,7 +144,7 @@ async function refreshUsaToken(cached: CachedToken): Promise<CachedToken | null>
         "Content-Type": "application/json",
         "Referer": REFERER_DASHBOARD,
       },
-      body: JSON.stringify({ refreshToken: cached.refreshToken }),
+      body: JSON.stringify({ refreshToken: cached.refreshToken, username }),
     });
 
     if (!res.ok) {
@@ -334,7 +338,7 @@ export async function getUsaSession(
     }
 
     console.log("[usa] Token expiré — tentative de renouvellement...");
-    const refreshed = await refreshUsaToken(cached);
+    const refreshed = await refreshUsaToken(cached, username);
     if (refreshed) {
       tokenCache.set(cacheKey, refreshed);
       return {
@@ -740,6 +744,8 @@ interface UsaAppDetails {
   visaType: string;
   visaClass: string;
   locationType?: string;
+  /** UUID de l'applicant — inclus dans le payload de booking (bundle Angular : applicationDetails.applicantUUID) */
+  applicantUUID?: string;
 }
 
 interface UsaFirstAvailableMonthResponse {
@@ -830,7 +836,7 @@ async function callLandingPage(session: UsaSession): Promise<void> {
  */
 async function callSanityCheck(session: UsaSession): Promise<void> {
   if (!session.applicationId) return;
-  const url = USA_SANITY_CHECK_URL(session.applicationId);
+  const url = USA_SANITY_CHECK_URL(session.applicationId, "slotBooking");
   // POST sans corps — le portail envoie Content-Type mais pas de body
   const headers = sessionHeaders(session.accessToken, session.applicationId, session.missionId, REFERER_CREATE_APT, true);
   try {
@@ -967,7 +973,7 @@ async function findFirstSlotForOfc(
   dateFrom?: string,
   dateDeadline?: string
 ): Promise<SlotFound | null> {
-  const basePayload = {
+  const basePayload: Record<string, unknown> = {
     postUserId: ofc.postUserId,
     applicantId: appDetails.applicantId,
     visaType: appDetails.visaType,
@@ -975,6 +981,8 @@ async function findFirstSlotForOfc(
     locationType: "OFC",
     applicationId: appDetails.applicationId,
   };
+  // Bundle Angular : applicationDetails.applicantUUID est inclus dans le payload de booking
+  if (appDetails.applicantUUID) basePayload.applicantUUID = appDetails.applicantUUID;
 
   // Toutes les requêtes de slot incluent les cookies APP_ID_TOBE + missionId (POST avec body)
   const hdrs = sessionHeaders(session.accessToken, appDetails.applicationId, session.missionId, REFERER_CREATE_APT, true);
@@ -1297,9 +1305,9 @@ export async function downloadUsaConfirmationPdf(
   // Étape 1 : sanityCheck avec stepType="appointmentLetter" (fire-and-forget, comme le bundle Angular)
   // Le portail l'appelle juste avant de générer la lettre, sans attendre la réponse.
   if (session.applicationId) {
-    const sanityUrl = USA_SANITY_CHECK_URL(session.applicationId);
+    const sanityUrl = USA_SANITY_CHECK_URL(session.applicationId, "appointmentLetter");
     const sanityHeaders = sessionHeaders(session.accessToken, session.applicationId, session.missionId, REFERER_CREATE_APT, true);
-    usaFetch(sanityUrl + "?stepType=appointmentLetter", { method: "POST", headers: sanityHeaders })
+    usaFetch(sanityUrl, { method: "POST", headers: sanityHeaders })
       .then(r => console.log(`[usa] sanityCheck(appointmentLetter) → HTTP ${r.status}`))
       .catch(e => console.warn("[usa] sanityCheck(appointmentLetter) ignoré:", e));
   }
