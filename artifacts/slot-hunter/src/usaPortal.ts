@@ -282,8 +282,13 @@ function pickSessionUa(): void {
 function getBrowserHeaders(): Record<string, string> {
   return {
     "Accept":             "application/json, text/plain, */*",
+    // Chrome 123+ inclut zstd — son absence est un signal JA4H bot identifiable
+    "Accept-Encoding":    "gzip, deflate, br, zstd",
     "Accept-Language":    "fr-CD,fr;q=0.9,en-US;q=0.6,en;q=0.5",
     "Cache-Control":      "no-cache",
+    // LanguageId : envoyé par le portail Angular sur toutes les requêtes authentifiées
+    // (visible dans le bundle : LanguageId:`${Ue}` dans l'intercepteur HTTP)
+    "LanguageId":         "1",
     "Pragma":             "no-cache",
     "Origin":             "https://www.usvisaappt.com",
     "Referer":            REFERER_LOGIN,
