@@ -158,6 +158,18 @@ export default defineSchema({
     .index("by_destination", ["destination"])
     .index("by_requested", ["requestedAt"]),
 
+  notifications: defineTable({
+    userId: v.string(),
+    type: v.string(),
+    title: v.string(),
+    body: v.string(),
+    applicationId: v.optional(v.id("applications")),
+    read: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_unread", ["userId", "read"]),
+
   documents: defineTable({
     applicationId: v.id("applications"),
     docKey: v.string(),

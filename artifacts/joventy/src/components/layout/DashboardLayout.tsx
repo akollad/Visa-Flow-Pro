@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { OnboardingModal } from "@/components/OnboardingModal";
+import { NotificationBell } from "@/components/NotificationBell";
 import {
   LayoutDashboard,
   FileText,
@@ -55,14 +56,17 @@ export function DashboardLayout({ children, isAdmin = false }: DashboardLayoutPr
     <>
       <div className="p-6 border-b border-border flex items-center justify-between">
         <JoventyLogo href="/" variant="light" size="sm" />
-        {onNav && (
-          <button
-            onClick={onNav}
-            className="md:hidden flex items-center justify-center w-8 h-8 rounded-lg hover:bg-slate-100 transition-colors"
-          >
-            <X className="w-5 h-5 text-slate-500" />
-          </button>
-        )}
+        <div className="flex items-center gap-1">
+          <NotificationBell isAdmin={isAdmin} />
+          {onNav && (
+            <button
+              onClick={onNav}
+              className="md:hidden flex items-center justify-center w-8 h-8 rounded-lg hover:bg-slate-100 transition-colors"
+            >
+              <X className="w-5 h-5 text-slate-500" />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="p-4 flex-1 overflow-y-auto">
@@ -142,7 +146,8 @@ export function DashboardLayout({ children, isAdmin = false }: DashboardLayoutPr
       {/* Mobile top bar */}
       <header className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-border sticky top-0 z-30">
         <JoventyLogo href="/" variant="light" size="sm" />
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          <NotificationBell isAdmin={isAdmin} />
           {unreadTotal > 0 && (
             <span className="bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center">
               {unreadTotal > 99 ? "99+" : unreadTotal}

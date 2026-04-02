@@ -222,6 +222,14 @@ export const create = mutation({
       });
     }
 
+    await ctx.scheduler.runAfter(0, internal.notifications.create, {
+      userId: "ADMIN",
+      type: "new_application",
+      title: "Nouveau dossier créé",
+      body: `${args.applicantName} — ${args.destination.toUpperCase()} ${args.visaType}`,
+      applicationId: id,
+    });
+
     return id;
   },
 });
@@ -269,6 +277,16 @@ export const uploadPaymentProof = mutation({
     }
 
     await ctx.db.patch(args.id, patch);
+
+    const label = args.paymentType === "engagement" ? "frais d'engagement" : "prime de succès";
+    await ctx.scheduler.runAfter(0, internal.notifications.create, {
+      userId: "ADMIN",
+      type: "payment_proof_submitted",
+      title: "Preuve de paiement soumise",
+      body: `${app.applicantName} a soumis un justificatif pour les ${label} (${app.destination.toUpperCase()}).`,
+      applicationId: args.id,
+    });
+
     return args.id;
   },
 });

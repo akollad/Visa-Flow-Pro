@@ -186,6 +186,19 @@ export const validateEngagementPayment = mutation({
       });
     }
 
+    await ctx.scheduler.runAfter(0, internal.notifications.create, {
+      userId: app.userId,
+      type: "engagement_validated",
+      title: "Paiement d'engagement validé ✓",
+      body:
+        app.servicePackage === "slot_only"
+          ? "Votre dépôt a été validé. La chasse aux créneaux est en cours."
+          : app.servicePackage === "dossier_only"
+            ? "Votre paiement a été validé. Nous préparons votre dossier."
+            : "Votre paiement d'engagement a été validé. Vous pouvez maintenant soumettre vos documents.",
+      applicationId: args.applicationId,
+    });
+
     return args.applicationId;
   },
 });
@@ -262,6 +275,14 @@ export const markVisaObtained = mutation({
         applicationId: args.applicationId,
       });
     }
+
+    await ctx.scheduler.runAfter(0, internal.notifications.create, {
+      userId: app.userId,
+      type: "visa_obtained",
+      title: "🎉 Visa obtenu !",
+      body: `Votre visa ${app.destination.toUpperCase()} a été accordé. Réglez la prime de succès (${priceDetails.successFee}$) pour télécharger votre document officiel.`,
+      applicationId: args.applicationId,
+    });
 
     return args.applicationId;
   },
@@ -342,6 +363,14 @@ export const validateSuccessFee = mutation({
       });
     }
 
+    await ctx.scheduler.runAfter(0, internal.notifications.create, {
+      userId: app.userId,
+      type: "success_fee_validated",
+      title: "Dossier finalisé ✓",
+      body: "Votre prime de succès a été validée. Votre kit d'entretien consulaire est maintenant disponible.",
+      applicationId: args.applicationId,
+    });
+
     return args.applicationId;
   },
 });
@@ -377,6 +406,14 @@ export const rejectApplication = mutation({
         applicationId: args.applicationId,
       });
     }
+
+    await ctx.scheduler.runAfter(0, internal.notifications.create, {
+      userId: app.userId,
+      type: "rejected",
+      title: "Dossier refusé",
+      body: `Votre dossier ${app.destination.toUpperCase()} n'a pas pu être traité. Raison : ${args.reason}`,
+      applicationId: args.applicationId,
+    });
 
     return args.applicationId;
   },
@@ -415,6 +452,14 @@ export const setSlotHunting = mutation({
         applicationId: args.applicationId,
       });
     }
+
+    await ctx.scheduler.runAfter(0, internal.notifications.create, {
+      userId: app.userId,
+      type: "hunting_started",
+      title: "Chasse aux créneaux lancée 🔍",
+      body: `Notre système surveille les disponibilités de l'ambassade ${app.destination.toUpperCase()} en continu. Vous serez notifié dès qu'un créneau est capturé.`,
+      applicationId: args.applicationId,
+    });
 
     return args.applicationId;
   },
@@ -471,6 +516,14 @@ export const completeDossierOnly = mutation({
         applicationId: args.applicationId,
       });
     }
+
+    await ctx.scheduler.runAfter(0, internal.notifications.create, {
+      userId: app.userId,
+      type: "dossier_completed",
+      title: "Dossier constitué ✓",
+      body: "Votre dossier de demande de visa est prêt. Vous pouvez télécharger l'ensemble des documents.",
+      applicationId: args.applicationId,
+    });
 
     return args.applicationId;
   },

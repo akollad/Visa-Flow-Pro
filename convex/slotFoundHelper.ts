@@ -82,5 +82,13 @@ export async function coreMarkSlotFound(
     });
   }
 
+  await ctx.scheduler.runAfter(0, internal.notifications.create, {
+    userId: app.userId,
+    type: "slot_found",
+    title: "🎯 Créneau capturé — Action requise !",
+    body: `Un créneau ${app.destination.toUpperCase()} a été réservé ! Réglez la prime de succès (${priceDetails.successFee}$) dans les 48h pour confirmer votre rendez-vous.`,
+    applicationId: args.applicationId,
+  });
+
   return args.applicationId;
 }

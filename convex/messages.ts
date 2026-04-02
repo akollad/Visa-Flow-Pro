@@ -73,12 +73,26 @@ export const send = mutation({
         messagePreview: args.content,
         applicationId: args.applicationId,
       });
+      await ctx.scheduler.runAfter(0, internal.notifications.create, {
+        userId: app.userId,
+        type: "new_message",
+        title: "Nouveau message de Joventy",
+        body: args.content.length > 80 ? args.content.slice(0, 80) + "…" : args.content,
+        applicationId: args.applicationId,
+      });
     } else if (!isAdmin) {
       await ctx.scheduler.runAfter(0, internal.emails.sendNewMessageAdmin, {
         applicantName: app.applicantName,
         destination: app.destination,
         senderName,
         messagePreview: args.content,
+        applicationId: args.applicationId,
+      });
+      await ctx.scheduler.runAfter(0, internal.notifications.create, {
+        userId: "ADMIN",
+        type: "new_message",
+        title: `Message de ${senderName}`,
+        body: args.content.length > 80 ? args.content.slice(0, 80) + "…" : args.content,
         applicationId: args.applicationId,
       });
     }

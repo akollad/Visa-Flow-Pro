@@ -16,6 +16,7 @@ import type * as emails from "../emails.js";
 import type * as http from "../http.js";
 import type * as hunter from "../hunter.js";
 import type * as messages from "../messages.js";
+import type * as notifications from "../notifications.js";
 import type * as reviews from "../reviews.js";
 import type * as slotFoundHelper from "../slotFoundHelper.js";
 import type * as users from "../users.js";
@@ -36,6 +37,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   hunter: typeof hunter;
   messages: typeof messages;
+  notifications: typeof notifications;
   reviews: typeof reviews;
   slotFoundHelper: typeof slotFoundHelper;
   users: typeof users;
