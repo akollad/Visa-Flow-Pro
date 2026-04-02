@@ -181,7 +181,7 @@ export const sendApplicationConfirmationClient = internalAction({
       <h2 style="margin:0 0 16px;color:#1e293b;font-size:22px;">Votre dossier a bien été créé</h2>
       <p style="color:#475569;font-size:15px;line-height:1.7;">Merci d'avoir fait confiance à Joventy. Votre demande de visa est enregistrée. La prochaine étape consiste à régler les <strong>frais d'engagement (${args.engagementFee}&nbsp;USD)</strong> pour activer votre dossier.</p>
       ${infoTable(rows)}
-      <p style="color:#64748b;font-size:13px;margin:16px 0 0;">Paiements acceptés : M-Pesa <strong>+243 840 808 122</strong> · Airtel <strong>0820 344 541</strong> · Orange <strong>0990 775 880</strong></p>
+      <p style="color:#64748b;font-size:13px;margin:16px 0 0;">Paiements acceptés : M-Pesa <strong>0820 344 541</strong> · Airtel <strong>0990 775 880</strong> · Orange <strong>+243 840 808 122</strong></p>
       ${cta(`${APP_URL}/dashboard`, "Accéder à mon espace")}
     `;
     await sendEmail({
@@ -260,7 +260,7 @@ export const sendSlotFoundClient = internalAction({
       ${urgentBanner("Vous avez 48 heures pour régler la prime de succès et sécuriser ce créneau.")}
       <p style="color:#475569;font-size:15px;line-height:1.7;">Notre système a capturé un créneau d'entretien à l'ambassade pour votre visa <strong>${destLabel(args.destination)}</strong>${args.slotDate ? ` (le <strong>${args.slotDate}</strong>)` : ""}.</p>
       <p style="color:#475569;font-size:15px;line-height:1.7;">Pour débloquer tous les détails du rendez-vous et recevoir votre kit d'entretien, réglez la <strong>prime de succès de ${args.successFee}&nbsp;USD</strong> dans les 48 heures.</p>
-      <p style="color:#64748b;font-size:13px;margin:16px 0 8px;"><strong>Paiements :</strong> M-Pesa <strong>+243 840 808 122</strong> · Airtel <strong>0820 344 541</strong> · Orange <strong>0990 775 880</strong></p>
+      <p style="color:#64748b;font-size:13px;margin:16px 0 8px;"><strong>Paiements :</strong> M-Pesa <strong>0820 344 541</strong> · Airtel <strong>0990 775 880</strong> · Orange <strong>+243 840 808 122</strong></p>
       ${cta(`${APP_URL}/dashboard`, "Payer et débloquer mon rendez-vous")}
     `;
     await sendEmail({
@@ -288,7 +288,7 @@ export const sendVisaObtainedClient = internalAction({
       ${urgentBanner("Réglez la prime de succès pour recevoir votre document officiel.")}
       <p style="color:#475569;font-size:15px;line-height:1.7;">Excellente nouvelle ! L'équipe Joventy a obtenu votre visa <strong>${destLabel(args.destination)}</strong> pour <strong>${args.applicantName}</strong>.</p>
       <p style="color:#475569;font-size:15px;line-height:1.7;">Pour télécharger votre document officiel, réglez la <strong>prime de succès de ${args.successFee}&nbsp;USD</strong>.</p>
-      <p style="color:#64748b;font-size:13px;margin:16px 0 8px;"><strong>Paiements :</strong> M-Pesa <strong>+243 840 808 122</strong> · Airtel <strong>0820 344 541</strong> · Orange <strong>0990 775 880</strong></p>
+      <p style="color:#64748b;font-size:13px;margin:16px 0 8px;"><strong>Paiements :</strong> M-Pesa <strong>0820 344 541</strong> · Airtel <strong>0990 775 880</strong> · Orange <strong>+243 840 808 122</strong></p>
       ${cta(`${APP_URL}/dashboard`, "Payer et télécharger mon visa")}
     `;
     await sendEmail({
