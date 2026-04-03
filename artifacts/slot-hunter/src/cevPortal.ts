@@ -1,4 +1,3 @@
-import fetch from 'node-fetch';
 import { botLog } from './convexClient';
 
 const CEV_BASE = 'https://appointment.cloud.diplomatie.be';
