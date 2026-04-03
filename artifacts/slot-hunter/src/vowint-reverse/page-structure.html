@@ -1,0 +1,126 @@
+<!--
+  SOURCE: visaonweb.diplomatie.be — Structure HTML de la page Edit application
+  Capturé le 2026-04-03 (AppId: e978b2fd-472f-f111-a3ae-00505691de06)
+
+  ⚠️ DÉCOUVERTES CRITIQUES POUR LE BOT — LIRE ATTENTIVEMENT:
+
+  1. hCaptcha présent sur la page:
+     <script src="https://js.hcaptcha.com/1/api.js?hl=fr" async defer>
+     → La création d'une nouvelle demande passe probablement par une page GDPR + hCaptcha
+     → URL de création: /fr/VisaApplication/Gdpr  (pas /Create directement)
+     → Impact: le bot doit utiliser Playwright pour résoudre le captcha
+       (ou un service tiers: 2captcha, anti-captcha, capsolver)
+
+  2. Script de détection bot (__scdnSessId):
+     → Obfusqué, génère: __scdnsessid, __scdnuid, __scdntime
+     → Protection CDN active — Playwright avec stealth mode recommandé
+
+  3. Flux de création réel (corrige notre hypothèse):
+     ÉTAPE 0: GET /fr/VisaApplication/Gdpr  → page GDPR + hCaptcha
+     ÉTAPE 1: POST (GDPR accept) → redirect vers /fr/VisaApplication/Edit/{AppId}
+     ÉTAPE 2: GET /common/getVisaApplication?AppId={uuid} → données formulaire
+     ÉTAPE 3: POST save → compléter formulaire
+     ÉTAPE 4: AppointmentUrl → calendrier CEV
+
+  4. Rôles utilisateur (dans ng-init):
+     User.Roles = [
+       "Applications_CanViewPaymentBlock",
+       "Applications_CanTakeAppointment",     ← CRITIQUE: doit être présent pour accéder au RDV
+       "Applications_CanCreateNewApplicationVOW",
+       "Applications_CanClickSubmit",
+       "Applications_CanViewMyList"
+     ]
+     → Le compte Joventy doit avoir le rôle Applications_CanTakeAppointment
+
+  5. Contrôleurs Angular identifiés:
+     - ng-controller="commonController"    → <body> (navigation globale)
+     - ng-controller="visaApplicationController"  → <div id="cl-wrapper"> (formulaire)
+     → Le prochain fichier à capturer: visaApplicationController.js
+
+  6. Sections du formulaire (sidebar scrollspy):
+     - #BasicInfo           → Information de base
+     - #ApplicantInformation → Information du demandeur
+     - #PersonalData        → Données personnelles
+     - #ParentsGuardian     → Information du mineur (si applicable)
+     - #TravelDocument      → Document de voyage
+     - #HomeAddress         → Adresse du domicile
+     [à compléter avec la suite du HTML]
+
+  7. Endpoints confirmés dans le HTML:
+     POST /fr/Account/LogOff                        → logout
+     GET  /fr/VisaApplication/Gdpr                  → nouvelle demande
+     GET  /fr/VisaApplication/IndexByUserId         → liste mes demandes
+     GET  /fr/Account/Manage                        → changer mot de passe
+     GET  /fr/Home/Contact                          → nous contacter
+     GET  /fr/Home/Schengen                         → traductions formulaire
+     GET  /en/VisaApplication/Edit/{AppId}          → version anglaise
+     GET  /nl-BE/VisaApplication/Edit/{AppId}       → version néerlandaise
+     GET  /fr-BE/VisaApplication/Edit/{AppId}       → version française
+
+  8. __RequestVerificationToken (CSRF):
+     → Présent en hidden field dans le form logout: valeur longue base64
+     → À extraire depuis la page HTML à chaque session pour les POST
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge"/>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>Visa online</title>
+
+    <!-- Scripts critiques identifiés -->
+    <script src="/Scripts/jquery?v=..."></script>
+    <script src="/bundles/angularjs?v=..."></script>
+
+    <!-- ⚠️ hCaptcha — obstacle pour bot HTTP pur -->
+    <script src="https://js.hcaptcha.com/1/api.js?hl=fr" async defer></script>
+</head>
+
+<!--
+  ng-init révèle la structure User et les rôles:
+  User = {
+    "UserName": "screentapinc@gmail.com",
+    "Roles": [
+      "Applications_CanViewPaymentBlock",
+      "Applications_CanTakeAppointment",       ← REQUIS pour le RDV
+      "Applications_CanCreateNewApplicationVOW",
+      "Applications_CanClickSubmit",
+      "Applications_CanViewMyList"
+    ],
+    "Vacs": [1]   ← VAC 1 = VOW Internet
+  }
+-->
+<body id="osOnlineBody" ng-app="osOnline" ng-controller="commonController"
+      ng-init="User = {&quot;UserName&quot;:&quot;screentapinc@gmail.com&quot;,...}">
+
+    <!-- Navbar avec __RequestVerificationToken CSRF -->
+    <div id="head-nav">
+        <form action="/fr/Account/LogOff" method="post">
+            <input name="__RequestVerificationToken" type="hidden" value="QBc-gP8w..." />
+        </form>
+    </div>
+
+    <!--
+      CONTRÔLEUR PRINCIPAL DU FORMULAIRE VISA:
+      ng-controller="visaApplicationController"
+      → C'est ici que réside toute la logique de sauvegarde du formulaire
+    -->
+    <div id="cl-wrapper" ng-controller="visaApplicationController">
+
+        <!-- Sidebar navigation du formulaire -->
+        <ul id="scrollSpyList">
+            <li><a href="#BasicInfo">Information de base</a></li>
+            <li><a href="#ApplicantInformation">Information du demandeur</a></li>
+            <li><a href="#PersonalData">Données personnelles</a></li>
+            <li ng-show="isMinor(...)"><a href="#ParentsGuardian">Information du mineur</a></li>
+            <li><a href="#TravelDocument">Document de voyage</a></li>
+            <li><a href="#HomeAddress">Adresse du domicile</a></li>
+            <!-- suite à capturer -->
+        </ul>
+
+        <!-- Contenu du formulaire — voir visaApplicationController.js -->
+    </div>
+</body>
+</html>

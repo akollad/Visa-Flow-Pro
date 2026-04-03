@@ -57,6 +57,48 @@ VacId   → 1 = "VOW Internet" (notre mode)
   6. Créneau trouvé → POST confirmation → extraire référence
 ```
 
+## ⚠️ Obstacles détectés (mis à jour 2026-04-03)
+
+| Obstacle | Impact | Solution |
+|---|---|---|
+| **hCaptcha** sur `/fr/VisaApplication/Gdpr` | Bloque la création HTTP pure | Playwright + service anticaptcha (2captcha / capsolver) |
+| **Script bot-detection** (`__scdn__done`) | Fingerprinting navigateur | Playwright avec stealth plugin (`playwright-extra`) |
+| **Session F5 BIG-IP** (`TS0110ceb4`) | Sticky session, doit être conservée | Ne jamais réinitialiser les cookies en cours de session |
+
+## Flux bot CORRIGÉ (3 étapes — après analyse HTML page)
+
+```
+ÉTAPE 0 — Création demande VOWINT (Playwright obligatoire à cause hCaptcha)
+  1. GET  /fr/VisaApplication/Gdpr    → page GDPR consent + hCaptcha
+  2. Résoudre hCaptcha (2captcha / capsolver ~0.003$)
+  3. POST GDPR accept                 → redirect → /fr/VisaApplication/Edit/{AppId}
+  4. Extraire AppId depuis l'URL de redirection → stocker dans Convex
+
+ÉTAPE 1 — Remplissage VOWINT (HTTP pur suffisant après AppId obtenu)
+  5. GET  /common/getVisaApplication?AppId={uuid}
+  6. POST /fr/VisaApplication/Edit/{AppId} → sauvegarder données demandeur
+  7. Re-GET /common/getVisaApplication → canTakeAppointment = true
+     → extraire CompanyList[0].AppointmentUrl → stocker dans Convex
+
+ÉTAPE 2 — CEV Calendar (cev-kin.eu / schengenhouse.eu)
+  8. GET {AppointmentUrl} → calendrier CEV
+  9. POLL toutes les 5 min → détecter créneaux libres
+  10. Créneau trouvé → réserver → stocker référence RDV dans Convex
+```
+
+### Stratégie optimale
+**Étapes 0-1 : une seule fois par client** (Playwright, ~30 secondes).
+Stocker `AppId` + `AppointmentUrl` dans Convex (table `applications`).
+**Étape 2 : polling léger en boucle** — HTTP pur, pas de Playwright, très rapide.
+
+### Rôles compte VOWINT nécessaires
+```
+Applications_CanTakeAppointment       ← CRITIQUE pour accéder au calendrier CEV
+Applications_CanCreateNewApplicationVOW
+Applications_CanClickSubmit
+Applications_CanViewMyList
+```
+
 ## Champs formulaire VOWINT (données demandeur)
 
 | Champ API | Description | Valeur type (DRC) |
