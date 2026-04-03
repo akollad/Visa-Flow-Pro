@@ -597,6 +597,38 @@ export default function AdminApplicationDetail() {
             )}
           </div>
 
+          {/* CEV metadata — Schengen only */}
+          {app.destination === "schengen" && (() => {
+            const cev = app as { cevVisaClass?: string; cevApplicantAgeCategory?: string; cevTargetCountry?: string };
+            const ageCatLabel: Record<string, string> = {
+              adult: "Adulte (≥ 12 ans)",
+              child_6_12: "Enfant 6-12 ans",
+              child_under_6: "Enfant < 6 ans",
+            };
+            const rows = [
+              { label: "Classe visa CEV", value: cev.cevVisaClass ? `Visa ${cev.cevVisaClass}` : undefined },
+              { label: "Catégorie âge", value: cev.cevApplicantAgeCategory ? ageCatLabel[cev.cevApplicantAgeCategory] : undefined },
+              { label: "Pays Schengen cible", value: cev.cevTargetCountry },
+            ].filter((r) => r.value);
+            if (rows.length === 0) return null;
+            return (
+              <div className="mt-4 border border-indigo-200 bg-indigo-50/60 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-sm">🇪🇺</span>
+                  <span className="text-sm font-bold text-primary">Informations CEV</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {rows.map((r) => (
+                    <div key={r.label} className="bg-white rounded-lg px-3 py-2 border border-indigo-100">
+                      <p className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wide mb-0.5">{r.label}</p>
+                      <p className="text-sm font-semibold text-primary">{r.value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Slot booking references — slot_only only */}
           {isSlotOnly && (app as { slotBookingRefs?: Record<string, string | undefined> }).slotBookingRefs && (() => {
             const refs = (app as { slotBookingRefs?: Record<string, string | undefined> }).slotBookingRefs!;
@@ -607,6 +639,7 @@ export default function AdminApplicationDetail() {
               { label: "Reçu USCIS I-797 (pétition)", value: refs.petitionReceiptNumber },
               { label: "Nom du pétitionnaire", value: refs.petitionerName },
               { label: "Référence VFS", value: refs.vfsRefNumber },
+              { label: "N° dossier VOWINT", value: refs.vowintAppId, hint: "CEV Schengen" },
             ].filter((r) => r.value);
             if (rows.length === 0) return null;
             return (
