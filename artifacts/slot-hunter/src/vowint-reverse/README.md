@@ -34,9 +34,45 @@ GET  /Integration/...                  → (à découvrir) calendrier / créneau
 - Détecter quand la réponse n'est plus `NoAvailability` → créneau disponible
 - Résoudre le captcha une seule fois pour confirmer la réservation
 
-### Inconnue critique restante :
-Les paramètres URL passés par VOWINT → `appointment.cloud.diplomatie.be`
-(capturables dans l'onglet Network au moment du clic sur "Prise de rendez-vous")
+### Mécanisme d'ouverture confirmé : blob: URL (POST caché)
+
+```
+blob:https://appointment.cloud.diplomatie.be/971c50d9-c5e5-4a52-82ef-3190ce4ff473
+Referrer-Policy: no-referrer
+```
+
+**Ce que ça signifie :**
+VOWINT ne redirige PAS via URL query string. Il crée un `Blob` HTML en mémoire
+avec un formulaire caché qui se soumet en POST vers `/Captcha`.
+
+```javascript
+// Ce que VOWINT fait en interne (approximatif) :
+var html = '<form method="POST" action="https://appointment.cloud.diplomatie.be/Captcha">'
+         + '<input type="hidden" name="token" value="..." />'
+         + '<input type="hidden" name="AppId" value="..." />'
+         + '</form><script>document.forms[0].submit()</scr' + 'ipt>';
+var blob = new Blob([html], {type: 'text/html'});
+window.open(URL.createObjectURL(blob));
+```
+
+**Implication pour le bot :**
+Les paramètres de session (token, AppId, etc.) sont dans le HTML du Blob —
+invisibles dans l'URL. Le bot Playwright doit **intercepter le Blob** ou
+**capturer la requête POST** vers `/Captcha` pour extraire ces tokens.
+
+### Stratégie bot révisée :
+```
+Playwright.on('request', req => {
+  if (req.url().includes('appointment.cloud.diplomatie.be/Captcha')) {
+    const postData = req.postData(); // ← tokens ici
+  }
+});
+```
+
+### Stack du système appointment.cloud.diplomatie.be :
+- **JSZip v3.10.1** (génération de documents ZIP/PDF de confirmation)
+- **loglevel** (logging)
+- Application React/Vue bundlée (webpack)
 
 ---
 
