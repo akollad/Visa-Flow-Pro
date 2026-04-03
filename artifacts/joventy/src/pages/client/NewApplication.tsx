@@ -515,19 +515,37 @@ export default function NewApplication() {
                           )}
                           {pricing && (
                             <div className="mt-3 flex flex-wrap gap-3">
-                              <div className="text-xs bg-slate-100 rounded-lg px-3 py-1.5">
-                                <span className="text-slate-500">Engagement : </span>
-                                <span className="font-bold text-primary">{formatCurrency(pricing.engagementFee)}</span>
-                              </div>
-                              {pkgKey !== "dossier_only" ? (
-                                <div className="text-xs bg-slate-100 rounded-lg px-3 py-1.5">
-                                  <span className="text-slate-500">Prime de succès : </span>
-                                  <span className="font-bold text-primary">{formatCurrency(pricing.successFee)}</span>
-                                </div>
+                              {pkgKey === "slot_only" ? (
+                                <>
+                                  <div className="text-xs bg-purple-100 text-purple-700 rounded-lg px-3 py-1.5 font-semibold">
+                                    Dépôt de {formatCurrency(SLOT_URGENCY_TIERS.standard.depositAmount)} à {formatCurrency(SLOT_URGENCY_TIERS.tres_urgent.depositAmount)}
+                                  </div>
+                                  <div className="text-xs bg-slate-100 rounded-lg px-3 py-1.5">
+                                    <span className="text-slate-500">Total : </span>
+                                    <span className="font-bold text-primary">{formatCurrency(SLOT_URGENCY_TIERS.standard.total)} – {formatCurrency(SLOT_URGENCY_TIERS.tres_urgent.total)}+</span>
+                                  </div>
+                                </>
+                              ) : pkgKey === "dossier_only" ? (
+                                <>
+                                  <div className="text-xs bg-slate-100 rounded-lg px-3 py-1.5">
+                                    <span className="text-slate-500">Tarif fixe : </span>
+                                    <span className="font-bold text-primary">{formatCurrency(pricing.engagementFee)}</span>
+                                  </div>
+                                  <div className="text-xs bg-green-100 text-green-700 rounded-lg px-3 py-1.5 font-semibold">
+                                    Pas de prime de succès
+                                  </div>
+                                </>
                               ) : (
-                                <div className="text-xs bg-green-100 text-green-700 rounded-lg px-3 py-1.5 font-semibold">
-                                  Pas de prime de succès — tarif fixe
-                                </div>
+                                <>
+                                  <div className="text-xs bg-slate-100 rounded-lg px-3 py-1.5">
+                                    <span className="text-slate-500">Engagement : </span>
+                                    <span className="font-bold text-primary">{formatCurrency(pricing.engagementFee)}</span>
+                                  </div>
+                                  <div className="text-xs bg-slate-100 rounded-lg px-3 py-1.5">
+                                    <span className="text-slate-500">Prime de succès : </span>
+                                    <span className="font-bold text-primary">{formatCurrency(pricing.successFee)}</span>
+                                  </div>
+                                </>
                               )}
                             </div>
                           )}
