@@ -3,6 +3,43 @@
 Reverse engineering du portail belge VOWINT (Visa On Web International) pour construction du bot CEV Kinshasa.
 Capturé le 2026-04-03.
 
+## 🔑 DÉCOUVERTE MAJEURE — Domaine du système de RDV (2026-04-03)
+
+Le système de rendez-vous CEV N'EST PAS sur `cev-kin.eu` ni `schengenhouse.eu`.
+C'est un service cloud belge distinct :
+
+```
+https://appointment.cloud.diplomatie.be/
+```
+
+### Flux complet confirmé par test manuel :
+1. Remplir formulaire VOWINT sur `visaonweb.diplomatie.be`
+2. Cliquer "Soumettre" → bouton **"Prise de rendez-vous"** apparaît
+3. Cliquer ce bouton → ouvre `https://appointment.cloud.diplomatie.be/Captcha`
+4. Résoudre captcha humain
+5. Redirect vers `https://appointment.cloud.diplomatie.be/Integration/Error/NoAvailability`
+   → Message: "Aucun créneau horaire n'est disponible. Veuillez réessayer ultérieurement."
+
+### Endpoints confirmés sur `appointment.cloud.diplomatie.be` :
+```
+GET  /Captcha                          → page captcha avant accès au calendrier
+GET  /Integration/Error/NoAvailability → aucun créneau disponible (à poller)
+GET  /Integration/...                  → (à découvrir) calendrier / créneaux disponibles
+```
+
+### Version du système : 1.0.249.0
+
+### Ce que le bot doit faire :
+- Poller `appointment.cloud.diplomatie.be` (probablement `/Integration/Slots` ou similaire)
+- Détecter quand la réponse n'est plus `NoAvailability` → créneau disponible
+- Résoudre le captcha une seule fois pour confirmer la réservation
+
+### Inconnue critique restante :
+Les paramètres URL passés par VOWINT → `appointment.cloud.diplomatie.be`
+(capturables dans l'onglet Network au moment du clic sur "Prise de rendez-vous")
+
+---
+
 ## Stack technique identifiée
 
 | Composant | Valeur |
