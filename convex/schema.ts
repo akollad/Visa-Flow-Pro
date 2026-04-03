@@ -31,6 +31,10 @@ const slotBookingRefs = v.object({
   petitionReceiptNumber: v.optional(v.string()),
   petitionerName: v.optional(v.string()),
   vfsRefNumber: v.optional(v.string()),
+  // Schengen / CEV
+  cevAccountEmail: v.optional(v.string()),
+  cevAccountPassword: v.optional(v.string()),
+  vowintAppId: v.optional(v.string()),
 });
 
 const hunterConfig = v.object({
@@ -51,6 +55,11 @@ const hunterConfig = v.object({
   lastCheckAt: v.optional(v.number()),
   checkCount: v.optional(v.number()),
   lastResult: v.optional(v.string()),
+  // CEV / Schengen spécifique
+  vowintAppId: v.optional(v.string()),        // ID dossier VOWINT (ex: "APP-2024-001234")
+  cevCountry: v.optional(v.string()),         // Pays cible (ex: "BE", "FR", "DE")
+  cevClickCount: v.optional(v.number()),      // Nombre de clics VOWINT dans la fenêtre en cours
+  cevClickWindowStart: v.optional(v.number()), // Timestamp début de la fenêtre de 5 clics/heure
 });
 
 export default defineSchema({
@@ -108,6 +117,14 @@ export default defineSchema({
     )),
     slotBookingRefs: v.optional(slotBookingRefs),
     hunterConfig: v.optional(hunterConfig),
+    // Schengen / CEV spécifique (drive le calcul des frais consulaires)
+    cevVisaClass: v.optional(v.union(v.literal("A"), v.literal("C"), v.literal("D"))),
+    cevApplicantAgeCategory: v.optional(v.union(
+      v.literal("adult"),
+      v.literal("child_6_12"),
+      v.literal("child_under_6"),
+    )),
+    cevTargetCountry: v.optional(v.string()), // ex: "BE", "FR", "DE"
   })
     .index("by_user", ["userId"])
     .index("by_status", ["status"])

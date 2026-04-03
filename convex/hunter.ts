@@ -30,6 +30,9 @@ export const setHunterConfig = mutation({
     portalApplicationId: v.optional(v.string()),
     slotDateFrom: v.optional(v.string()),
     slotDateDeadline: v.optional(v.string()),
+    // CEV / Schengen
+    vowintAppId: v.optional(v.string()),
+    cevCountry: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -38,7 +41,7 @@ export const setHunterConfig = mutation({
     const app = await ctx.db.get(args.applicationId);
     if (!app) throw new Error("Dossier introuvable");
 
-    const existing = (app as { hunterConfig?: { checkCount?: number; lastCheckAt?: number; lastResult?: string; twoCaptchaApiKey?: string; scheduleUrl?: string; portalApplicationId?: string; slotDateFrom?: string; slotDateDeadline?: string } }).hunterConfig;
+    const existing = (app as { hunterConfig?: { checkCount?: number; lastCheckAt?: number; lastResult?: string; twoCaptchaApiKey?: string; scheduleUrl?: string; portalApplicationId?: string; slotDateFrom?: string; slotDateDeadline?: string; vowintAppId?: string; cevCountry?: string; cevClickCount?: number; cevClickWindowStart?: number } }).hunterConfig;
 
     await ctx.db.patch(args.applicationId, {
       hunterConfig: {
@@ -53,6 +56,10 @@ export const setHunterConfig = mutation({
         lastCheckAt: existing?.lastCheckAt,
         checkCount: existing?.checkCount ?? 0,
         lastResult: existing?.lastResult,
+        vowintAppId: args.vowintAppId || existing?.vowintAppId,
+        cevCountry: args.cevCountry || existing?.cevCountry,
+        cevClickCount: existing?.cevClickCount,
+        cevClickWindowStart: existing?.cevClickWindowStart,
       },
       updatedAt: Date.now(),
     });

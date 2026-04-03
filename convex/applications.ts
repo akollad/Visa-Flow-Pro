@@ -122,7 +122,17 @@ export const create = mutation({
       petitionReceiptNumber: v.optional(v.string()),
       petitionerName: v.optional(v.string()),
       vfsRefNumber: v.optional(v.string()),
+      cevAccountEmail: v.optional(v.string()),
+      cevAccountPassword: v.optional(v.string()),
+      vowintAppId: v.optional(v.string()),
     })),
+    cevVisaClass: v.optional(v.union(v.literal("A"), v.literal("C"), v.literal("D"))),
+    cevApplicantAgeCategory: v.optional(v.union(
+      v.literal("adult"),
+      v.literal("child_6_12"),
+      v.literal("child_under_6"),
+    )),
+    cevTargetCountry: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -169,7 +179,15 @@ export const create = mutation({
       isSuccessFeePaid: isDossierOnly,
     };
 
-    const { servicePackage: _sp, slotUrgencyTier: _sut, slotBookingRefs: _sbr, ...appArgs } = args;
+    const {
+      servicePackage: _sp,
+      slotUrgencyTier: _sut,
+      slotBookingRefs: _sbr,
+      cevVisaClass,
+      cevApplicantAgeCategory,
+      cevTargetCountry,
+      ...appArgs
+    } = args;
 
     const tierLabel = isSlotOnly
       ? ` — Urgence : ${SLOT_URGENCY_TIERS[(args.slotUrgencyTier ?? "standard") as SlotUrgencyTier].label}. Dépôt : ${engagementFee}$ / Solde : ${successFee}$`
@@ -188,7 +206,10 @@ export const create = mutation({
       successModel: pricing.successModel,
       servicePackage: pkg,
       slotUrgencyTier: isSlotOnly ? ((args.slotUrgencyTier ?? "standard") as SlotUrgencyTier) : undefined,
-      slotBookingRefs: isSlotOnly && args.slotBookingRefs ? args.slotBookingRefs : undefined,
+      slotBookingRefs: args.slotBookingRefs ?? undefined,
+      cevVisaClass: cevVisaClass ?? undefined,
+      cevApplicantAgeCategory: cevApplicantAgeCategory ?? undefined,
+      cevTargetCountry: cevTargetCountry ?? undefined,
       logs: [
         makeLog(
           `Dossier créé pour ${pricing.label} — ${args.visaType}. Package : ${pkg}.${tierLabel}`,

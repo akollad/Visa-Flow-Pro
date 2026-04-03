@@ -44,6 +44,11 @@ export interface HunterJob {
     checkCount?: number;
     lastResult?: string;
     lastCheckAt?: number;
+    // CEV / Schengen
+    vowintAppId?: string;
+    cevCountry?: string;
+    cevClickCount?: number;
+    cevClickWindowStart?: number;
   };
   portalUrl: string | null;
   portalName: string | null;

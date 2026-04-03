@@ -363,6 +363,8 @@ export default function AdminApplicationDetail() {
   const [hunterSlotDateFrom, setHunterSlotDateFrom] = useState("");
   const [hunterSlotDateDeadline, setHunterSlotDateDeadline] = useState("");
   const [hunterActive, setHunterActive] = useState(false);
+  const [hunterVowintAppId, setHunterVowintAppId] = useState("");
+  const [hunterCevCountry, setHunterCevCountry] = useState("");
   const [hunterSaving, setHunterSaving] = useState(false);
   const [captchaBalance, setCaptchaBalance] = useState<number | null>(null);
   const [captchaBalanceChecking, setCaptchaBalanceChecking] = useState(false);
@@ -395,7 +397,7 @@ export default function AdminApplicationDetail() {
       setAdminNoteInput(app.adminNotes ?? "");
       const pricing = VISA_PRICING[app.destination as keyof typeof VISA_PRICING];
       if (pricing) setSlotLocation(pricing.embassyAddress ?? "");
-      const hc = (app as { hunterConfig?: { embassyUsername: string; embassyPassword: string; isActive: boolean; twoCaptchaApiKey?: string; slotDateFrom?: string; slotDateDeadline?: string } }).hunterConfig;
+      const hc = (app as { hunterConfig?: { embassyUsername: string; embassyPassword: string; isActive: boolean; twoCaptchaApiKey?: string; slotDateFrom?: string; slotDateDeadline?: string; vowintAppId?: string; cevCountry?: string } }).hunterConfig;
       if (hc) {
         setHunterUsername(hc.embassyUsername);
         setHunterPassword(hc.embassyPassword);
@@ -403,6 +405,8 @@ export default function AdminApplicationDetail() {
         setHunterTwoCaptchaKey(hc.twoCaptchaApiKey ?? "");
         setHunterSlotDateFrom(hc.slotDateFrom ?? "");
         setHunterSlotDateDeadline(hc.slotDateDeadline ?? "");
+        setHunterVowintAppId(hc.vowintAppId ?? "");
+        setHunterCevCountry(hc.cevCountry ?? "");
       } else {
         setHunterUsername("");
         setHunterPassword("");
@@ -410,6 +414,8 @@ export default function AdminApplicationDetail() {
         setHunterTwoCaptchaKey("");
         setHunterSlotDateFrom("");
         setHunterSlotDateDeadline("");
+        setHunterVowintAppId("");
+        setHunterCevCountry("");
       }
     }
   }, [app?._id]);
@@ -1091,7 +1097,7 @@ export default function AdminApplicationDetail() {
             }
             setHunterSaving(true);
             try {
-              await setHunterConfig({ applicationId: appId, embassyUsername: hunterUsername, embassyPassword: hunterPassword, isActive: hunterActive, twoCaptchaApiKey: hunterTwoCaptchaKey || undefined, slotDateFrom: hunterSlotDateFrom || undefined, slotDateDeadline: hunterSlotDateDeadline || undefined });
+              await setHunterConfig({ applicationId: appId, embassyUsername: hunterUsername, embassyPassword: hunterPassword, isActive: hunterActive, twoCaptchaApiKey: hunterTwoCaptchaKey || undefined, slotDateFrom: hunterSlotDateFrom || undefined, slotDateDeadline: hunterSlotDateDeadline || undefined, vowintAppId: hunterVowintAppId || undefined, cevCountry: hunterCevCountry || undefined });
               toast({ title: "Joventy Hunter mis à jour", description: hunterActive ? "Le robot est maintenant actif." : "Robot en pause." });
             } catch (err: unknown) {
               const msg = err instanceof Error ? err.message : "Erreur";
@@ -1258,6 +1264,41 @@ export default function AdminApplicationDetail() {
                     </p>
                   </div>
                 </div>
+
+                {/* CEV / Schengen — config VOWINT */}
+                {app.destination === "schengen" && (
+                  <div className="space-y-3 border border-indigo-200 bg-indigo-50 rounded-xl p-4">
+                    <p className="text-xs font-semibold text-indigo-800 uppercase tracking-wide flex items-center gap-1.5">
+                      🇪🇺 Configuration VOWINT (CEV Schengen)
+                    </p>
+                    <p className="text-[11px] text-indigo-600">
+                      Les identifiants portail ci-dessus sont les accès VOWINT (vowint.eu) du client.
+                      Renseignez son numéro de dossier VOWINT et le pays Schengen cible.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-indigo-700 uppercase">N° dossier VOWINT</label>
+                        <Input
+                          value={hunterVowintAppId}
+                          onChange={(e) => setHunterVowintAppId(e.target.value)}
+                          placeholder="APP-2024-001234"
+                          className="h-9 bg-white text-sm font-mono"
+                        />
+                        <p className="text-[10px] text-indigo-400">Visible sur la confirmation VOWINT du client</p>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-indigo-700 uppercase">Pays Schengen cible</label>
+                        <Input
+                          value={hunterCevCountry}
+                          onChange={(e) => setHunterCevCountry(e.target.value)}
+                          placeholder="France, Belgique, Allemagne..."
+                          className="h-9 bg-white text-sm"
+                        />
+                        <p className="text-[10px] text-indigo-400">Pays de l'ambassade/consulat demandé</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Plage de dates de recherche */}
                 <div className="space-y-2 border border-blue-100 bg-blue-50 rounded-xl p-4">

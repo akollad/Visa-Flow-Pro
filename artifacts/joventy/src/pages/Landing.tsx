@@ -21,6 +21,17 @@ const DESTINATIONS = [
     success: 450,
     model: "appointment",
     note: "Frais MRV 265$ non inclus",
+    badge: null,
+  },
+  {
+    flag: "🇪🇺",
+    name: "Europe Schengen",
+    visaTypes: ["Visa C Tourisme / Affaires", "Visa C Études (gratuit*)", "Visa D Long Séjour"],
+    engagement: 100,
+    success: 200,
+    model: "appointment",
+    note: "Frais consulaires CEV 90€/adulte non inclus",
+    badge: "Nouveau",
   },
   {
     flag: "🇦🇪",
@@ -30,6 +41,7 @@ const DESTINATIONS = [
     success: 70,
     model: "evisa",
     note: "Frais e-Visa EAU (~90$) non inclus",
+    badge: null,
   },
   {
     flag: "🇹🇷",
@@ -39,6 +51,7 @@ const DESTINATIONS = [
     success: 70,
     model: "hybrid",
     note: "Frais consulaires VFS (100-300$) non inclus",
+    badge: null,
   },
   {
     flag: "🇮🇳",
@@ -48,6 +61,7 @@ const DESTINATIONS = [
     success: 50,
     model: "evisa",
     note: "Frais e-Visa gouvernement (~25-80$) non inclus",
+    badge: null,
   },
 ];
 
@@ -497,7 +511,12 @@ export default function Landing() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {DESTINATIONS.map((dest) => (
               <div key={dest.name} className="bg-white border border-border rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-200 flex flex-col">
-                <div className="bg-muted px-6 py-5 border-b border-border">
+                <div className="bg-muted px-6 py-5 border-b border-border relative">
+                  {dest.badge && (
+                    <span className="absolute top-3 right-3 bg-secondary text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">
+                      {dest.badge}
+                    </span>
+                  )}
                   <div className="text-4xl mb-3">{dest.flag}</div>
                   <h3 className="text-xl font-bold text-primary">{dest.name}</h3>
                   <div className="flex flex-wrap gap-1.5 mt-2">

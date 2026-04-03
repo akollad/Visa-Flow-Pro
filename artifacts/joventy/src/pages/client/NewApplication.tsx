@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, ArrowRight, CheckCircle2, Plane, MapPin, CreditCard, FileText, Package, Star, Calendar, ClipboardList } from "lucide-react";
 
 const schema = z.object({
-  destination: z.enum(["usa", "dubai", "turkey", "india"]),
+  destination: z.enum(["usa", "dubai", "turkey", "india", "schengen"]),
   visaType: z.string().min(1, "Type de visa requis"),
   applicantName: z.string().min(2, "Nom du demandeur requis"),
   passportNumber: z.string().min(5, "Numéro de passeport requis"),
@@ -29,11 +29,42 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 const DESTINATIONS = [
-  { id: "usa",    name: "États-Unis", desc: "Rendez-vous consulaire — ambassade américaine", processType: "appointment" as const },
-  { id: "dubai",  name: "Dubaï",      desc: "E-Visa 100 % en ligne — résultat en 48-72 h", processType: "evisa" as const },
-  { id: "turkey", name: "Turquie",    desc: "E-Visa en ligne ou Visa Sticker via VFS Global", processType: "hybrid" as const },
-  { id: "india",  name: "Inde",       desc: "E-Visa électronique ou visa régulier (études)", processType: "evisa" as const },
+  { id: "usa",      name: "États-Unis",        desc: "Rendez-vous consulaire — ambassade américaine",             processType: "appointment" as const },
+  { id: "schengen", name: "Europe Schengen 🇪🇺", desc: "Rendez-vous CEV — 17 pays Schengen depuis Kinshasa",       processType: "appointment" as const },
+  { id: "dubai",    name: "Dubaï (EAU)",        desc: "E-Visa 100 % en ligne — résultat en 48-72 h",              processType: "evisa" as const },
+  { id: "turkey",   name: "Turquie",            desc: "E-Visa en ligne ou Visa Sticker via VFS Global",           processType: "hybrid" as const },
+  { id: "india",    name: "Inde",               desc: "E-Visa électronique ou visa régulier (études)",             processType: "evisa" as const },
 ];
+
+const CEV_COUNTRIES = [
+  { code: "BE", label: "🇧🇪 Belgique" },
+  { code: "FR", label: "🇫🇷 France" },
+  { code: "DE", label: "🇩🇪 Allemagne" },
+  { code: "NL", label: "🇳🇱 Pays-Bas" },
+  { code: "ES", label: "🇪🇸 Espagne" },
+  { code: "IT", label: "🇮🇹 Italie" },
+  { code: "CH", label: "🇨🇭 Suisse" },
+  { code: "PT", label: "🇵🇹 Portugal" },
+  { code: "AT", label: "🇦🇹 Autriche" },
+  { code: "SE", label: "🇸🇪 Suède" },
+  { code: "NO", label: "🇳🇴 Norvège" },
+  { code: "DK", label: "🇩🇰 Danemark" },
+  { code: "FI", label: "🇫🇮 Finlande" },
+  { code: "GR", label: "🇬🇷 Grèce" },
+  { code: "PL", label: "🇵🇱 Pologne" },
+  { code: "CZ", label: "🇨🇿 République tchèque" },
+  { code: "SK", label: "🇸🇰 Slovaquie" },
+];
+
+function getCevConsulaireFee(visaType: string, ageCategory: string): string {
+  if (visaType.includes("Long Séjour") || visaType.includes("Visa D")) {
+    return "180 € + redevance OE (variable)";
+  }
+  if (ageCategory === "child_under_6") return "Gratuit";
+  if (ageCategory === "child_6_12") return "45 €";
+  if (visaType.includes("Études")) return "Gratuit (court séjour éducatif)";
+  return "90 €";
+}
 
 const PACKAGE_ICONS: Record<string, React.ElementType> = {
   full_service: Star,
@@ -72,6 +103,8 @@ function getPackageInfo(
     const creneauLabel =
       destination === "usa"
         ? "créneau à l'ambassade américaine de Kinshasa"
+        : destination === "schengen"
+        ? "créneau au Centre Européen des Visas (CEV) Kinshasa"
         : "créneau de dépôt au centre VFS Global Kinshasa";
     return {
       label: base.label,
@@ -95,6 +128,14 @@ function getPackageInfo(
         tagline: "Dépôt uniquement",
         description: "Vos formulaires sont remplis et votre dossier prêt ? Joventy réserve votre créneau de dépôt au centre VFS Global Kinshasa pour votre Visa Sticker Turquie.",
         slotNote: "Pour le Visa Sticker (VFS) uniquement — pas applicable à l'e-Visa.",
+      };
+    }
+    if (destination === "schengen") {
+      return {
+        label: "Créneau CEV",
+        tagline: "Rendez-vous uniquement",
+        description: "Vous avez déjà un dossier VOWINT en cours ? Joventy surveille activement le Centre Européen des Visas et capture un créneau dès qu'une place est disponible pour votre pays cible.",
+        slotNote: "Prérequis : dossier VOWINT déjà créé avec vos pièces. Frais consulaires CEV (90 €/adulte) payés au guichet — non inclus.",
       };
     }
     return { label: base.label, tagline: base.tagline, description: base.description };
@@ -168,12 +209,19 @@ export default function NewApplication() {
     petitionReceiptNumber: "",
     petitionerName: "",
     vfsRefNumber: "",
+    vowintAppId: "",
   });
+  const [cevApplicantAgeCategory, setCevApplicantAgeCategory] = useState<"adult" | "child_6_12" | "child_under_6">("adult");
+  const [cevTargetCountry, setCevTargetCountry] = useState("BE");
 
   const isPetitionBased = /k-?1|k-?3|h-?1b?|h-?2|h-?3|l-?1a?|l-?1b?|o-?1|o-?2|p-?[123]|r-?1/i.test(selectedVisaType);
   const isStudentExchange = /f-?1|m-?1|j-?1/i.test(selectedVisaType);
   const showSlotRefsUSA = isSlotOnly && selectedDest === "usa";
   const showSlotRefsTurkey = isSlotOnly && selectedDest === "turkey";
+  const showSlotRefsSchengen = isSlotOnly && selectedDest === "schengen";
+  const isSchengen = selectedDest === "schengen";
+  const cevVisaClass = selectedVisaType.includes("Long Séjour") || selectedVisaType.includes("Visa D") ? "D" : "C" as "C" | "D";
+  const cevConsulaireFee = isSchengen ? getCevConsulaireFee(selectedVisaType, cevApplicantAgeCategory) : null;
 
   const updateRef = (key: keyof typeof slotRefs, val: string) =>
     setSlotRefs((prev) => ({ ...prev, [key]: val }));
@@ -209,7 +257,11 @@ export default function NewApplication() {
           petitionReceiptNumber: slotRefs.petitionReceiptNumber.trim() || undefined,
           petitionerName: slotRefs.petitionerName.trim() || undefined,
           vfsRefNumber: slotRefs.vfsRefNumber.trim() || undefined,
+          vowintAppId: slotRefs.vowintAppId.trim() || undefined,
         } : undefined,
+        cevVisaClass: isSchengen ? cevVisaClass : undefined,
+        cevApplicantAgeCategory: isSchengen ? cevApplicantAgeCategory : undefined,
+        cevTargetCountry: isSchengen ? cevTargetCountry : undefined,
       });
       toast({ title: "Dossier créé !", description: "Réglez les frais d'engagement pour démarrer le traitement." });
       setLocation(`/dashboard/applications/${id}/payment`);
@@ -345,6 +397,58 @@ export default function NewApplication() {
                     </FormItem>
                   )}
                 />
+              )}
+
+              {/* CEV / Schengen — Sélecteurs pays cible + tranche d'âge + info frais consulaires */}
+              {isSchengen && selectedVisaType && (
+                <div className="animate-in fade-in slide-in-from-top-4 space-y-4 bg-blue-50 border border-blue-200 rounded-xl p-5">
+                  <div>
+                    <h3 className="text-sm font-bold text-primary flex items-center gap-2 mb-1">
+                      🇪🇺 Informations Schengen / CEV
+                    </h3>
+                    <p className="text-xs text-muted-foreground">Ces informations permettent de calculer les frais consulaires CEV que vous paierez au guichet le jour du rendez-vous.</p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-primary">Pays de destination Schengen</label>
+                      <select
+                        value={cevTargetCountry}
+                        onChange={(e) => setCevTargetCountry(e.target.value)}
+                        className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                      >
+                        {CEV_COUNTRIES.map((c) => (
+                          <option key={c.code} value={c.code}>{c.label}</option>
+                        ))}
+                      </select>
+                      <p className="text-[10px] text-muted-foreground">Le CEV Kinshasa traite 17 pays Schengen depuis un guichet unique</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-primary">Tranche d'âge du demandeur</label>
+                      <select
+                        value={cevApplicantAgeCategory}
+                        onChange={(e) => setCevApplicantAgeCategory(e.target.value as typeof cevApplicantAgeCategory)}
+                        className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                      >
+                        <option value="adult">Adulte (12 ans et plus)</option>
+                        <option value="child_6_12">Enfant (6 à 12 ans) — 45 €</option>
+                        <option value="child_under_6">Enfant de moins de 6 ans — Gratuit</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between bg-white rounded-lg px-4 py-3 border border-blue-100">
+                    <div>
+                      <p className="text-xs font-semibold text-primary">Frais consulaires CEV estimés</p>
+                      <p className="text-[10px] text-muted-foreground">Payés en € par carte bancaire directement au guichet CEV (non inclus dans les frais Joventy)</p>
+                    </div>
+                    <span className="text-lg font-bold text-blue-700">{cevConsulaireFee}</span>
+                  </div>
+                  {cevVisaClass === "D" && (
+                    <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-800">
+                      <span className="font-bold">Visa D :</span>
+                      <span>En plus des 180 €, une redevance de l'Office des Étrangers belge doit être payée sur un compte en Belgique <strong>avant</strong> le RDV. Joventy peut vous assister dans cette démarche.</span>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 
@@ -672,6 +776,33 @@ export default function NewApplication() {
                   </div>
                 </div>
               )}
+
+              {/* Booking refs — Schengen slot_only */}
+              {showSlotRefsSchengen && (
+                <div className="mt-2 space-y-4 border border-blue-200 bg-blue-50/60 rounded-xl p-5 animate-in fade-in">
+                  <div>
+                    <h3 className="text-sm font-bold text-primary flex items-center gap-2 mb-0.5">
+                      <FileText className="w-4 h-4 text-secondary" /> Référence VOWINT (CEV Schengen)
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      Si vous avez déjà un dossier ouvert sur le portail VOWINT (vowint.eu), indiquez votre numéro de dossier.
+                      Notre équipe utilisera ces informations pour surveiller et capturer votre créneau CEV.
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-primary">
+                      N° de dossier VOWINT <span className="ml-1 text-xs font-normal text-muted-foreground">(optionnel)</span>
+                    </label>
+                    <Input
+                      placeholder="Ex : APP-2024-001234"
+                      className="h-10 text-sm"
+                      value={slotRefs.vowintAppId}
+                      onChange={(e) => updateRef("vowintAppId", e.target.value)}
+                    />
+                    <p className="text-[10px] text-muted-foreground">Numéro visible sur votre confirmation VOWINT. Si vous n'avez pas encore de dossier, Joventy vous guidera pour le créer.</p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* STEP 4 — Pricing + Confirmation */}
@@ -749,6 +880,24 @@ export default function NewApplication() {
                     </div>
                     {isSlotOnly && activeTier.variableNote && (
                       <p className="text-xs text-amber-300 bg-white/5 rounded-lg px-3 py-2">{activeTier.variableNote}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* CEV — frais consulaires séparés (informatif, Step 4) */}
+              {isSchengen && cevConsulaireFee && (
+                <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+                  <span className="text-xl mt-0.5">🇪🇺</span>
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-primary">Frais consulaires CEV non inclus</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      En plus des frais Joventy ci-dessus, vous paierez <strong className="text-blue-700">{cevConsulaireFee}</strong> directement au guichet CEV le jour de votre rendez-vous, par carte bancaire.
+                    </p>
+                    {cevVisaClass === "D" && (
+                      <p className="text-xs text-amber-700 mt-1 font-medium">
+                        Visa D : une redevance supplémentaire de l'Office des Étrangers est également requise avant le RDV (montant variable, payable sur un compte belge).
+                      </p>
                     )}
                   </div>
                 </div>

@@ -1,4 +1,5 @@
 import { chromium, BrowserContext, Page, Request, Response } from 'playwright';
+import type { HunterJob } from './convexClient';
 import { botLog, uploadScreenshot } from './convexClient';
 import { completeCevCaptcha, pollCevSlots, isCevSessionValid, CevSession } from './cevPortal';
 
@@ -530,4 +531,67 @@ export async function cevPollingLoop(
     botLog({ applicationId: config.clientId, step: 'cev_poll_loop_error', status: 'warn', data: { error: result.error } });
     await new Promise(r => setTimeout(r, 10_000));
   }
+}
+
+// ─── Adaptateur single-shot pour le main loop du bot ───────────────────────
+// Effectue un seul cycle VOWINT + hCaptcha pour le job Schengen donné.
+// La limite de 5 clics/heure est gérée côté main loop via un intervalle minimum de 15 min.
+const CEV_HCAPTCHA_SITEKEY = '5f64399c-14a8-415e-ad1a-7ebccdc4943a';
+
+export type SchengenSessionResult = 'slot_found' | 'not_found' | 'rate_limited' | 'error';
+
+export async function runCevCheck(job: HunterJob): Promise<SchengenSessionResult> {
+  const hc = job.hunterConfig;
+  const twoCaptchaApiKey = hc.twoCaptchaApiKey ?? process.env.TWOCAPTCHA_API_KEY ?? '';
+
+  if (!twoCaptchaApiKey) {
+    botLog({ applicationId: job.id, step: 'cev_check_no_captcha_key', status: 'warn', data: { note: '2captcha key absent — check ignoré' } });
+    return 'error';
+  }
+
+  // Vérifier la limite de clics: max 4 clics/heure par application
+  const now = Date.now();
+  const WINDOW_MS = 60 * 60 * 1000;
+  const windowStart = hc.cevClickWindowStart ?? 0;
+  const clickCount = (now - windowStart < WINDOW_MS) ? (hc.cevClickCount ?? 0) : 0;
+
+  if (clickCount >= 4) {
+    const waitRemaining = WINDOW_MS - (now - windowStart);
+    botLog({ applicationId: job.id, step: 'cev_rate_limit', status: 'warn', data: { clickCount, waitRemaining } });
+    return 'rate_limited';
+  }
+
+  botLog({ applicationId: job.id, step: 'cev_check_start', status: 'ok', data: { clickCount: clickCount + 1 } });
+
+  const vowintAppointmentUrl = hc.vowintAppId
+    ? `https://vowint.eu/appointment/${hc.vowintAppId}`
+    : 'https://vowint.eu/dashboard';
+
+  let result: BookingResult;
+  try {
+    result = await runCevBookingSession({
+      clientId: job.id,
+      vowintUsername: hc.embassyUsername,
+      vowintPassword: hc.embassyPassword,
+      vowintAppointmentUrl,
+      twoCaptchaApiKey,
+      hcaptchaSiteKey: CEV_HCAPTCHA_SITEKEY,
+    });
+  } catch (err) {
+    botLog({ applicationId: job.id, step: 'cev_check_exception', status: 'fail', data: { error: String(err) } });
+    return 'error';
+  }
+
+  if (result.success) {
+    botLog({ applicationId: job.id, step: 'cev_slot_captured', status: 'ok', data: { confirmationCode: result.confirmationCode, date: result.bookedDate, time: result.bookedTime } });
+    return 'slot_found';
+  }
+
+  if (result.error === 'NO_AVAILABILITY') {
+    botLog({ applicationId: job.id, step: 'cev_no_availability', status: 'ok' });
+    return 'not_found';
+  }
+
+  botLog({ applicationId: job.id, step: 'cev_check_error', status: 'warn', data: { error: result.error } });
+  return 'error';
 }

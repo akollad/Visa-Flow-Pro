@@ -3,6 +3,7 @@ dotenv.config();
 
 import { getActiveJobs, sendHeartbeat, getPendingBotTest, type HunterJob } from "./convexClient.js";
 import { runHunterSession, runBotTestSession, type SessionResult } from "./navigator.js";
+import { runCevCheck } from "./cevBooking.js";
 import { USA_ENC_SEC_KEY } from "./usaPortal.js";
 import { proxyPool } from "./browser.js";
 
@@ -515,7 +516,15 @@ async function main(): Promise<void> {
 
     let result: SessionResult;
     try {
-      result = await runHunterSession(due);
+      if (due.destination === "schengen") {
+        const cevResult = await runCevCheck(due);
+        // Mapper SchengenSessionResult → SessionResult
+        result = cevResult === "slot_found" ? "slot_found"
+               : cevResult === "error"      ? "error"
+               : "not_found"; // 'not_found' et 'rate_limited' → pas de créneau, on reschedule normalement
+      } else {
+        result = await runHunterSession(due);
+      }
     } catch (err) {
       result = "error";
       log("ERROR", `[${due.applicantName}] Erreur session non capturée: ${err}`);
