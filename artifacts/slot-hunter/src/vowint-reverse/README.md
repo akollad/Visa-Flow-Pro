@@ -85,6 +85,12 @@ Votre compte est bloqué pendant 60 minutes."
 - Le clic final n'est fait QU'UNE FOIS quand un créneau est confirmé disponible
 - Utiliser des AppId/comptes distincts par client pour éviter le blocage croisé
 
+### hCaptcha sitekey CEV — confirmée :
+```
+5f64399c-14a8-415e-ad1a-7ebccdc4943a
+```
+Page : `https://appointment.cloud.diplomatie.be/Captcha`
+
 ### Stack du système appointment.cloud.diplomatie.be :
 - **JSZip v3.10.1** (génération de documents ZIP/PDF de confirmation)
 - **loglevel** (logging)

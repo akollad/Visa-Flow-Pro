@@ -409,7 +409,7 @@ async function extractConfirmationCode(page: Page): Promise<string | null> {
  * Le siteKey est fixe pour appointment.cloud.diplomatie.be.
  */
 async function solveHcaptcha(apiKey: string, clientId: string): Promise<string | null> {
-  const HCAPTCHA_SITE_KEY = 'ce876cf6-0a3d-4a8b-b840-74e89bfded93'; // site key CEV
+  const HCAPTCHA_SITE_KEY = '5f64399c-14a8-415e-ad1a-7ebccdc4943a'; // site key CEV — confirmée 2026-04-03
   const PAGE_URL = `${CEV_BASE}/Captcha`;
 
   botLog({ applicationId: clientId, step: 'cev_hcaptcha_solve_start', status: 'ok' });
