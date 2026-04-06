@@ -12,15 +12,21 @@ import {
   Landmark, CreditCard, BadgeCheck,
 } from "lucide-react";
 
+const FLAG_SIZES = [20, 40, 80, 160, 320, 640];
+function snapFlagSize(n: number) {
+  return FLAG_SIZES.find((s) => s >= n) ?? 80;
+}
+
 function FlagImg({ code, size = 32, className = "" }: { code: string; size?: number; className?: string }) {
+  const snapped = snapFlagSize(size);
+  const snapped2x = snapFlagSize(size * 2);
   return (
     <img
-      src={`https://flagcdn.com/w${size}/${code.toLowerCase()}.png`}
-      srcSet={`https://flagcdn.com/w${size * 2}/${code.toLowerCase()}.png 2x`}
-      width={size}
+      src={`https://flagcdn.com/w${snapped}/${code.toLowerCase()}.png`}
+      srcSet={`https://flagcdn.com/w${snapped2x}/${code.toLowerCase()}.png 2x`}
+      width={snapped}
       alt={code}
       className={`rounded-sm object-cover flex-shrink-0 ${className}`}
-      style={{ aspectRatio: "4/3", height: "auto" }}
     />
   );
 }
@@ -646,7 +652,7 @@ export default function Landing() {
                 </blockquote>
                 <div className="flex items-center gap-3">
                   <div className="w-11 h-11 rounded-xl bg-white border border-border shadow-sm flex items-center justify-center overflow-hidden flex-shrink-0">
-                    <FlagImg code={t.code ?? destToFlagCode(t.dest)} size={44} className="w-full h-full object-cover rounded-none" />
+                    <FlagImg code={t.code ?? destToFlagCode(t.dest)} size={40} className="w-full h-full object-cover rounded-none" />
                   </div>
                   <div>
                     <p className="font-bold text-primary text-sm">{t.name}</p>
