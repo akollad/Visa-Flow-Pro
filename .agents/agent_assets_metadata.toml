@@ -6,3 +6,15 @@ id = "qYmr8jGByDuCtynJiypen"
 uri = "file://artifacts/joventy/public/images/hero-bg.png"
 type = "image"
 title = "generated_image"
+
+[[generated]]
+id = "iMBVXDQz44yKISoSXjb53"
+uri = "file://artifacts/mockup-sandbox/public/images/ad-usa-hero.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "6UG-pecsGilNxausWoxvN"
+uri = "file://artifacts/mockup-sandbox/public/images/ad-schengen-hero.png"
+type = "image"
+title = "generated_image"

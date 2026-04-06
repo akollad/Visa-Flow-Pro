@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Joventy — Visa Schengen</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 100vw; height: 100vh; overflow: hidden; font-family: 'Inter', sans-serif; background: #0f1b3d; }
+
+  .ad {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: #0f1b3d;
+  }
+
+  .hero-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top;
+  }
+
+  .overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to bottom,
+      rgba(10, 20, 60, 0.60) 0%,
+      rgba(10, 20, 60, 0.08) 35%,
+      rgba(10, 20, 60, 0.08) 48%,
+      rgba(10, 20, 60, 0.80) 72%,
+      rgba(10, 20, 60, 0.97) 100%
+    );
+  }
+
+  .top-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3.5vw 4vw;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 1.8vw;
+  }
+  .logo-icon {
+    width: 9vw;
+    height: 9vw;
+    background: #f97316;
+    border-radius: 2vw;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 5vw;
+    font-weight: 900;
+    color: white;
+    letter-spacing: -0.05em;
+  }
+  .logo-text {
+    font-size: 5.5vw;
+    font-weight: 800;
+    color: white;
+    letter-spacing: -0.02em;
+  }
+
+  .flag-badge {
+    display: flex;
+    align-items: center;
+    gap: 1.5vw;
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 50vw;
+    padding: 1.5vw 3vw;
+  }
+  .flag-badge img {
+    width: 7vw;
+    border-radius: 0.5vw;
+  }
+  .flag-badge span {
+    font-size: 3.8vw;
+    font-weight: 700;
+    color: white;
+  }
+
+  .label-pill {
+    position: absolute;
+    top: 17vw;
+    left: 4vw;
+    background: #f97316;
+    color: white;
+    font-size: 3vw;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    padding: 1.2vw 3vw;
+    border-radius: 50vw;
+  }
+
+  /* New badge style — "Nouveau" */
+  .new-badge {
+    position: absolute;
+    top: 17vw;
+    right: 4vw;
+    background: #1d4ed8;
+    color: white;
+    font-size: 3vw;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 1.2vw 3vw;
+    border-radius: 50vw;
+    border: 1.5px solid rgba(255,255,255,0.3);
+  }
+
+  .content {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 0 5vw 5vw;
+  }
+
+  .headline {
+    font-size: 10.5vw;
+    font-weight: 900;
+    line-height: 1.05;
+    color: white;
+    text-shadow: 0 2px 12px rgba(0,0,0,0.4);
+    margin-bottom: 2.5vw;
+  }
+  .headline .accent {
+    color: #f97316;
+  }
+
+  .sub {
+    font-size: 4vw;
+    color: rgba(255,255,255,0.85);
+    font-weight: 500;
+    margin-bottom: 4vw;
+    line-height: 1.4;
+  }
+
+  .bullets {
+    display: flex;
+    flex-direction: column;
+    gap: 1.8vw;
+    margin-bottom: 5vw;
+  }
+  .bullet {
+    display: flex;
+    align-items: center;
+    gap: 2.5vw;
+    font-size: 3.6vw;
+    color: white;
+    font-weight: 600;
+  }
+  .bullet-dot {
+    width: 5vw;
+    height: 5vw;
+    background: #f97316;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .bullet-dot svg {
+    width: 2.8vw;
+    height: 2.8vw;
+  }
+
+  .cta-row {
+    display: flex;
+    align-items: center;
+    gap: 4vw;
+  }
+
+  .cta-btn {
+    display: flex;
+    align-items: center;
+    gap: 2vw;
+    background: #f97316;
+    color: white;
+    font-size: 4.2vw;
+    font-weight: 800;
+    padding: 3vw 5.5vw;
+    border-radius: 50vw;
+    text-decoration: none;
+    letter-spacing: 0.01em;
+    box-shadow: 0 4px 20px rgba(249,115,22,0.5);
+    white-space: nowrap;
+  }
+  .cta-arrow {
+    width: 4.5vw;
+    height: 4.5vw;
+    background: rgba(255,255,255,0.25);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .cta-arrow svg {
+    width: 2.5vw;
+    height: 2.5vw;
+  }
+
+  .contact-block {
+    display: flex;
+    flex-direction: column;
+    gap: 1vw;
+  }
+  .contact-line {
+    font-size: 3.2vw;
+    color: rgba(255,255,255,0.75);
+    font-weight: 500;
+  }
+  .contact-url {
+    font-size: 3.5vw;
+    color: white;
+    font-weight: 700;
+  }
+
+  /* EU stars decorative element */
+  .eu-stars {
+    position: absolute;
+    bottom: 62vw;
+    right: 4vw;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 1.5vw;
+    opacity: 0.55;
+  }
+  .star {
+    width: 2.8vw;
+    height: 2.8vw;
+    color: #fbbf24;
+    font-size: 2.8vw;
+    line-height: 1;
+  }
+</style>
+</head>
+<body>
+<div class="ad">
+  <img class="hero-img" src="/__mockup/images/ad-schengen-hero.png" alt="Voyageuse devant la Tour Eiffel" />
+  <div class="overlay"></div>
+
+  <!-- Top bar -->
+  <div class="top-bar">
+    <div class="logo">
+      <div class="logo-icon">J</div>
+      <span class="logo-text">Joventy</span>
+    </div>
+    <div class="flag-badge">
+      <img src="https://flagcdn.com/w40/eu.png" alt="Europe" />
+      <span>Visa Schengen</span>
+    </div>
+  </div>
+
+  <div class="label-pill">✦ Nouveau service</div>
+  <div class="new-badge">CEV · Belgique · France</div>
+
+  <!-- Main content -->
+  <div class="content">
+    <h1 class="headline">L'Europe vous attend.<br/><span class="accent">Votre visa,</span><br/>aussi.</h1>
+    <p class="sub">Un dossier Schengen soigné et un rendez-vous au consulat, depuis Kinshasa.</p>
+
+    <div class="bullets">
+      <div class="bullet">
+        <div class="bullet-dot">
+          <svg viewBox="0 0 16 16" fill="white"><path d="M13.5 3.5L6 11 2.5 7.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+        </div>
+        Dossier complet préparé par nos experts
+      </div>
+      <div class="bullet">
+        <div class="bullet-dot">
+          <svg viewBox="0 0 16 16" fill="white"><path d="M13.5 3.5L6 11 2.5 7.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+        </div>
+        Rendez-vous consulaire dès disponibilité
+      </div>
+      <div class="bullet">
+        <div class="bullet-dot">
+          <svg viewBox="0 0 16 16" fill="white"><path d="M13.5 3.5L6 11 2.5 7.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+        </div>
+        Vous payez uniquement si ça marche
+      </div>
+    </div>
+
+    <div class="cta-row">
+      <a class="cta-btn" href="#">
+        Démarrer mon dossier
+        <div class="cta-arrow">
+          <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+      </a>
+      <div class="contact-block">
+        <span class="contact-line">📱 WhatsApp disponible</span>
+        <span class="contact-url">www.joventy.cd</span>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
