@@ -160,13 +160,13 @@ const PACKAGES = [
 ];
 
 function destToFlagCode(dest: string): string {
-  const d = dest.toLowerCase();
-  if (d.includes("états-unis") || d.includes("usa") || d.includes("us ") || d.includes("b1") || d.includes("b2") || d.includes("f1") || d.includes("h1")) return "us";
-  if (d.includes("dubaï") || d.includes("dubai") || d.includes("eau") || d.includes("émirats")) return "ae";
-  if (d.includes("turquie") || d.includes("turkey") || d.includes("vfs")) return "tr";
-  if (d.includes("inde") || d.includes("india")) return "in";
-  if (d.includes("schengen") || d.includes("europe") || d.includes("cev")) return "eu";
-  return "un";
+  const d = dest.toLowerCase().replace(/[\u{1F1E0}-\u{1F1FF}]/gu, "").trim();
+  if (d.includes("états-unis") || d.includes("etats-unis") || d.includes("usa") || d.includes(" us") || d.includes("b1/") || d.includes("b2") || d.includes("f1 ") || d.includes("h1b")) return "us";
+  if (d.includes("dubaï") || d.includes("dubai") || d.includes("eau") || d.includes("émirats") || d.includes("emirats") || d.includes("are")) return "ae";
+  if (d.includes("turquie") || d.includes("turkey") || d.includes("tur")) return "tr";
+  if (d.includes("inde") || d.includes("india") || d.includes("ind")) return "in";
+  if (d.includes("schengen") || d.includes("europe") || d.includes("cev") || d.includes("belgi") || d.includes("france") || d.includes("allemagne")) return "eu";
+  return "cd";
 }
 
 const TESTIMONIALS = [
