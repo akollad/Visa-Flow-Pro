@@ -19,6 +19,7 @@ export interface CevBookingConfig {
   vowintPassword: string;
   vowintAppointmentUrl: string; // URL complète du bouton "Prendre rendez-vous" sur VOWINT
   twoCaptchaApiKey: string;
+  capsolverApiKey?: string;    // CapSolver API key (préféré pour hCaptcha)
   hcaptchaSiteKey?: string;    // sitekey hCaptcha sur appointment.cloud.diplomatie.be
 }
 
@@ -125,7 +126,7 @@ export async function runCevBookingSession(
     }
 
     // === ÉTAPE 2 : Résoudre hCaptcha ===
-    const hcaptchaToken = await solveHcaptcha(config.twoCaptchaApiKey, config.clientId);
+    const hcaptchaToken = await solveHcaptcha(config.twoCaptchaApiKey, config.clientId, config.capsolverApiKey);
     if (!hcaptchaToken) {
       await browser.close();
       return { success: false, error: 'HCAPTCHA_FAILED', capturedCalls };
@@ -460,62 +461,197 @@ async function extractConfirmationCode(page: Page): Promise<string | null> {
 }
 
 /**
- * Résout un hCaptcha via l'API 2captcha.
- * Le siteKey est fixe pour appointment.cloud.diplomatie.be.
+ * Résout un hCaptcha pour appointment.cloud.diplomatie.be.
+ *
+ * Stratégie (par ordre de priorité) :
+ *  1. CapSolver (HCaptchaTaskProxyLess) — supporté nativement, pas de proxy requis
+ *  2. 2captcha HCaptchaTaskProxyless — fallback si CapSolver absent
+ *  3. 2captcha HCaptchaTask avec proxy — fallback si proxyless non disponible
+ *
+ * Note : le compte 2captcha actuel (mai 2026) ne supporte PAS hCaptcha.
+ * Configurer CAPSOLVER_API_KEY pour activer la résolution.
  */
-async function solveHcaptcha(apiKey: string, clientId: string): Promise<string | null> {
-  const HCAPTCHA_SITE_KEY = '5f64399c-14a8-415e-ad1a-7ebccdc4943a'; // site key CEV — confirmée 2026-04-03
+async function solveHcaptcha(
+  twoCaptchaApiKey: string,
+  clientId: string,
+  capsolverApiKey?: string,
+): Promise<string | null> {
+  const HCAPTCHA_SITE_KEY = '5f64399c-14a8-415e-ad1a-7ebccdc4943a'; // site key CEV — confirmée 2026-04
   const PAGE_URL = `${CEV_BASE}/Captcha`;
 
   botLog({ applicationId: clientId, step: 'cev_hcaptcha_solve_start', status: 'ok' });
 
+  // ─── Tentative 1 : CapSolver ─────────────────────────────────────────────
+  const capKey = capsolverApiKey ?? process.env.CAPSOLVER_API_KEY ?? '';
+  if (capKey) {
+    botLog({ applicationId: clientId, step: 'cev_hcaptcha_capsolver_start', status: 'ok' });
+    const token = await solveHcaptchaViaCapsolver(capKey, HCAPTCHA_SITE_KEY, PAGE_URL, clientId);
+    if (token) return token;
+    botLog({ applicationId: clientId, step: 'cev_hcaptcha_capsolver_fail_fallback', status: 'warn' });
+  }
+
+  // ─── Tentative 2 : 2captcha HCaptchaTaskProxyless ────────────────────────
+  if (twoCaptchaApiKey) {
+    botLog({ applicationId: clientId, step: 'cev_hcaptcha_2captcha_start', status: 'ok' });
+    const token = await solveHcaptchaVia2captcha(twoCaptchaApiKey, HCAPTCHA_SITE_KEY, PAGE_URL, clientId);
+    if (token) return token;
+  }
+
+  botLog({ applicationId: clientId, step: 'cev_hcaptcha_all_failed', status: 'fail', data: { hint: 'Set CAPSOLVER_API_KEY — 2captcha HCaptcha not available on this account' } });
+  return null;
+}
+
+/**
+ * Résolution hCaptcha via CapSolver (https://capsolver.com).
+ * Supporte hCaptcha proxyless nativement. ~30-60s pour une résolution.
+ */
+async function solveHcaptchaViaCapsolver(
+  apiKey: string,
+  siteKey: string,
+  pageUrl: string,
+  clientId: string,
+): Promise<string | null> {
   try {
-    // Soumettre le captcha à 2captcha
-    const submitRes = await fetch('http://2captcha.com/in.php', {
+    const createRes = await fetch('https://api.capsolver.com/createTask', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        key: apiKey,
-        method: 'hcaptcha',
-        sitekey: HCAPTCHA_SITE_KEY,
-        pageurl: PAGE_URL,
-        json: '1',
-      }).toString(),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientKey: apiKey,
+        task: {
+          type: 'HCaptchaTaskProxyLess',
+          websiteURL: pageUrl,
+          websiteKey: siteKey,
+        },
+      }),
     });
 
-    const submitData = await submitRes.json() as { status: number; request: string };
-    if (submitData.status !== 1) {
-      botLog({ applicationId: clientId, step: 'cev_hcaptcha_submit_fail', status: 'fail', data: { response: String(submitData.request) } });
+    const createData = await createRes.json() as { errorId: number; errorCode?: string; taskId?: number };
+    if (createData.errorId !== 0 || !createData.taskId) {
+      botLog({ applicationId: clientId, step: 'cev_capsolver_create_fail', status: 'fail', data: { error: createData.errorCode ?? createData.errorId } });
       return null;
     }
 
-    const captchaId = submitData.request;
+    const taskId = createData.taskId;
+    botLog({ applicationId: clientId, step: 'cev_capsolver_task_created', status: 'ok', data: { taskId } });
 
-    // Poller jusqu'à résolution (max 120s)
+    // Poller jusqu'à résolution (max 120s, intervalle 5s)
     for (let i = 0; i < 24; i++) {
       await new Promise(r => setTimeout(r, 5_000));
 
-      const pollRes = await fetch(
-        `http://2captcha.com/res.php?key=${apiKey}&action=get&id=${captchaId}&json=1`
-      );
-      const pollData = await pollRes.json() as { status: number; request: string };
+      const pollRes = await fetch('https://api.capsolver.com/getTaskResult', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientKey: apiKey, taskId }),
+      });
 
-      if (pollData.status === 1) {
-        botLog({ applicationId: clientId, step: 'cev_hcaptcha_solved', status: 'ok', data: { attempts: i + 1 } });
-        return pollData.request;
+      const pollData = await pollRes.json() as {
+        errorId: number;
+        status: 'idle' | 'processing' | 'ready' | 'failed';
+        solution?: { gRecaptchaResponse?: string; userAgent?: string };
+        errorCode?: string;
+      };
+
+      if (pollData.errorId !== 0 || pollData.status === 'failed') {
+        botLog({ applicationId: clientId, step: 'cev_capsolver_poll_fail', status: 'fail', data: { error: pollData.errorCode ?? pollData.status } });
+        return null;
       }
 
-      if (pollData.request !== 'CAPCHA_NOT_READY') {
-        botLog({ applicationId: clientId, step: 'cev_hcaptcha_poll_error', status: 'fail', data: { response: pollData.request } });
-        return null;
+      if (pollData.status === 'ready' && pollData.solution?.gRecaptchaResponse) {
+        botLog({ applicationId: clientId, step: 'cev_capsolver_solved', status: 'ok', data: { attempts: i + 1, tokenLen: pollData.solution.gRecaptchaResponse.length } });
+        return pollData.solution.gRecaptchaResponse;
       }
     }
 
-    botLog({ applicationId: clientId, step: 'cev_hcaptcha_timeout', status: 'fail' });
+    botLog({ applicationId: clientId, step: 'cev_capsolver_timeout', status: 'fail' });
     return null;
 
   } catch (err) {
-    botLog({ applicationId: clientId, step: 'cev_hcaptcha_exception', status: 'fail', data: { error: String(err) } });
+    botLog({ applicationId: clientId, step: 'cev_capsolver_exception', status: 'fail', data: { error: String(err) } });
+    return null;
+  }
+}
+
+/**
+ * Résolution hCaptcha via 2captcha (fallback).
+ * Note : HCaptchaTaskProxyless peut ne pas être disponible sur tous les comptes.
+ */
+async function solveHcaptchaVia2captcha(
+  apiKey: string,
+  siteKey: string,
+  pageUrl: string,
+  clientId: string,
+): Promise<string | null> {
+  try {
+    // Essai 1 : nouvelle API JSON (v2)
+    const createRes = await fetch('https://api.2captcha.com/createTask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientKey: apiKey,
+        task: {
+          type: 'HCaptchaTaskProxyless',
+          websiteURL: pageUrl,
+          websiteKey: siteKey,
+        },
+      }),
+    });
+    const createData = await createRes.json() as { errorId: number; errorCode?: string; taskId?: number };
+
+    if (createData.errorId !== 0 || !createData.taskId) {
+      // Essai 2 : ancienne API form-encoded
+      const submitRes = await fetch('http://2captcha.com/in.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ key: apiKey, method: 'hcaptcha', sitekey: siteKey, pageurl: pageUrl, json: '1' }).toString(),
+      });
+      const submitData = await submitRes.json() as { status: number; request: string };
+      if (submitData.status !== 1) {
+        botLog({ applicationId: clientId, step: 'cev_2captcha_submit_fail', status: 'fail', data: { response: submitData.request } });
+        return null;
+      }
+      // Poller via ancienne API
+      const captchaId = submitData.request;
+      for (let i = 0; i < 24; i++) {
+        await new Promise(r => setTimeout(r, 5_000));
+        const pollRes = await fetch(`http://2captcha.com/res.php?key=${apiKey}&action=get&id=${captchaId}&json=1`);
+        const pollData = await pollRes.json() as { status: number; request: string };
+        if (pollData.status === 1) {
+          botLog({ applicationId: clientId, step: 'cev_2captcha_solved_v1', status: 'ok', data: { attempts: i + 1 } });
+          return pollData.request;
+        }
+        if (pollData.request !== 'CAPCHA_NOT_READY') {
+          botLog({ applicationId: clientId, step: 'cev_2captcha_poll_fail', status: 'fail', data: { response: pollData.request } });
+          return null;
+        }
+      }
+      return null;
+    }
+
+    const taskId = createData.taskId;
+    // Poller via nouvelle API
+    for (let i = 0; i < 24; i++) {
+      await new Promise(r => setTimeout(r, 5_000));
+      const pollRes = await fetch('https://api.2captcha.com/getTaskResult', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientKey: apiKey, taskId }),
+      });
+      const pollData = await pollRes.json() as { errorId: number; status: string; solution?: { gRecaptchaResponse?: string } };
+      if (pollData.errorId !== 0) {
+        botLog({ applicationId: clientId, step: 'cev_2captcha_poll_fail_v2', status: 'fail', data: { errorId: pollData.errorId } });
+        return null;
+      }
+      if (pollData.status === 'ready' && pollData.solution?.gRecaptchaResponse) {
+        botLog({ applicationId: clientId, step: 'cev_2captcha_solved_v2', status: 'ok', data: { attempts: i + 1 } });
+        return pollData.solution.gRecaptchaResponse;
+      }
+    }
+
+    botLog({ applicationId: clientId, step: 'cev_2captcha_timeout', status: 'fail' });
+    return null;
+
+  } catch (err) {
+    botLog({ applicationId: clientId, step: 'cev_2captcha_exception', status: 'fail', data: { error: String(err) } });
     return null;
   }
 }
@@ -623,6 +759,8 @@ export async function runCevCheck(job: HunterJob): Promise<SchengenSessionResult
     ? hc.vowintAppId
     : 'https://visaonweb.diplomatie.be';
 
+  const capsolverApiKey = hc.capsolverApiKey ?? process.env.CAPSOLVER_API_KEY ?? '';
+
   let result: BookingResult;
   try {
     result = await runCevBookingSession({
@@ -631,6 +769,7 @@ export async function runCevCheck(job: HunterJob): Promise<SchengenSessionResult
       vowintPassword: hc.embassyPassword,
       vowintAppointmentUrl,
       twoCaptchaApiKey,
+      capsolverApiKey: capsolverApiKey || undefined,
       hcaptchaSiteKey: CEV_HCAPTCHA_SITEKEY,
     });
   } catch (err) {

@@ -42,6 +42,7 @@ const hunterConfig = v.object({
   embassyPassword: v.string(),
   isActive: v.boolean(),
   twoCaptchaApiKey: v.optional(v.string()),
+  capsolverApiKey: v.optional(v.string()),    // CapSolver API key (préféré pour hCaptcha CEV)
   scheduleUrl: v.optional(v.string()),
   // ID du dossier spécifique sur le portail (ex: "APP-2024-001234")
   // Obligatoire quand un compte portail gère plusieurs personnes.

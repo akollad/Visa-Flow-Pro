@@ -147,20 +147,36 @@ visaonweb.diplomatie.be  →  appointment.cloud.diplomatie.be
 7. POST `appointment.cloud.diplomatie.be/Captcha/SetCaptchaToken` avec token 2captcha
 8. Réponse : `{ validUntil, redirectUrl }` → redirectUrl = page des créneaux
 
+**CEV API endpoints (reverse-engineered depuis le JS bundle 394KB) :**
+- `POST /Captcha/SetCaptchaToken` — body: `captcha=<token>` (form-encoded, pas de CSRF requis)
+  - Réponse: `{ captchaSolved: bool, validUntil: string|null, redirectUrl: string|null, defaultTimeout: 15 }`
+  - `captchaSolved: false` si token invalide ; `true` + redirectUrl si OK
+  - `redirectUrl` contient "NoAvailability" si aucun créneau, sinon page de réservation
+- `POST /Home/AvailableTimeSlots` — body: JSON `{}` — endpoint de polling des créneaux
+- `POST /Shared/DoCancelRequestAppointment` — body: `{ uniqueToken, cultureCode }` — annuler RDV
+- `ajaxUrl` = `https://appointment.cloud.diplomatie.be/` (base de tous les appels AJAX)
+
+**hCaptcha — statut résolution :**
+- Sitekey : `5f64399c-14a8-415e-ad1a-7ebccdc4943a`
+- **2captcha** : `HCaptchaTaskProxyless` NON disponible sur ce compte (plan actuel = reCAPTCHA v2 seulement)
+- **CapSolver** (`capsolver.com`) : supporté nativement, `HCaptchaTaskProxyLess`, ~30-60s
+- Code : `solveHcaptchaViaCapsolver()` dans `cevBooking.ts` — activer avec `CAPSOLVER_API_KEY`
+
 **Données test :**
 - Compte VOWINT : `screentapinc@gmail.com` (VOWINT secret Replit)
 - Application : VOWINT5903406 — NGOBI ESTHER (ID Convex : `e978b2fd-472f-f111-a3ae-00505691de06`)
 - Integration URL CEV : `https://appointment.cloud.diplomatie.be/Integration/VOW/df171b6f-871b-48d2-b6ac-7352d37cd13b/{appGuid}/59eba882-4cc3-4ede-ba31-935d81f9393c/adbc8e5f-ecaf-435b-849e-f533a09c7dcb/en-US`
 
 **Fichiers clés :**
-- `artifacts/slot-hunter/src/cevBooking.ts` — `establishCevSession()` + `runCevCheck()` + `runCevBookingSession()`
+- `artifacts/slot-hunter/src/cevBooking.ts` — `establishCevSession()` + `runCevCheck()` + `runCevBookingSession()` + `solveHcaptchaViaCapsolver()`
 - `artifacts/slot-hunter/src/cevPortal.ts` — `completeCevCaptcha()` + `pollCevSlots()`
 - `convex/hunter.ts` — `recordCevClick` (rate limit 4 clics/h), `recordHeartbeat`, `markSlotFoundByHunter`
 - `convex/http.ts` — `/hunter/cev-click`, `/hunter/heartbeat`, `/hunter/slot-found`, `/hunter/log`
 
 **Envvars requises pour le bot :**
 - `VOWINT_TEST_PASSWORD` — mot de passe compte screentapinc@gmail.com
-- `TWOCAPTCHA_API_KEY` — clé API 2captcha (résolution hCaptcha)
+- `TWOCAPTCHA_API_KEY` — clé API 2captcha (reCAPTCHA v2 uniquement sur ce compte)
+- `CAPSOLVER_API_KEY` — **À AJOUTER** — clé CapSolver pour résoudre hCaptcha CEV
 - `CONVEX_SITE_URL` — URL site actions Convex (e.g. `https://famous-albatross-420.convex.site`)
 - `HUNTER_API_KEY` — clé secrète pour l'endpoint `/hunter/*`
 

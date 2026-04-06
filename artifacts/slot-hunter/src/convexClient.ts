@@ -37,6 +37,7 @@ export interface HunterJob {
     embassyPassword: string;
     isActive: boolean;
     twoCaptchaApiKey?: string;
+    capsolverApiKey?: string;   // CapSolver API key (pour hCaptcha CEV)
     scheduleUrl?: string;
     portalApplicationId?: string;
     slotDateFrom?: string;
