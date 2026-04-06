@@ -12,9 +12,22 @@ import {
   Landmark, CreditCard, BadgeCheck,
 } from "lucide-react";
 
+function FlagImg({ code, size = 32, className = "" }: { code: string; size?: number; className?: string }) {
+  return (
+    <img
+      src={`https://flagcdn.com/w${size}/${code.toLowerCase()}.png`}
+      srcSet={`https://flagcdn.com/w${size * 2}/${code.toLowerCase()}.png 2x`}
+      width={size}
+      alt={code}
+      className={`rounded-sm object-cover flex-shrink-0 ${className}`}
+      style={{ aspectRatio: "4/3", height: "auto" }}
+    />
+  );
+}
+
 const DESTINATIONS = [
   {
-    flag: "🇺🇸",
+    code: "us",
     name: "États-Unis",
     visaTypes: ["B1/B2 Tourisme", "F1 Étudiant", "K1 Fiancé(e)", "H1B Travail"],
     engagement: 150,
@@ -24,7 +37,7 @@ const DESTINATIONS = [
     badge: null,
   },
   {
-    flag: "🇪🇺",
+    code: "eu",
     name: "Europe Schengen",
     visaTypes: ["Visa C Tourisme / Affaires", "Visa C Études (gratuit*)", "Visa D Long Séjour"],
     engagement: 100,
@@ -34,7 +47,7 @@ const DESTINATIONS = [
     badge: "Nouveau",
   },
   {
-    flag: "🇦🇪",
+    code: "ae",
     name: "Dubaï (EAU)",
     visaTypes: ["Touriste 30j", "Touriste 60j", "Affaires", "Résidence"],
     engagement: 50,
@@ -44,7 +57,7 @@ const DESTINATIONS = [
     badge: null,
   },
   {
-    flag: "🇹🇷",
+    code: "tr",
     name: "Turquie",
     visaTypes: ["E-Visa en ligne", "Visa Sticker VFS", "Transit"],
     engagement: 50,
@@ -54,7 +67,7 @@ const DESTINATIONS = [
     badge: null,
   },
   {
-    flag: "🇮🇳",
+    code: "in",
     name: "Inde",
     visaTypes: ["E-Visa Tourisme", "Médical", "Affaires", "Études"],
     engagement: 50,
@@ -140,25 +153,38 @@ const PACKAGES = [
   },
 ];
 
+function destToFlagCode(dest: string): string {
+  const d = dest.toLowerCase();
+  if (d.includes("états-unis") || d.includes("usa") || d.includes("us ") || d.includes("b1") || d.includes("b2") || d.includes("f1") || d.includes("h1")) return "us";
+  if (d.includes("dubaï") || d.includes("dubai") || d.includes("eau") || d.includes("émirats")) return "ae";
+  if (d.includes("turquie") || d.includes("turkey") || d.includes("vfs")) return "tr";
+  if (d.includes("inde") || d.includes("india")) return "in";
+  if (d.includes("schengen") || d.includes("europe") || d.includes("cev")) return "eu";
+  return "un";
+}
+
 const TESTIMONIALS = [
   {
     name: "Christophe M.",
     city: "Kinshasa",
-    dest: "🇺🇸 Visa B2",
+    dest: "Visa B2 États-Unis",
+    code: "us",
     text: "J'avais essayé d'avoir un créneau à l'ambassade américaine pendant 4 mois sans succès. Joventy a trouvé une date en moins de 3 semaines. Incroyable.",
     stars: 5,
   },
   {
     name: "Nathalie K.",
     city: "Lubumbashi",
-    dest: "🇦🇪 E-Visa Dubaï",
+    dest: "E-Visa Dubaï",
+    code: "ae",
     text: "Processus ultra simple. J'ai uploadé mes documents le lundi, mon e-Visa était prêt le mercredi. Paiement M-Pesa sans complication.",
     stars: 5,
   },
   {
     name: "Patrick B.",
     city: "Goma",
-    dest: "🇹🇷 Visa Sticker VFS",
+    dest: "Visa Sticker VFS Turquie",
+    code: "tr",
     text: "Le suivi en temps réel dans l'application est rassurant. Mon conseiller répondait dans la journée. Je recommande vivement.",
     stars: 5,
   },
@@ -195,6 +221,7 @@ export default function Landing() {
         name: r.displayName,
         city: r.city,
         dest: r.destination,
+        code: destToFlagCode(r.destination),
         text: r.comment,
         stars: r.rating,
       }))
@@ -518,7 +545,7 @@ export default function Landing() {
                     </span>
                   )}
                   <div className="flex items-center gap-3 mb-3">
-                    <span className="text-4xl leading-none">{dest.flag}</span>
+                    <FlagImg code={dest.code} size={40} className="shadow-sm" />
                     <h3 className="text-xl font-bold text-primary leading-tight">{dest.name}</h3>
                   </div>
                   <div className="flex flex-wrap gap-1.5 mt-2">
@@ -618,12 +645,12 @@ export default function Landing() {
                   "{t.text}"
                 </blockquote>
                 <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-xl bg-white border border-border shadow-sm flex items-center justify-center text-2xl flex-shrink-0">
-                    {t.dest.split(" ")[0]}
+                  <div className="w-11 h-11 rounded-xl bg-white border border-border shadow-sm flex items-center justify-center overflow-hidden flex-shrink-0">
+                    <FlagImg code={t.code ?? destToFlagCode(t.dest)} size={44} className="w-full h-full object-cover rounded-none" />
                   </div>
                   <div>
                     <p className="font-bold text-primary text-sm">{t.name}</p>
-                    <p className="text-xs text-muted-foreground">{t.city} · {t.dest.split(" ").slice(1).join(" ")}</p>
+                    <p className="text-xs text-muted-foreground">{t.city} · {t.dest}</p>
                   </div>
                 </div>
               </div>
@@ -795,8 +822,19 @@ export default function Landing() {
             <div>
               <h4 className="font-bold text-sm uppercase tracking-wider text-white/65 mb-4">Destinations</h4>
               <ul className="space-y-2 text-sm text-white/50">
-                {["🇺🇸 Visa États-Unis", "🇪🇺 Visa Schengen", "🇦🇪 E-Visa Dubaï", "🇹🇷 Visa Turquie", "🇮🇳 E-Visa Inde"].map((d) => (
-                  <li key={d}><Link href="/register" className="hover:text-white transition-colors">{d}</Link></li>
+                {([
+                  { code: "us", label: "Visa États-Unis" },
+                  { code: "eu", label: "Visa Schengen" },
+                  { code: "ae", label: "E-Visa Dubaï" },
+                  { code: "tr", label: "Visa Turquie" },
+                  { code: "in", label: "E-Visa Inde" },
+                ] as { code: string; label: string }[]).map((d) => (
+                  <li key={d.code}>
+                    <Link href="/register" className="hover:text-white transition-colors flex items-center gap-2">
+                      <FlagImg code={d.code} size={20} className="opacity-90" />
+                      {d.label}
+                    </Link>
+                  </li>
                 ))}
               </ul>
             </div>
