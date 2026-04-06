@@ -411,6 +411,105 @@ export async function runBotTestSession(test: BotTest): Promise<void> {
     return;
   }
 
+  // ─── Schengen : intercepté ICI avant le fallback Playwright ──────────────
+  if (test.destination === "schengen") {
+
+    // Cas 1 : test complet VOWINT + CEV captcha (credentials + 2captcha)
+    if (test.testUsername && test.testPassword && test.twoCaptchaApiKey) {
+      console.log(`[navigator] Test Schengen → VOWINT login + CEV captcha (runCevCheck)`);
+      const fakeJob: HunterJob = {
+        id: `bot-test-${test._id}`,
+        destination: "schengen",
+        visaType: "test",
+        applicantName: `[TEST] schengen`,
+        travelDate: "",
+        urgencyTier: "standard",
+        slotBookingRefs: null,
+        hunterConfig: {
+          embassyUsername: test.testUsername,
+          embassyPassword: test.testPassword,
+          twoCaptchaApiKey: test.twoCaptchaApiKey,
+          isActive: true,
+        },
+        portalUrl: test.portalUrl,
+        portalName: test.portalName,
+        portalDashboardUrl: null,
+        portalAppointmentUrl: null,
+        portalScheduleUrl: null,
+        lastCheckAt: null,
+      };
+      try {
+        const cevResult = await runCevCheck(fakeJob);
+        const latencyMs = Date.now() - startMs;
+        console.log(`[navigator] Test Schengen (complet) — ${cevResult} (${latencyMs}ms)`);
+        let result: "login_success" | "portal_ok" | "login_failed" | "error";
+        let errorMessage: string | undefined;
+        if (cevResult === "slot_found" || cevResult === "not_found" || cevResult === "rate_limited") {
+          result = "login_success";
+          if (cevResult === "slot_found") errorMessage = "Note : créneaux disponibles détectés lors du test";
+          if (cevResult === "rate_limited") errorMessage = "VOWINT OK — limite CEV atteinte (4 clics/h), créneaux non vérifiés";
+        } else {
+          result = "login_failed";
+          errorMessage = "Échec VOWINT ou CEV (vérifiez les identifiants VOWINT et la clé 2captcha)";
+        }
+        await reportBotTestResult({ testId: test._id, result, latencyMs, httpStatus: 200, errorMessage });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[navigator] Erreur test Schengen (complet):`, msg);
+        await reportBotTestResult({
+          testId: test._id, result: "error",
+          latencyMs: Date.now() - startMs,
+          errorMessage: msg.slice(0, 600),
+        });
+      }
+      return;
+    }
+
+    // Cas 2 : ping HTTP fetch (pas de 2captcha ou pas de credentials) — pas de Playwright
+    console.log(`[navigator] Test Schengen → ping HTTP fetch (VOWINT + CEV)`);
+    const SCHENGEN_URLS = [
+      "https://app.vowint.eu/fowint/",
+      "https://appointment.cloud.diplomatie.be/Captcha",
+    ];
+    try {
+      let allOk = true;
+      let firstBadStatus: number | null = null;
+      let firstBadUrl = "";
+      for (const url of SCHENGEN_URLS) {
+        try {
+          const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+          if (res.status >= 500) {
+            allOk = false;
+            firstBadStatus = res.status;
+            firstBadUrl = url;
+            break;
+          }
+        } catch {
+          allOk = false;
+          firstBadUrl = url;
+          break;
+        }
+      }
+      const latencyMs = Date.now() - startMs;
+      if (allOk) {
+        console.log(`[navigator] Ping Schengen OK (${latencyMs}ms)`);
+        await reportBotTestResult({ testId: test._id, result: "portal_ok", latencyMs, httpStatus: 200 });
+      } else {
+        const msg = `Portail inaccessible : ${firstBadUrl}${firstBadStatus ? ` (HTTP ${firstBadStatus})` : ""}`;
+        console.warn(`[navigator] Ping Schengen FAIL — ${msg}`);
+        await reportBotTestResult({ testId: test._id, result: "portal_unreachable", latencyMs, errorMessage: msg });
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await reportBotTestResult({
+        testId: test._id, result: "error",
+        latencyMs: Date.now() - startMs,
+        errorMessage: msg.slice(0, 200),
+      });
+    }
+    return;
+  }
+
   if (!test.testUsername || !test.testPassword) {
     const browserRef: { current: Browser | null } = { current: null };
     try {
@@ -491,107 +590,6 @@ export async function runBotTestSession(test: BotTest): Promise<void> {
         result: "login_failed",
         latencyMs: Date.now() - startMs,
         errorMessage: msg.slice(0, 600),
-      });
-    }
-    return;
-  }
-
-  // ─── Schengen : toujours intercepté ici, jamais dans le fallback Playwright ─
-  if (test.destination === "schengen") {
-
-    // ── Cas 1 : test complet VOWINT + CEV captcha (credentials + 2captcha) ──
-    if (test.testUsername && test.testPassword && test.twoCaptchaApiKey) {
-      console.log(`[navigator] Test Schengen → VOWINT login + CEV captcha (runCevCheck)`);
-      const fakeJob: HunterJob = {
-        id: `bot-test-${test._id}`,
-        destination: "schengen",
-        visaType: "test",
-        applicantName: `[TEST] schengen`,
-        travelDate: "",
-        urgencyTier: "standard",
-        slotBookingRefs: null,
-        hunterConfig: {
-          embassyUsername: test.testUsername,
-          embassyPassword: test.testPassword,
-          twoCaptchaApiKey: test.twoCaptchaApiKey,
-          isActive: true,
-        },
-        portalUrl: test.portalUrl,
-        portalName: test.portalName,
-        portalDashboardUrl: null,
-        portalAppointmentUrl: null,
-        portalScheduleUrl: null,
-        lastCheckAt: null,
-      };
-      try {
-        const cevResult = await runCevCheck(fakeJob);
-        const latencyMs = Date.now() - startMs;
-        console.log(`[navigator] Test Schengen (complet) — ${cevResult} (${latencyMs}ms)`);
-
-        let result: "login_success" | "portal_ok" | "login_failed" | "error";
-        let errorMessage: string | undefined;
-
-        if (cevResult === "slot_found" || cevResult === "not_found" || cevResult === "rate_limited") {
-          result = "login_success";
-          if (cevResult === "slot_found") errorMessage = "Note : créneaux disponibles détectés lors du test";
-          if (cevResult === "rate_limited") errorMessage = "VOWINT OK — limite CEV atteinte (4 clics/h), créneaux non vérifiés";
-        } else {
-          result = "login_failed";
-          errorMessage = "Échec VOWINT ou CEV (vérifiez les identifiants VOWINT et la clé 2captcha)";
-        }
-        await reportBotTestResult({ testId: test._id, result, latencyMs, httpStatus: 200, errorMessage });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[navigator] Erreur test Schengen (complet):`, msg);
-        await reportBotTestResult({
-          testId: test._id, result: "error",
-          latencyMs: Date.now() - startMs,
-          errorMessage: msg.slice(0, 600),
-        });
-      }
-      return;
-    }
-
-    // ── Cas 2 : ping HTTP fetch (sans 2captcha ou sans credentials) ───────────
-    console.log(`[navigator] Test Schengen → ping HTTP fetch (VOWINT + CEV)`);
-    const SCHENGEN_URLS = [
-      "https://app.vowint.eu/fowint/",
-      "https://appointment.cloud.diplomatie.be/Captcha",
-    ];
-    try {
-      let allOk = true;
-      let firstBadStatus: number | null = null;
-      let firstBadUrl = "";
-      for (const url of SCHENGEN_URLS) {
-        try {
-          const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-          if (res.status >= 500) {
-            allOk = false;
-            firstBadStatus = res.status;
-            firstBadUrl = url;
-            break;
-          }
-        } catch {
-          allOk = false;
-          firstBadUrl = url;
-          break;
-        }
-      }
-      const latencyMs = Date.now() - startMs;
-      if (allOk) {
-        console.log(`[navigator] Ping Schengen OK (${latencyMs}ms)`);
-        await reportBotTestResult({ testId: test._id, result: "portal_ok", latencyMs, httpStatus: 200 });
-      } else {
-        const msg = `Portail inaccessible : ${firstBadUrl}${firstBadStatus ? ` (HTTP ${firstBadStatus})` : ""}`;
-        console.warn(`[navigator] Ping Schengen FAIL — ${msg}`);
-        await reportBotTestResult({ testId: test._id, result: "portal_unreachable", latencyMs, errorMessage: msg });
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      await reportBotTestResult({
-        testId: test._id, result: "error",
-        latencyMs: Date.now() - startMs,
-        errorMessage: msg.slice(0, 200),
       });
     }
     return;
