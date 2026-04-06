@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Joventy — Palette de couleurs</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{
+    width:100vw;height:100vh;overflow:hidden;
+    font-family:'Plus Jakarta Sans',sans-serif;
+    background:#F7F9FC;
+    display:flex;flex-direction:column;
+  }
+
+  /* Header */
+  .header{
+    padding:4vw 5vw 3vw;
+    display:flex;align-items:center;justify-content:space-between;
+    flex-shrink:0;
+  }
+  .logo{display:flex;align-items:center;gap:1.8vw;}
+  .logo-box{
+    width:8vw;height:8vw;background:#F97316;border-radius:1.8vw;
+    display:flex;align-items:center;justify-content:center;overflow:hidden;
+  }
+  .logo-box img{width:5.5vw;height:5.5vw;object-fit:contain;filter:brightness(0) invert(1);}
+  .logo-name{font-size:5vw;font-weight:900;color:#1A3F96;letter-spacing:-0.03em;}
+  .header-title{font-size:2.8vw;font-weight:600;color:#6B7A94;letter-spacing:0.05em;text-transform:uppercase;}
+
+  /* Grid */
+  .palette-grid{
+    flex:1;
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    grid-template-rows:repeat(2,1fr);
+    gap:0;
+    overflow:hidden;
+  }
+
+  .swatch{
+    display:flex;flex-direction:column;justify-content:flex-end;
+    padding:3vw;
+    position:relative;
+  }
+  .swatch-name{
+    font-size:2.8vw;font-weight:700;
+    margin-bottom:0.8vw;
+    letter-spacing:0.02em;
+  }
+  .swatch-hex{
+    font-family:'Inter',monospace;
+    font-size:2.4vw;font-weight:500;
+    opacity:0.8;
+    margin-bottom:0.4vw;
+  }
+  .swatch-role{
+    font-size:2vw;font-weight:500;
+    opacity:0.6;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+  }
+
+  /* Colors */
+  .sw-primary  {background:#1A3F96;color:white;}
+  .sw-secondary{background:#F97316;color:white;}
+  .sw-accent   {background:#38BDF8;color:#0F1D3D;}
+  .sw-dark     {background:#0F1D3D;color:white;}
+  .sw-muted    {background:#EEF2F7;color:#0F1D3D;border-top:1px solid #D8E2EE;}
+  .sw-muted-fg {background:#6B7A94;color:white;}
+  .sw-border   {background:#D8E2EE;color:#0F1D3D;border-top:1px solid #D8E2EE;}
+  .sw-white    {background:#FFFFFF;color:#0F1D3D;border:1px solid #D8E2EE;}
+
+  /* Gradient band at bottom */
+  .gradient-band{
+    height:8vw;
+    display:flex;
+    flex-shrink:0;
+  }
+  .grad-swatch{flex:1;display:flex;align-items:center;justify-content:center;}
+  .grad-brand{
+    background:linear-gradient(135deg,#1A3F96 0%,#38BDF8 100%);
+  }
+  .grad-warm{
+    background:linear-gradient(135deg,#F97316 0%,#FBBF24 100%);
+  }
+  .grad-dark{
+    background:linear-gradient(135deg,#0F1D3D 0%,#1A3F96 100%);
+  }
+  .grad-label{
+    font-size:2.4vw;font-weight:700;color:white;
+    text-shadow:0 1px 4px rgba(0,0,0,0.3);
+    letter-spacing:0.04em;
+  }
+
+  /* Font row */
+  .font-row{
+    padding:2.5vw 5vw;
+    background:white;
+    border-top:1px solid #D8E2EE;
+    display:flex;align-items:center;gap:6vw;
+    flex-shrink:0;
+  }
+  .font-item{display:flex;flex-direction:column;gap:0.5vw;}
+  .font-label{font-size:2vw;font-weight:600;color:#6B7A94;text-transform:uppercase;letter-spacing:0.08em;}
+  .font-name{font-size:3.2vw;font-weight:700;color:#1A3F96;}
+  .font-sample{font-size:2.8vw;color:#0F1D3D;font-weight:400;}
+  .font-sample b{font-weight:900;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <div class="logo-box">
+      <img src="/__mockup/images/joventy-icon.png" alt="Joventy"/>
+    </div>
+    <span class="logo-name">Joventy</span>
+  </div>
+  <span class="header-title">Charte Couleurs</span>
+</div>
+
+<div class="palette-grid">
+  <div class="swatch sw-primary">
+    <div class="swatch-name">Primary</div>
+    <div class="swatch-hex">#1A3F96</div>
+    <div class="swatch-role">Bleu Marine · hsl(222 72% 34%)</div>
+  </div>
+  <div class="swatch sw-secondary">
+    <div class="swatch-name">Secondary</div>
+    <div class="swatch-hex">#F97316</div>
+    <div class="swatch-role">Orange · hsl(25 95% 53%)</div>
+  </div>
+  <div class="swatch sw-accent">
+    <div class="swatch-name">Accent</div>
+    <div class="swatch-hex">#38BDF8</div>
+    <div class="swatch-role">Bleu Ciel · hsl(199 89% 60%)</div>
+  </div>
+  <div class="swatch sw-dark">
+    <div class="swatch-name">Foreground</div>
+    <div class="swatch-hex">#0F1D3D</div>
+    <div class="swatch-role">Texte · hsl(222 47% 13%)</div>
+  </div>
+  <div class="swatch sw-muted">
+    <div class="swatch-name">Muted</div>
+    <div class="swatch-hex">#EEF2F7</div>
+    <div class="swatch-role">Fond doux · hsl(214 32% 94%)</div>
+  </div>
+  <div class="swatch sw-muted-fg">
+    <div class="swatch-name">Muted FG</div>
+    <div class="swatch-hex">#6B7A94</div>
+    <div class="swatch-role">Sous-texte · hsl(215 16% 48%)</div>
+  </div>
+  <div class="swatch sw-border">
+    <div class="swatch-name">Border</div>
+    <div class="swatch-hex">#D8E2EE</div>
+    <div class="swatch-role">Bordures · hsl(214 32% 89%)</div>
+  </div>
+  <div class="swatch sw-white">
+    <div class="swatch-name">Background</div>
+    <div class="swatch-hex">#F7F9FC</div>
+    <div class="swatch-role">Fond page · hsl(210 40% 98%)</div>
+  </div>
+</div>
+
+<div class="gradient-band">
+  <div class="grad-swatch grad-brand">
+    <span class="grad-label">Brand Gradient — #1A3F96 → #38BDF8</span>
+  </div>
+  <div class="grad-swatch grad-warm">
+    <span class="grad-label">Warm Gradient — #F97316 → #FBBF24</span>
+  </div>
+  <div class="grad-swatch grad-dark">
+    <span class="grad-label">Dark Gradient — #0F1D3D → #1A3F96</span>
+  </div>
+</div>
+
+<div class="font-row">
+  <div class="font-item">
+    <div class="font-label">Typographie</div>
+    <div class="font-name">Plus Jakarta Sans</div>
+  </div>
+  <div class="font-item">
+    <div class="font-label">Poids</div>
+    <div class="font-sample"><b>900 Black</b> · 700 Bold · 600 Semi · 400 Regular</div>
+  </div>
+  <div class="font-item">
+    <div class="font-label">Rayon</div>
+    <div class="font-sample">0.75rem (sm 0.5rem · lg 0.75rem · xl 1rem)</div>
+  </div>
+</div>
+
+</body>
+</html>
