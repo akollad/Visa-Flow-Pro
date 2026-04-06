@@ -1,0 +1,113 @@
+{
+  "colorScheme": "light",
+  "fonts": [
+    {
+      "family": "Arial",
+      "role": "body"
+    }
+  ],
+  "colors": {
+    "primary": "#EFFAFF",
+    "secondary": "#D8F3FE",
+    "accent": "#F69321",
+    "background": "#F8F8F8",
+    "textPrimary": "#000000",
+    "link": "#E4F7FE"
+  },
+  "typography": {
+    "fontFamilies": {
+      "primary": "Arial",
+      "heading": "Arial"
+    },
+    "fontStacks": {
+      "heading": [
+        "base-font"
+      ],
+      "body": [
+        "base-font"
+      ],
+      "paragraph": [
+        "base-font"
+      ]
+    },
+    "fontSizes": {
+      "h1": "30px",
+      "h2": "25px",
+      "body": "13px"
+    }
+  },
+  "spacing": {
+    "baseUnit": 4,
+    "borderRadius": "5px"
+  },
+  "components": {
+    "buttonPrimary": {
+      "background": "#F69321",
+      "textColor": "#FFFFFF",
+      "borderRadius": "7px",
+      "borderRadiusCorners": {
+        "topLeft": "7px",
+        "topRight": "7px",
+        "bottomRight": "7px",
+        "bottomLeft": "7px"
+      },
+      "shadow": "none"
+    }
+  },
+  "images": {
+    "logo": "File saved at: attached_assets/logo.webp",
+    "favicon": "File saved at: attached_assets/favicon.ico",
+    "ogImage": null,
+    "logoHref": "../index.php",
+    "logoAlt": "UAE"
+  },
+  "__llm_logo_reasoning": {
+    "selectedIndex": 0,
+    "reasoning": "Selected #0 because it is a medium-sized, visible logo that matches the favicon domain and is likely the main brand logo for 'Dubai (UAE) Visa'.",
+    "confidence": 0.8,
+    "source": "llm"
+  },
+  "__llm_button_reasoning": {
+    "primary": {
+      "index": 0,
+      "text": "View Sample Visa Copy For the better understanding click\n          here!!",
+      "reasoning": "The button with text 'View Sample Visa Copy For the better understanding click here!!' has a vibrant orange background (#F69321), which is a strong indicator of a primary call-to-action due to its visibility and prominence."
+    },
+    "secondary": {
+      "index": -1,
+      "text": "N/A",
+      "reasoning": "There is only one button detected, so no secondary button can be identified."
+    },
+    "confidence": 0.9
+  },
+  "personality": {
+    "tone": "professional",
+    "energy": "medium",
+    "targetAudience": "Travelers seeking visas to Dubai"
+  },
+  "designSystem": {
+    "framework": "custom",
+    "componentLibrary": ""
+  },
+  "confidence": {
+    "buttons": 0.9,
+    "colors": 0.9,
+    "overall": 0.9
+  },
+  "__llm_metadata": {
+    "logoSelection": {
+      "llmCalled": true,
+      "llmSucceeded": true,
+      "finalSource": "llm",
+      "rawLogoSelection": {
+        "selectedLogoIndex": 0,
+        "selectedLogoReasoning": "Selected #0 because it is a medium-sized, visible logo that matches the favicon domain and is likely the main brand logo for 'Dubai (UAE) Visa'.",
+        "confidence": 0.8
+      }
+    },
+    "buttonClassification": {
+      "llmCalled": true,
+      "llmSucceeded": true
+    }
+  }
+}
