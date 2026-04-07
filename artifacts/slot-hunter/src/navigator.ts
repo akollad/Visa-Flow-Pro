@@ -414,8 +414,8 @@ export async function runBotTestSession(test: BotTest): Promise<void> {
   // ─── Schengen : intercepté ICI avant le fallback Playwright ──────────────
   if (test.destination === "schengen") {
 
-    // Cas 1 : test complet VOWINT + CEV captcha (credentials + 2captcha)
-    if (test.testUsername && test.testPassword && test.twoCaptchaApiKey) {
+    // Cas 1 : test complet VOWINT + CEV captcha (credentials fournis — CapSolver depuis env si pas de clé)
+    if (test.testUsername && test.testPassword) {
       console.log(`[navigator] Test Schengen → VOWINT login + CEV captcha (runCevCheck)`);
       const fakeJob: HunterJob = {
         id: `bot-test-${test._id}`,
@@ -429,6 +429,9 @@ export async function runBotTestSession(test: BotTest): Promise<void> {
           embassyUsername: test.testUsername,
           embassyPassword: test.testPassword,
           twoCaptchaApiKey: test.twoCaptchaApiKey,
+          // Si l'utilisateur a saisi une clé dans le formulaire, l'utiliser comme clé CapSolver
+          // sinon cevBooking.ts utilisera automatiquement process.env.CAPSOLVER_API_KEY
+          capsolverApiKey: test.twoCaptchaApiKey || undefined,
           isActive: true,
         },
         portalUrl: test.portalUrl,
@@ -450,7 +453,7 @@ export async function runBotTestSession(test: BotTest): Promise<void> {
           if (cevResult === "rate_limited") errorMessage = "VOWINT OK — limite CEV atteinte (4 clics/h), créneaux non vérifiés";
         } else {
           result = "login_failed";
-          errorMessage = "Échec VOWINT ou CEV (vérifiez les identifiants VOWINT et la clé 2captcha)";
+          errorMessage = "Échec VOWINT ou CEV (vérifiez les identifiants VOWINT — CapSolver: process.env.CAPSOLVER_API_KEY)";
         }
         await reportBotTestResult({ testId: test._id, result, latencyMs, httpStatus: 200, errorMessage });
       } catch (err) {

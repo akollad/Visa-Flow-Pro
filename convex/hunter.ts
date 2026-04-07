@@ -289,6 +289,28 @@ export const checkTwoCaptchaBalanceRaw = action({
   },
 });
 
+export const checkCapsolverBalanceRaw = action({
+  args: { apiKey: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    requireAdmin(identity as { [key: string]: unknown } | null);
+
+    const res = await fetch("https://api.capsolver.com/getBalance", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientKey: args.apiKey.trim() }),
+    });
+
+    const data = await res.json() as { errorId: number; errorCode?: string; errorDescription?: string; balance?: number };
+
+    if (data.errorId !== 0) {
+      return { ok: false, error: data.errorDescription ?? data.errorCode ?? `CapSolver error ${data.errorId}`, balance: null };
+    }
+
+    return { ok: true, error: null, balance: data.balance ?? 0 };
+  },
+});
+
 export const pingPortal = action({
   args: { destination: v.string() },
   handler: async (ctx, args) => {
