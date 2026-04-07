@@ -123,6 +123,7 @@ export default function AdminBotTest() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const checkTwoCaptchaBalanceRaw = useAction(api.hunter.checkTwoCaptchaBalanceRaw);
   const checkCapsolverBalanceRaw = useAction(api.hunter.checkCapsolverBalanceRaw);
+  const checkAntiCaptchaBalanceRaw = useAction(api.hunter.checkAntiCaptchaBalanceRaw);
   const [captchaBalance, setCaptchaBalance] = useState<{ value: string; ok: boolean } | null>(null);
   const [captchaBalanceLoading, setCaptchaBalanceLoading] = useState(false);
 
@@ -132,8 +133,9 @@ export default function AdminBotTest() {
     setCaptchaBalance(null);
     try {
       const isSchengen = testForm.destination === "schengen";
+      // Schengen → Anti-Captcha (CapSolver blackliste la sitekey CEV)
       const result = isSchengen
-        ? await checkCapsolverBalanceRaw({ apiKey: testForm.captchaKey.trim() })
+        ? await checkAntiCaptchaBalanceRaw({ apiKey: testForm.captchaKey.trim() })
         : await checkTwoCaptchaBalanceRaw({ apiKey: testForm.captchaKey.trim() });
       if (result.ok && result.balance !== null) {
         setCaptchaBalance({
@@ -360,7 +362,7 @@ export default function AdminBotTest() {
 
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">
-                {testForm.destination === "schengen" ? "Clé CapSolver" : "Clé 2Captcha"}{" "}
+                {testForm.destination === "schengen" ? "Clé Anti-Captcha" : "Clé 2Captcha"}{" "}
                 <span className="text-muted-foreground font-normal">(optionnel)</span>
               </label>
               <div className="flex gap-2 items-center">
@@ -371,7 +373,7 @@ export default function AdminBotTest() {
                     setTestForm((f) => ({ ...f, captchaKey: e.target.value }));
                     setCaptchaBalance(null);
                   }}
-                  placeholder={testForm.destination === "schengen" ? "Clé API capsolver.com (vide = env serveur)" : "API key 2captcha.com"}
+                  placeholder={testForm.destination === "schengen" ? "Clé API anti-captcha.com (vide = env serveur)" : "API key 2captcha.com"}
                   className="flex-1 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-secondary/30"
                 />
                 <button
@@ -443,9 +445,11 @@ export default function AdminBotTest() {
                   <br />
                   <strong>Sans identifiants :</strong> ping HTTP — accessibilité portail CEV depuis le serveur du bot.
                   <br />
-                  <strong>Avec identifiants VOWINT :</strong> test complet — connexion VOWINT → clic « Prendre rendez-vous » → résolution hCaptcha <strong>(CapSolver depuis env serveur ✅)</strong> → vérification disponibilité CEV (~0,003 $).
+                  <strong>Avec identifiants VOWINT :</strong> test complet — connexion VOWINT → clic « Prendre rendez-vous » → résolution hCaptcha <strong>(Anti-Captcha depuis env serveur ✅)</strong> → vérification disponibilité CEV (~0,002 $).
                   <br />
-                  <span className="text-indigo-500">Clé CapSolver optionnelle — si vide, la clé <code className="bg-indigo-100 px-0.5 rounded">CAPSOLVER_API_KEY</code> du serveur est utilisée automatiquement.</span>
+                  <span className="text-indigo-500">Clé Anti-Captcha optionnelle — si vide, la clé <code className="bg-indigo-100 px-0.5 rounded">ANTICAPTCHA_API_KEY</code> du serveur est utilisée automatiquement.</span>
+                  <br />
+                  <span className="text-amber-600 text-xs">⚠️ CapSolver bloqué pour cette sitekey — utiliser <strong>anti-captcha.com</strong> uniquement pour le CEV.</span>
                 </p>
               </div>
             </div>

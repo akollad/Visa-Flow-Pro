@@ -468,8 +468,10 @@ async function extractConfirmationCode(page: Page): Promise<string | null> {
  *  2. 2captcha HCaptchaTaskProxyless — fallback si CapSolver absent
  *  3. 2captcha HCaptchaTask avec proxy — fallback si proxyless non disponible
  *
- * Note : le compte 2captcha actuel (mai 2026) ne supporte PAS hCaptcha.
- * Configurer CAPSOLVER_API_KEY pour activer la résolution.
+ * Ordre de priorité :
+ *  1. Anti-Captcha (ANTICAPTCHA_API_KEY) — supporte les domaines gouvernementaux
+ *  2. CapSolver    (CAPSOLVER_API_KEY)    — note: sitekey CEV blacklistée en 2026-04
+ *  3. 2captcha     (twoCaptchaApiKey)     — note: compte actuel ne supporte pas hCaptcha
  */
 async function solveHcaptcha(
   twoCaptchaApiKey: string,
@@ -481,7 +483,17 @@ async function solveHcaptcha(
 
   botLog({ applicationId: clientId, step: 'cev_hcaptcha_solve_start', status: 'ok' });
 
-  // ─── Tentative 1 : CapSolver ─────────────────────────────────────────────
+  // ─── Tentative 1 : Anti-Captcha (priorité — domaines gouvernementaux supportés) ──
+  const antiKey = process.env.ANTICAPTCHA_API_KEY ?? '';
+  if (antiKey) {
+    botLog({ applicationId: clientId, step: 'cev_hcaptcha_anticaptcha_start', status: 'ok' });
+    const token = await solveHcaptchaViaAntiCaptcha(antiKey, HCAPTCHA_SITE_KEY, PAGE_URL, clientId);
+    if (token) return token;
+    botLog({ applicationId: clientId, step: 'cev_hcaptcha_anticaptcha_fail_fallback', status: 'warn' });
+  }
+
+  // ─── Tentative 2 : CapSolver ─────────────────────────────────────────────
+  // Note : sitekey CEV blacklistée par CapSolver en 2026-04 — fallback seulement
   const capKey = capsolverApiKey ?? process.env.CAPSOLVER_API_KEY ?? '';
   if (capKey) {
     botLog({ applicationId: clientId, step: 'cev_hcaptcha_capsolver_start', status: 'ok' });
@@ -490,20 +502,92 @@ async function solveHcaptcha(
     botLog({ applicationId: clientId, step: 'cev_hcaptcha_capsolver_fail_fallback', status: 'warn' });
   }
 
-  // ─── Tentative 2 : 2captcha HCaptchaTaskProxyless ────────────────────────
+  // ─── Tentative 3 : 2captcha HCaptchaTaskProxyless ────────────────────────
   if (twoCaptchaApiKey) {
     botLog({ applicationId: clientId, step: 'cev_hcaptcha_2captcha_start', status: 'ok' });
     const token = await solveHcaptchaVia2captcha(twoCaptchaApiKey, HCAPTCHA_SITE_KEY, PAGE_URL, clientId);
     if (token) return token;
   }
 
-  botLog({ applicationId: clientId, step: 'cev_hcaptcha_all_failed', status: 'fail', data: { hint: 'Set CAPSOLVER_API_KEY — 2captcha HCaptcha not available on this account' } });
+  botLog({ applicationId: clientId, step: 'cev_hcaptcha_all_failed', status: 'fail', data: { hint: 'Configurer ANTICAPTCHA_API_KEY (anti-captcha.com) — CapSolver blackliste cette sitekey; 2captcha ne supporte pas hCaptcha sur ce compte' } });
   return null;
+}
+
+/**
+ * Résolution hCaptcha via Anti-Captcha (https://anti-captcha.com).
+ * API identique à CapSolver. Supporte les domaines gouvernementaux.
+ * ~30-60s pour une résolution. Coût ~0.002 $ par résolution.
+ */
+async function solveHcaptchaViaAntiCaptcha(
+  apiKey: string,
+  siteKey: string,
+  pageUrl: string,
+  clientId: string,
+): Promise<string | null> {
+  try {
+    const createRes = await fetch('https://api.anti-captcha.com/createTask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientKey: apiKey,
+        task: {
+          type: 'HCaptchaTaskProxyless',
+          websiteURL: pageUrl,
+          websiteKey: siteKey,
+        },
+      }),
+    });
+
+    const createData = await createRes.json() as { errorId: number; errorCode?: string; taskId?: number };
+    if (createData.errorId !== 0 || !createData.taskId) {
+      botLog({ applicationId: clientId, step: 'cev_anticaptcha_create_fail', status: 'fail', data: { error: createData.errorCode ?? createData.errorId } });
+      return null;
+    }
+
+    const taskId = createData.taskId;
+    botLog({ applicationId: clientId, step: 'cev_anticaptcha_task_created', status: 'ok', data: { taskId } });
+
+    // Poller jusqu'à résolution (max 120s, intervalle 5s)
+    for (let i = 0; i < 24; i++) {
+      await new Promise(r => setTimeout(r, 5_000));
+
+      const pollRes = await fetch('https://api.anti-captcha.com/getTaskResult', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientKey: apiKey, taskId }),
+      });
+
+      const pollData = await pollRes.json() as {
+        errorId: number;
+        status: 'processing' | 'ready';
+        solution?: { gRecaptchaResponse?: string };
+        errorCode?: string;
+      };
+
+      if (pollData.errorId !== 0) {
+        botLog({ applicationId: clientId, step: 'cev_anticaptcha_poll_fail', status: 'fail', data: { error: pollData.errorCode ?? pollData.errorId } });
+        return null;
+      }
+
+      if (pollData.status === 'ready' && pollData.solution?.gRecaptchaResponse) {
+        botLog({ applicationId: clientId, step: 'cev_anticaptcha_solved', status: 'ok', data: { attempts: i + 1, tokenLen: pollData.solution.gRecaptchaResponse.length } });
+        return pollData.solution.gRecaptchaResponse;
+      }
+    }
+
+    botLog({ applicationId: clientId, step: 'cev_anticaptcha_timeout', status: 'fail' });
+    return null;
+
+  } catch (err) {
+    botLog({ applicationId: clientId, step: 'cev_anticaptcha_exception', status: 'fail', data: { error: String(err) } });
+    return null;
+  }
 }
 
 /**
  * Résolution hCaptcha via CapSolver (https://capsolver.com).
  * Supporte hCaptcha proxyless nativement. ~30-60s pour une résolution.
+ * Note : sitekey CEV (5f64399c-...) blacklistée par CapSolver en 2026-04.
  */
 async function solveHcaptchaViaCapsolver(
   apiKey: string,

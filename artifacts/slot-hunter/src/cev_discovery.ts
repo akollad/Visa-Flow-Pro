@@ -9,7 +9,10 @@ import { join } from 'path';
 
 const VOWINT_USER = 'screentapinc@gmail.com';
 const VOWINT_PASS = process.env.VOWINT_TEST_PASSWORD!.trim();
-const TWO_CAPTCHA_KEY = process.env.TWOCAPTCHA_API_KEY!.trim();
+// Anti-Captcha en priorité (supporte les domaines gouvernementaux)
+// CapSolver blackliste la sitekey CEV 5f64399c-14a8-415e-ad1a-7ebccdc4943a
+const ANTICAPTCHA_KEY = process.env.ANTICAPTCHA_API_KEY?.trim() ?? '';
+const CAPSOLVER_KEY = process.env.CAPSOLVER_API_KEY?.trim() ?? '';
 const CEV_BASE = 'https://appointment.cloud.diplomatie.be';
 const VOWINT_BASE = 'https://visaonweb.diplomatie.be';
 const SCREENSHOTS_DIR = '/tmp/cev_screenshots';
@@ -52,55 +55,93 @@ async function takeScreenshot(page: Page, label: string) {
   return path;
 }
 
-// ==================== SOLVE HCAPTCHA VIA 2CAPTCHA ====================
+// ==================== SOLVE HCAPTCHA (Anti-Captcha → CapSolver fallback) ====================
 
-async function solveHcaptcha(sitekey: string, pageUrl: string): Promise<string | null> {
-  log('[2captcha] Soumission hCaptcha...');
+async function solveHcaptchaViaService(
+  serviceLabel: string,
+  apiBase: string,
+  apiKey: string,
+  sitekey: string,
+  pageUrl: string,
+): Promise<string | null> {
+  log(`[${serviceLabel}] Soumission hCaptcha HCaptchaTaskProxyless...`);
 
-  const submitRes = await fetch('http://2captcha.com/in.php', {
+  const createRes = await fetch(`${apiBase}/createTask`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      key: TWO_CAPTCHA_KEY,
-      method: 'hcaptcha',
-      sitekey,
-      pageurl: pageUrl,
-      json: '1',
-    }).toString(),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      clientKey: apiKey,
+      task: { type: 'HCaptchaTaskProxyless', websiteURL: pageUrl, websiteKey: sitekey },
+    }),
   });
 
-  const submitData = await submitRes.json() as { status: number; request: string };
-  log(`[2captcha] Submit → status=${submitData.status} id=${submitData.request}`);
+  const createData = await createRes.json() as { errorId: number; taskId?: string; errorCode?: string; errorDescription?: string };
+  log(`[${serviceLabel}] createTask → errorId=${createData.errorId} taskId=${createData.taskId ?? 'N/A'}`);
 
-  if (submitData.status !== 1) {
-    note('2captcha Erreur soumission', `status=${submitData.status} response=${submitData.request}`);
+  if (createData.errorId !== 0 || !createData.taskId) {
+    note(`${serviceLabel} Erreur création task`, `errorId=${createData.errorId}\ncode=${createData.errorCode}\ndesc=${createData.errorDescription}`);
     return null;
   }
 
-  const captchaId = submitData.request;
-  note('hCaptcha soumis', `ID: ${captchaId}\nSitekey: ${sitekey}\nPage: ${pageUrl}`);
+  const taskId = createData.taskId;
+  note(`hCaptcha soumis via ${serviceLabel}`, `TaskID: ${taskId}\nSitekey: ${sitekey}\nPage: ${pageUrl}`);
 
-  // Poll jusqu'à 120s
+  // Poll jusqu'à 120s (24 × 5s)
   for (let i = 0; i < 24; i++) {
     await new Promise(r => setTimeout(r, 5000));
-    const pollRes = await fetch(`http://2captcha.com/res.php?key=${TWO_CAPTCHA_KEY}&action=get&id=${captchaId}&json=1`);
-    const pollData = await pollRes.json() as { status: number; request: string };
 
-    if (pollData.status === 1) {
-      log(`[2captcha] Résolu en ${(i + 1) * 5}s — token: ${pollData.request.slice(0, 40)}...`);
-      note('hCaptcha résolu ✅', `Tentatives: ${i + 1} (${(i + 1) * 5}s)\nToken: ${pollData.request.slice(0, 60)}...`);
-      return pollData.request;
-    }
+    const pollRes = await fetch(`${apiBase}/getTaskResult`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientKey: apiKey, taskId }),
+    });
 
-    if (pollData.request !== 'CAPCHA_NOT_READY') {
-      note('2captcha Erreur poll', `response=${pollData.request}`);
+    const pollData = await pollRes.json() as {
+      errorId: number;
+      status: string;
+      solution?: { gRecaptchaResponse?: string; userAgent?: string };
+      errorDescription?: string;
+    };
+
+    if (pollData.errorId !== 0) {
+      note(`${serviceLabel} Erreur poll`, `errorId=${pollData.errorId} desc=${pollData.errorDescription}`);
       return null;
     }
 
-    log(`[2captcha] Pas encore prêt (${(i + 1) * 5}s)...`);
+    if (pollData.status === 'ready' && pollData.solution?.gRecaptchaResponse) {
+      const token = pollData.solution.gRecaptchaResponse;
+      log(`[${serviceLabel}] Résolu en ${(i + 1) * 5}s — token: ${token.slice(0, 50)}...`);
+      note(`hCaptcha résolu via ${serviceLabel} ✅`, `Tentatives: ${i + 1} (${(i + 1) * 5}s)\nToken (60 chars): ${token.slice(0, 60)}...\nUserAgent: ${pollData.solution.userAgent ?? 'N/A'}`);
+      return token;
+    }
+
+    log(`[${serviceLabel}] status=${pollData.status} — attente ${(i + 1) * 5}s...`);
   }
 
-  note('2captcha Timeout', 'hCaptcha non résolu en 120s');
+  note(`${serviceLabel} Timeout`, 'hCaptcha non résolu en 120s');
+  return null;
+}
+
+async function solveHcaptcha(sitekey: string, pageUrl: string): Promise<string | null> {
+  // Priorité 1 : Anti-Captcha (anti-captcha.com) — supporte les domaines gouvernementaux
+  if (ANTICAPTCHA_KEY) {
+    log('[DISCOVERY] Tentative Anti-Captcha (priorité 1)...');
+    const token = await solveHcaptchaViaService('Anti-Captcha', 'https://api.anti-captcha.com', ANTICAPTCHA_KEY, sitekey, pageUrl);
+    if (token) return token;
+    log('[DISCOVERY] Anti-Captcha échoué — fallback CapSolver...');
+  } else {
+    log('[DISCOVERY] ANTICAPTCHA_API_KEY absent — skip Anti-Captcha');
+  }
+
+  // Priorité 2 : CapSolver (blackliste sitekey CEV, mais on essaie quand même)
+  if (CAPSOLVER_KEY) {
+    log('[DISCOVERY] Tentative CapSolver (fallback)...');
+    const token = await solveHcaptchaViaService('CapSolver', 'https://api.capsolver.com', CAPSOLVER_KEY, sitekey, pageUrl);
+    if (token) return token;
+    log('[DISCOVERY] CapSolver échoué.');
+  }
+
+  note('ÉCHEC résolution hCaptcha', 'CapSolver blackliste la sitekey CEV (5f64399c-...).\nConfigurer ANTICAPTCHA_API_KEY via anti-captcha.com.');
   return null;
 }
 
@@ -108,7 +149,8 @@ async function solveHcaptcha(sitekey: string, pageUrl: string): Promise<string |
 
 log('=== CEV Discovery Script démarrage ===');
 log(`Credentials: ${VOWINT_USER}`);
-log(`2captcha key: ${TWO_CAPTCHA_KEY ? TWO_CAPTCHA_KEY.slice(0, 6) + '...' : 'ABSENT'}`);
+log(`Anti-Captcha key: ${ANTICAPTCHA_KEY ? ANTICAPTCHA_KEY.slice(0, 6) + '...' : 'ABSENT ⚠️ (recommandé)'}`);
+log(`CapSolver key: ${CAPSOLVER_KEY ? CAPSOLVER_KEY.slice(0, 6) + '...' : 'ABSENT'} (note: sitekey CEV blacklistée)`);
 
 const browser = await chromium.launch({
   headless: true,
@@ -294,7 +336,7 @@ const HCAPTCHA_SITEKEY = '5f64399c-14a8-415e-ad1a-7ebccdc4943a';
 const hcaptchaToken = await solveHcaptcha(HCAPTCHA_SITEKEY, cevUrl);
 
 if (!hcaptchaToken) {
-  note('hCaptcha ÉCHEC', 'Token non obtenu — vérifier clé 2captcha et balance');
+  note('hCaptcha ÉCHEC', 'Token non obtenu — vérifier clé CapSolver et solde (capsolver.com)');
   await browser.close();
   process.exit(1);
 }
@@ -303,14 +345,18 @@ if (!hcaptchaToken) {
 
 log('\n=== ÉTAPE 5 : POST /Captcha/SetCaptchaToken ===');
 
-// Option A: Via fetch depuis la page CEV (même contexte, mêmes cookies)
+// Via fetch depuis la page CEV (même contexte, cookies automatiques via credentials:include)
+// Body URL-encoded avec le champ "captcha" (reverse-engineered du bundle JS)
 const captchaResult = await cevPage.evaluate(async ({ token, cookieStr }: { token: string; cookieStr: string }) => {
-  const formData = new FormData();
-  formData.append('HCaptchaToken', token);
+  const body = new URLSearchParams({ captcha: token }).toString();
 
   const res = await fetch('/Captcha/SetCaptchaToken', {
     method: 'POST',
-    body: formData,
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+    body,
     credentials: 'include',
   });
 
